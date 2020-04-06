@@ -39,6 +39,7 @@ clonotyping <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_combined.Robj",
   ### if the "cdr3_aa" are exactly the same, they are the same clonotype
   ### just ignore rows that are unique across all the rows - we are not interested in those
   Seurat_Obj@meta.data$global_clonotype_strict <- NA
+  Seurat_Obj@meta.data$global_cdr3_aa_strict <- NA
   dup_idx <- intersect(which(duplicated(Seurat_Obj@meta.data$cdr3_aa)), which(!is.na(Seurat_Obj@meta.data$cdr3_aa)))
   ### the unique "cdr3_aa" sequences that exist more than 1 
   unique_dup_seqs <- unique(Seurat_Obj@meta.data$cdr3_aa[dup_idx])
@@ -46,6 +47,37 @@ clonotyping <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_combined.Robj",
   for(i in 1:length(unique_dup_seqs)) {
     idx <- which(Seurat_Obj@meta.data$cdr3_aa == unique_dup_seqs[i])
     Seurat_Obj@meta.data$global_clonotype_strict[idx] <- paste0("clonotype", i)
+    Seurat_Obj@meta.data$global_cdr3_aa_strict[idx] <- unique_dup_seqs[i]
+  }
+  
+  ### lenient version of global clonotypes
+  ### remove 1-UMI chains and non-productive chains
+  ### TCRB should be the same but we can give flexibility to TCRA
+  ### which means we will compare the TCRB chains only for the clonotyping
+  
+  ### only retain productive TCRB chains that are supported by more than 1 UMIs
+  cdr3 <- strsplit(Seurat_Obj@meta.data[,"cdr3_aa"], split = ";", fixed = TRUE)
+  productive <- strsplit(Seurat_Obj@meta.data[,"tcr_productive"], split = ";", fixed = TRUE)
+  tcr_umis <- strsplit(Seurat_Obj@meta.data[,"tcr_umis"], split = ";", fixed = TRUE)
+  tcr_b <- sapply(1:length(cdr3), function(x) {
+    return(paste(cdr3[[x]][intersect(intersect(grep("TRB", cdr3[[x]]),
+                                               which(productive[[x]] == "True")),
+                                     which(as.numeric(tcr_umis[[x]]) > 1))],
+                 collapse = ";"))
+  })
+  
+  ### lenient version of global clonotypes
+  ### just ignore rows that are unique across all the rows - we are not interested in those
+  Seurat_Obj@meta.data$global_clonotype_lenient <- NA
+  Seurat_Obj@meta.data$global_cdr3_aa_lenient <- NA
+  dup_idx <- intersect(which(duplicated(tcr_b)), which(tcr_b != ""))
+  ### the unique TCRB sequences that exist more than 1 
+  unique_dup_seqs <- unique(tcr_b[dup_idx])
+  ### give clonotypes
+  for(i in 1:length(unique_dup_seqs)) {
+    idx <- which(tcr_b == unique_dup_seqs[i])
+    Seurat_Obj@meta.data$global_clonotype_lenient[idx] <- paste0("clonotype", i)
+    Seurat_Obj@meta.data$global_cdr3_aa_lenient[idx] <- unique_dup_seqs[i]
   }
   
   ### change the object name to the original one
