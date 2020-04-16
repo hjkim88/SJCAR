@@ -37,7 +37,7 @@ for(cdr3 in target_seqs) {
 }
 
 ### make an empty matrix for the result
-result_mat <- matrix(NA, length(target_seqs), gmp_max+wk1_max)
+result_mat <- matrix("", length(target_seqs), gmp_max+wk1_max)
 rownames(result_mat) <- target_seqs
 colnames(result_mat) <- c(paste0(rep("GMP_", gmp_max), 1:gmp_max), paste0(rep("Wk1_", wk1_max), 1:wk1_max))
 
@@ -51,14 +51,21 @@ for(cdr3 in target_seqs) {
                        which(JCC212_Px5@meta.data$Time == "Wk1"))
   
   ### GMP
-  for(i in length(gmp_idx)) {
-    result_mat[cdr3,i] <- JCC212_Px5@meta.data$global_clonotype_strict[gmp_idx[i]]
+  if(length(gmp_idx) > 0) {
+    for(i in 1:length(gmp_idx)) {
+      result_mat[cdr3,i] <- JCC212_Px5@meta.data$cdr3_nt[gmp_idx[i]]
+    }
   }
   ### Wk1
-  for(i in length(wk1_idx)) {
-    result_mat[cdr3,i+length(gmp_idx)] <- JCC212_Px5@meta.data$global_clonotype_strict[wk1_idx[i]]
+  if(length(wk1_idx) > 0) {
+    for(i in 1:length(wk1_idx)) {
+      result_mat[cdr3,i+gmp_max] <- JCC212_Px5@meta.data$cdr3_nt[wk1_idx[i]]
+    }
   }
 }
 
-
-
+### save the table
+write.xlsx2(data.frame(barcode=rownames(result_mat), result_mat,
+                       stringsAsFactors = FALSE, check.names = FALSE),
+            file = "./results/tracking_common_cdr3_nts.xlsx",
+            row.names = FALSE)
