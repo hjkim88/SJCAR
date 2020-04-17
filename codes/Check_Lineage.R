@@ -65,7 +65,7 @@ for(cdr3 in target_seqs) {
 }
 
 ### save the table
-write.xlsx2(data.frame(barcode=rownames(result_mat), result_mat,
+write.xlsx2(data.frame(single_cdr3_nt=rownames(result_mat), result_mat,
                        stringsAsFactors = FALSE, check.names = FALSE),
             file = "./results/tracking_common_cdr3_nts.xlsx",
             row.names = FALSE)
