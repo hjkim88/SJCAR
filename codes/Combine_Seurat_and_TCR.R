@@ -13,15 +13,14 @@
 #
 #   Example
 #               > source("The_directory_of_Combine_Seurat_and_TCR.R/Combine_Seurat_and_TCR.R")
-#               > dir_list <- list.dirs("C:/Users/hkim8/SJ/SJCAR19-05/SJCAR19-05_TCR/", recursive = FALSE)
 #               > combineSeuratNTCR(Seurat_RObj_path="./data/JCC212_Px5.Robj",
-#                                   TCR_data_dirs=dir_list,
+#                                   TCR_data_dirs="C:/Users/hkim8/SJ/SJCAR19/TCRoutputs/",
 #                                   outFilePath="./data/JCC212_Px5_TCR_combined.Robj")
 ###
 
-combineSeuratNTCR <- function(Seurat_RObj_path="./data/JCC212_Px5.Robj",
-                              TCR_data_dirs,
-                              outFilePath="./data/JCC212_Px5_TCR_combined.Robj") {
+combineSeuratNTCR <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress.Robj",
+                              TCR_data_dirs="C:/Users/hkim8/SJ/SJCAR19/TCRoutputs/",
+                              outFilePath="./data/JCC212_21Feb2020Aggreg_regress_TCR_combined.Robj") {
   
   ### load library
   if(!require(Seurat, quietly = TRUE)) {
@@ -37,12 +36,25 @@ combineSeuratNTCR <- function(Seurat_RObj_path="./data/JCC212_Px5.Robj",
   rm(tmp_env)
   gc()
   
+  ### get TCR info file paths
+  TCR_data_dirs <- list.files(path = TCR_data_dirs, pattern = "filtered_contig_annotations.csv$",
+                              full.names = TRUE, recursive = TRUE)
+  
+  ### there are two cases of duplicated files that are for exactly the same condition 
+  ### [32] 1757058_JCC212_HealthyDonor32_PreTrans_TCR_filtered_contig_annotations.csv
+  ### [44] 1757070_JCC212_HealthyDonor32_PreTrans_TCR_filtered_contig_annotations.csv
+  ### [33] 1757059_JCC212_HealthyDonor33_PreTrans_TCR_filtered_contig_annotations.csv
+  ### [45] 1757071_JCC212_HealthyDonor33_PreTrans_TCR_filtered_contig_annotations.csv
+  ### I manually checked that the [44] and the [45] have the same libraries (barcodes) as the GEX data (Seurat object)
+  ### so, remove the [32] and the [33] here
+  TCR_data_dirs <- TCR_data_dirs[-c(32, 33)]
+  
   ### for each TCR data combine them to the Seurat object
   tcr <- NULL
   for(i in 1:length(TCR_data_dirs)) {
     
     ### load filtered contig annotation data
-    tcr_data <- read.csv(file = paste0(TCR_data_dirs[i], "/filtered_contig_annotations.csv"),
+    tcr_data <- read.csv(file = TCR_data_dirs[i],
                          stringsAsFactors = FALSE, check.names = FALSE)
     
     ### remove the -* at the end of each barcode.
@@ -55,8 +67,8 @@ combineSeuratNTCR <- function(Seurat_RObj_path="./data/JCC212_Px5.Robj",
     tcr_data <- tcr_data[!duplicated(tcr_data[c("barcode", "cdr3")]),]
     
     ### order by "chain" so that TRA rows come first than TRB rows
-    ### and secondly, order by "CDR3 Amino Acid" sequence
-    tcr_data <- tcr_data[order(as.character(tcr_data$chain), as.character(tcr_data$cdr3)),]
+    ### and secondly, order by "CDR3 Nucleotide" sequence
+    tcr_data <- tcr_data[order(as.character(tcr_data$chain), as.character(tcr_data$cdr3_nt)),]
     
     ### annotate TRA & TRB info to the cdr3 sequences
     tcr_data$cdr3 <- paste0(tcr_data$chain, ":", tcr_data$cdr3)
@@ -82,20 +94,29 @@ combineSeuratNTCR <- function(Seurat_RObj_path="./data/JCC212_Px5.Robj",
     tcr_data <- tcr_data[,c("barcode", "raw_clonotype_id", "cdr3", "cdr3_nt", "reads", "umis", "productive")]
     colnames(tcr_data) <- c("barcode", "raw_clonotype_id", "cdr3_aa", "cdr3_nt", "tcr_reads", "tcr_umis", "tcr_productive")
     
-    ### add time info
-    temp <- strsplit(basename(TCR_data_dirs[i]), split = "_", fixed = TRUE)[[1]][-c(1,2,3)]
+    ### add time & patient info
+    temp <- strsplit(basename(TCR_data_dirs[i]), split = "_", fixed = TRUE)[[1]]
+    px <- temp[3]
+    temp <- temp[-c(1,2,3)]
     if(temp[1] == "PB" || temp[1] == "BM") {
       tcr_data$time <- temp[2]
       tcr_data$type <- temp[1]
-    } else if(grepl("GMP", temp[1])) {
+      tcr_data$px <- px
+    } else if(grepl("GMP", temp[1]) || grepl("GMP", px)) {
       tcr_data$time <- "GMP"
       tcr_data$type <- "GMP"
+      tcr_data$px <- paste0("SJCAR19-Donor", substring(px, 9))
     } else if(temp[2] == "PB" || temp[2] == "BM") {
       tcr_data$time <- temp[1]
       tcr_data$type <- temp[2]
+      tcr_data$px <- px
     } else {
       tcr_data$time <- temp[1]
       tcr_data$type <- "PB"
+      tcr_data$px <- px
+    }
+    if(grepl("HealthyDonor", px)) {
+      tcr_data$px <- paste0("SJCAR19-Donor", substring(px, 13))
     }
     
     ### combine the TCR data for all the data
@@ -107,15 +128,42 @@ combineSeuratNTCR <- function(Seurat_RObj_path="./data/JCC212_Px5.Robj",
     
   }
   
+  ### annotate library info
+  tcr$library <- paste("JCC212", tcr$px, tcr$time, tcr$type, sep = "_")
+  idx <- grep("Donor", tcr$px)
+  tcr$library[idx] <- paste("JCC212", tcr$px[idx], tcr$time[idx], sep = "_")
+  ### there are inconsistent naming between the GEX and the TCR
+  ### there is no rule/consistency for that, so I have to manually change them all
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-Donor02_GMP")] <- "JCC212_SJCAR19-02_GMP"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-Donor00_GMP")] <- "JCC212_SJCAR19-00_GMP"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-Donor01_GMP")] <- "JCC212_SJCAR19-01_GMP"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-Donor03_GMP")] <- "JCC212_SJCAR19-03_GMP"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-Donor04_GMP")] <- "JCC212_SJCAR19-04_GMP"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-02_PreTrans_PB")] <- "JCC212_SJCAR19-02_PreTrans"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-Donor32_PreTrans")] <- "JCC212_SJCAR19-Donor32_PreTransB"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-Donor33_PreTrans")] <- "JCC212_SJCAR19-Donor33_PreTransB"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-03_PreTrans_PB")] <- "JCC212_SJCAR19-03_PreTransB"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-04_PreTrans_PB")] <- "JCC212_SJCAR19-04_PreTransB"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-00_PreTrans_PB")] <- "JCC212_SJCAR19-00_PreTransB"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-05_PreTrans_PB")] <- "JCC212_SJCAR19-05_PreTransB"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-Donor30_PreTrans")] <- "JCC212_SJCAR19-Donor30_PreTransB"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-Donor05_GMP")] <- "JCC212_SJCAR19-05_GMP"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-06_PreTrans_PB")] <- "JCC212_SJCAR19-06_PreTrans"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-Donor07_GMP")] <- "JCC212_SJCAR19-07_GMP19047"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-Donor02_GMP")] <- "JCC212_SJCAR19-02_GMP"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-Donor02_GMP")] <- "JCC212_SJCAR19-02_GMP"
+  tcr$library[which(tcr$library == "JCC212_SJCAR19-Donor06_GMP")] <- "JCC212_SJCAR19-06_GMP"
+  
+  
   ### attach the TCR info to the metadata of the Seurat object
   obj_colnames <- colnames(Seurat_Obj@meta.data)
   tcr_colnames <- colnames(tcr)
   Seurat_Obj@meta.data <- merge(Seurat_Obj@meta.data,
                                 tcr,
-                                by.x = c("GexCellShort", "Time", "Type"),
-                                by.y = c("barcode", "time", "type"),
+                                by.x = c("GexCellShort", "Library"),
+                                by.y = c("barcode", "library"),
                                 all.x = TRUE)
-  Seurat_Obj@meta.data <- Seurat_Obj@meta.data[,c(obj_colnames, setdiff(tcr_colnames, c("barcode", "time", "type")))]
+  Seurat_Obj@meta.data <- Seurat_Obj@meta.data[,c(obj_colnames, setdiff(tcr_colnames, c("barcode", "time", "type", "px", "library")))]
   rownames(Seurat_Obj@meta.data) <- Seurat_Obj@meta.data[,"GexCellFull"]
   
   ### change the object name to the original one
