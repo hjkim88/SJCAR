@@ -13,12 +13,12 @@
 #
 #   Example
 #               > source("The_directory_of_TCR_Clonotyping.R/TCR_Clonotyping.R")
-#               > clonotyping(Seurat_RObj_path="./data/JCC212_Px5_TCR_combined.Robj",
-#                             outRobjPath="./data/JCC212_Px5_TCR_clonotyped.Robj")
+#               > clonotyping(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_TCR_combined.Robj",
+#                             outRobjPath="./data/JCC212_21Feb2020Aggreg_regress_TCR_clonotyped.Robj")
 ###
 
-clonotyping <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_combined.Robj",
-                        outRobjPath="./data/JCC212_Px5_TCR_clonotyped.Robj") {
+clonotyping <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_TCR_combined.Robj",
+                        outRobjPath="./data/JCC212_21Feb2020Aggreg_regress_TCR_clonotyped.Robj") {
   
   ### load library
   if(!require(Seurat, quietly = TRUE)) {
@@ -34,51 +34,135 @@ clonotyping <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_combined.Robj",
   rm(tmp_env)
   gc()
   
-  ### give the strict version of global clonotypes
-  ### since the variables in each of the "cdr3_aa" are ordered,
-  ### if the "cdr3_aa" are exactly the same, they are the same clonotype
-  ### just ignore rows that are unique across all the rows - we are not interested in those
-  Seurat_Obj@meta.data$global_clonotype_strict <- NA
-  Seurat_Obj@meta.data$global_cdr3_aa_strict <- NA
-  dup_idx <- intersect(which(duplicated(Seurat_Obj@meta.data$cdr3_aa)), which(!is.na(Seurat_Obj@meta.data$cdr3_aa)))
-  ### the unique "cdr3_aa" sequences that exist more than 1 
-  unique_dup_seqs <- unique(Seurat_Obj@meta.data$cdr3_aa[dup_idx])
-  ### give clonotypes
-  for(i in 1:length(unique_dup_seqs)) {
-    idx <- which(Seurat_Obj@meta.data$cdr3_aa == unique_dup_seqs[i])
-    Seurat_Obj@meta.data$global_clonotype_strict[idx] <- paste0("clonotype", i)
-    Seurat_Obj@meta.data$global_cdr3_aa_strict[idx] <- unique_dup_seqs[i]
-  }
-  
-  ### lenient version of global clonotypes
-  ### remove 1-UMI chains and non-productive chains
-  ### TCRB should be the same but we can give flexibility to TCRA
-  ### which means we will compare the TCRB chains only for the clonotyping
-  
-  ### only retain productive TCRB chains that are supported by more than 1 UMIs
-  cdr3 <- strsplit(Seurat_Obj@meta.data[,"cdr3_aa"], split = ";", fixed = TRUE)
-  productive <- strsplit(Seurat_Obj@meta.data[,"tcr_productive"], split = ";", fixed = TRUE)
-  tcr_umis <- strsplit(Seurat_Obj@meta.data[,"tcr_umis"], split = ";", fixed = TRUE)
+  ### get alpha only and beta only sequences
+  cdr3 <- strsplit(Seurat_Obj@meta.data[,"cdr3_nt"], split = ";", fixed = TRUE)
+  ### only retain alpha chains
+  tcr_a <- sapply(1:length(cdr3), function(x) {
+    return(paste(cdr3[[x]][grep("TRA", cdr3[[x]])], collapse = ";"))
+  })
+  ### only retain beta chains
   tcr_b <- sapply(1:length(cdr3), function(x) {
-    return(paste(cdr3[[x]][intersect(intersect(grep("TRB", cdr3[[x]]),
-                                               which(productive[[x]] == "True")),
-                                     which(as.numeric(tcr_umis[[x]]) > 1))],
-                 collapse = ";"))
+    return(paste(cdr3[[x]][grep("TRB", cdr3[[x]])], collapse = ";"))
   })
   
-  ### lenient version of global clonotypes
-  ### just ignore rows that are unique across all the rows - we are not interested in those
-  Seurat_Obj@meta.data$global_clonotype_lenient <- NA
-  Seurat_Obj@meta.data$global_cdr3_aa_lenient <- NA
-  dup_idx <- intersect(which(duplicated(tcr_b)), which(tcr_b != ""))
-  ### the unique TCRB sequences that exist more than 1 
-  unique_dup_seqs <- unique(tcr_b[dup_idx])
-  ### give clonotypes
-  for(i in 1:length(unique_dup_seqs)) {
-    idx <- which(tcr_b == unique_dup_seqs[i])
-    Seurat_Obj@meta.data$global_clonotype_lenient[idx] <- paste0("clonotype", i)
-    Seurat_Obj@meta.data$global_cdr3_aa_lenient[idx] <- unique_dup_seqs[i]
+  
+  ### clonotyping types
+  ### 1. global_clonotype_ab_strict0: if the "cdr3_nt" are exactly the same, they are the same clonotype
+  ### 2. global_clonotype_a_strict0: if the alpha chains in the "cdr3_nt" are exactly the same, they are the same clonotype
+  ### 3. global_clonotype_b_strict0: if the beta chains in the "cdr3_nt" are exactly the same, they are the same clonotype
+  ### 4. global_clonotype_ab_lenient0: if only one alpha chain and only one beta chain are the same, they are the same clonotype
+  ### the suffix 0 can be changed to 1 or 2, which means the number of different NT sequences that can be accepted
+  ### this can affect the chain comparison when clonotyping
+  ### e.g., if the suffix = 1, ATGCATGC and ATGCATGG can be the same chain
+  ### e.g., if the suffix = 2, ATGCATGC and ATGCATTT can be the same chain
+  ### therefore, there would be 4 (described above) x 3 (suffix 0/1/2) = 12 clonotyping types in total
+  
+  ### a function to determine whether two sequences are in the same clone or not
+  is_same_clone <- function(seq1, seq2,
+                            option = c("ab_strict", "a_strict", "b_strict", "ab_lenient"),
+                            gap = c(0, 1, 2)) {
+    
   }
+  
+  
+  ### create columns for the clonotypes
+  Seurat_Obj@meta.data$global_clonotype_ab_strict0 <- NA
+  Seurat_Obj@meta.data$global_clonotype_a_strict0 <- NA
+  Seurat_Obj@meta.data$global_clonotype_b_strict0 <- NA
+  Seurat_Obj@meta.data$global_clonotype_ab_lenient0 <- NA
+  Seurat_Obj@meta.data$global_clonotype_ab_lenient0[which(!is.na(Seurat_Obj@meta.data$cdr3_nt))] <- ""
+  
+  ### each library has its own barcode system
+  ### so run them separately
+  for(lib in unique(Seurat_Obj@meta.data$Library)) {
+    ### indicies that assign to the given library
+    lib_idx <- which(Seurat_Obj@meta.data$Library == lib)
+    
+    ### 1 
+    ### give the strict version of global clonotypes using all alpha & beta chains
+    ### since the variables in each of the "cdr3_nt" are ordered,
+    ### if the "cdr3_nt" are exactly the same, they are the same clonotype
+    
+    ### the unique "cdr3_nt" sequences
+    unique_seqs <- unique(Seurat_Obj@meta.data$cdr3_nt[lib_idx])
+    
+    ### remove NA, "NA", and ""
+    unique_seqs <- unique_seqs[-intersect(intersect(which(is.na(unique_seqs)),
+                                                    which(unique_seqs == "NA")),
+                                          which(unique_seqs == ""))]
+    
+    ### give clonotypes
+    for(i in 1:length(unique_seqs)) {
+      idx <- intersect(which(Seurat_Obj@meta.data$cdr3_nt == unique_seqs[i]), lib_idx)
+      Seurat_Obj@meta.data$global_clonotype_ab_strict0[idx] <- paste0("clonotype", i)
+    }
+    
+    
+    ### 2
+    ### give the strict version of global clonotypes using alpha chains only
+    
+    ### the unique alpha chain sequences
+    unique_seqs <- unique(tcr_a[lib_idx])
+    
+    ### remove NA, "NA", and ""
+    unique_seqs <- unique_seqs[-intersect(intersect(which(is.na(unique_seqs)),
+                                                    which(unique_seqs == "NA")),
+                                          which(unique_seqs == ""))]
+    
+    ### give clonotypes
+    for(i in 1:length(unique_seqs)) {
+      idx <- intersect(which(tcr_a == unique_seqs[i]), lib_idx)
+      Seurat_Obj@meta.data$global_clonotype_a_strict0[idx] <- paste0("clonotype", i)
+    }
+    
+    
+    ### 3
+    ### give the strict version of global clonotypes using beta chains only
+    
+    ### the unique alpha chain sequences
+    unique_seqs <- unique(tcr_b[lib_idx])
+    
+    ### remove NA, "NA", and ""
+    unique_seqs <- unique_seqs[-intersect(intersect(which(is.na(unique_seqs)),
+                                                    which(unique_seqs == "NA")),
+                                          which(unique_seqs == ""))]
+    
+    ### give clonotypes
+    for(i in 1:length(unique_seqs)) {
+      idx <- intersect(which(tcr_b == unique_seqs[i]), lib_idx)
+      Seurat_Obj@meta.data$global_clonotype_b_strict0[idx] <- paste0("clonotype", i)
+    }
+    
+    
+    ### 4
+    ### give the lenient version of global clonotypes - at least one alpha and one beta
+    ### the unique "cdr3_nt" sequences
+    unique_seqs <- unique(Seurat_Obj@meta.data$cdr3_nt[lib_idx])
+    
+    ### remove NA, "NA", and ""
+    unique_seqs <- unique_seqs[-intersect(intersect(which(is.na(unique_seqs)),
+                                                    which(unique_seqs == "NA")),
+                                          which(unique_seqs == ""))]
+    
+    ### give clonotypes
+    for(i in 1:length(unique_seqs)) {
+      idx <- NULL
+      for(j in lib_idx) {
+        if(is_same_clone(unique_seqs[i], Seurat_Obj@meta.data$cdr3_nt[j],
+                         option = "ab_lenient", gap = 0)) {
+          idx <- c(idx, j)
+        }
+      }
+      
+      Seurat_Obj@meta.data$global_clonotype_ab_lenient0[idx] <- paste(Seurat_Obj@meta.data$global_clonotype_ab_lenient0[idx],
+                                                                      paste0("clonotype", i), sep = ";")
+    }
+    
+    ### 8 cases - 4 types x GAP 1 & 2
+    
+    
+  }
+  
   
   ### change the object name to the original one
   assign(obj_name, Seurat_Obj)
