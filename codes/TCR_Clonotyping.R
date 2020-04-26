@@ -25,6 +25,12 @@ clonotyping <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_
     install.packages("Seurat")
     require(Seurat, quietly = TRUE)
   }
+  if(!require(Biostrings, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("Biostrings")
+    require(Biostrings, quietly = TRUE)
+  }
   
   ### load the Seurat object and save the object name
   tmp_env <- new.env()
@@ -57,10 +63,266 @@ clonotyping <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_
   ### e.g., if the suffix = 2, ATGCATGC and ATGCATTT can be the same chain
   ### therefore, there would be 4 (described above) x 3 (suffix 0/1/2) = 12 clonotyping types in total
   
-  ### a function to determine whether two sequences are in the same clone or not
+  ### if two sequences are given, identify they can be in the same group
+  is_same_seq <- function(seq1, seq2, gap = c(0, 1, 2)) {
+    ### transform the sequences to DNAStrings
+    seq1 <- DNAString(seq1)
+    seq2 <- DNAString(seq2)
+    
+    ### get length of the sequences
+    len1 <- nchar(seq1)
+    len2 <- nchar(seq2)
+    
+    ### calculate total gap between the two sequences
+    result <- FALSE
+    if(abs(len1 - len2) <= gap[1]) {
+      min_gap <- gap[1] + 1
+      
+      for(i in -gap[1]:gap[1]) {
+        ### current_gap: initial gap
+        ### comparison_bp_len: bps to be compared
+        if(i < 0) {
+          current_gap <- -i + abs(len2 - len1 - i)
+          comparison_bp_len <- min((len1 + i), len2)
+          
+          ### compare the two matching sequences
+          for(j in 1:comparison_bp_len) {
+            if(seq1[-i+j] != seq2[j]) {
+              current_gap = current_gap + 1
+            }
+            if(current_gap >= min_gap) {
+              break
+            }
+          }
+        } else if(i > 0) {
+          current_gap <- i + abs(len1 - len2 + i)
+          comparison_bp_len <- min((len2 - i), len1)
+          
+          ### compare the two matching sequences
+          for(j in 1:comparison_bp_len) {
+            if(seq1[j] != seq2[i+j]) {
+              current_gap = current_gap + 1
+            }
+            if(current_gap >= min_gap) {
+              break
+            }
+          }
+        } else {
+          current_gap <- abs(len1 - len2)
+          comparison_bp_len <- min(len1, len2)
+          
+          ### compare the two matching sequences
+          for(j in 1:comparison_bp_len) {
+            if(seq1[j] != seq2[j]) {
+              current_gap = current_gap + 1
+            }
+            if(current_gap >= min_gap) {
+              break
+            }
+          }
+        }
+        
+        ### update min_gap
+        min_gap <- min(min_gap, current_gap)
+      }
+      
+      if(min_gap <= gap[1]) {
+        result <- TRUE
+      }
+    }
+    
+    return(result)
+  }
+  
+  ### a function to determine whether two sequence sets are in the same clone or not
   is_same_clone <- function(seq1, seq2,
                             option = c("ab_strict", "a_strict", "b_strict", "ab_lenient"),
                             gap = c(0, 1, 2)) {
+    
+    ### split sequences into chains
+    temp1 <- strsplit(seq1, split = ";", fixed = TRUE)[[1]]
+    temp2 <- strsplit(seq2, split = ";", fixed = TRUE)[[1]]
+    chain_a1 <- temp1[grep("TRA", temp1)]
+    chain_b1 <- temp1[grep("TRB", temp1)]
+    chain_a2 <- temp2[grep("TRA", temp2)]
+    chain_b2 <- temp2[grep("TRB", temp2)]
+    chain_a1 <- sapply(chain_a1, function(x) {
+      return(strsplit(x, split = ":", fixed = TRUE)[[1]][2])
+    })
+    chain_b1 <- sapply(chain_b1, function(x) {
+      return(strsplit(x, split = ":", fixed = TRUE)[[1]][2])
+    })
+    chain_a2 <- sapply(chain_a2, function(x) {
+      return(strsplit(x, split = ":", fixed = TRUE)[[1]][2])
+    })
+    chain_b2 <- sapply(chain_b2, function(x) {
+      return(strsplit(x, split = ":", fixed = TRUE)[[1]][2])
+    })
+    
+    ### are they in the same clone?
+    result <- TRUE
+    if(option[1] == "ab_strict" &&
+       length(chain_a1) > 0 &&
+       length(chain_a2) > 0 &&
+       length(chain_b1) > 0 &&
+       length(chain_b2) > 0) {
+      if((length(chain_a1) == length(chain_a2)) &&
+         (length(chain_b1) == length(chain_b2))) {
+        all_pairs <- 0
+        for(i in 1:length(chain_a1)) {
+          for(j in 1:length(chain_a2)) {
+            if(is_same_seq(chain_a1[i], chain_a2[j], gap = gap[1])) {
+              all_pairs <- all_pairs + 1
+              break
+            }
+          }
+        }
+        if(all_pairs != length(chain_a1)) {
+          result <- FALSE
+        } else {
+          all_pairs <- 0
+          for(i in 1:length(chain_a2)) {
+            for(j in 1:length(chain_a1)) {
+              if(is_same_seq(chain_a2[i], chain_a1[j], gap = gap[1])) {
+                all_pairs <- all_pairs + 1
+                break
+              }
+            }
+          }
+          if(all_pairs != length(chain_a2)) {
+            result <- FALSE
+          } else {
+            all_pairs <- 0
+            for(i in 1:length(chain_b1)) {
+              for(j in 1:length(chain_b2)) {
+                if(is_same_seq(chain_b1[i], chain_b2[j], gap = gap[1])) {
+                  all_pairs <- all_pairs + 1
+                  break
+                }
+              }
+            }
+            if(all_pairs != length(chain_b1)) {
+              result <- FALSE
+            } else {
+              all_pairs <- 0
+              for(i in 1:length(chain_b2)) {
+                for(j in 1:length(chain_b1)) {
+                  if(is_same_seq(chain_b2[i], chain_b1[j], gap = gap[1])) {
+                    all_pairs <- all_pairs + 1
+                    break
+                  }
+                }
+              }
+              if(all_pairs != length(chain_b1)) {
+                result <- FALSE
+              }
+            }
+          }
+        }
+      } else {
+        result <- FALSE
+      }
+    } else if(option[1] == "a_strict" && length(chain_a1) > 0 && length(chain_a2) > 0) {
+      if(length(chain_a1) == length(chain_a2)) {
+        all_pairs <- 0
+        for(i in 1:length(chain_a1)) {
+          for(j in 1:length(chain_a2)) {
+            if(is_same_seq(chain_a1[i], chain_a2[j], gap = gap[1])) {
+              all_pairs <- all_pairs + 1
+              break
+            }
+          }
+        }
+        if(all_pairs != length(chain_a1)) {
+          result <- FALSE
+        } else {
+          all_pairs <- 0
+          for(i in 1:length(chain_a2)) {
+            for(j in 1:length(chain_a1)) {
+              if(is_same_seq(chain_a2[i], chain_a1[j], gap = gap[1])) {
+                all_pairs <- all_pairs + 1
+                break
+              }
+            }
+          }
+          if(all_pairs != length(chain_a2)) {
+            result <- FALSE
+          }
+        }
+      } else {
+        result <- FALSE
+      }
+    } else if(option[1] == "b_strict" && length(chain_b1) > 0 && length(chain_b2) > 0) {
+      if(length(chain_b1) == length(chain_b2)) {
+        all_pairs <- 0
+        for(i in 1:length(chain_b1)) {
+          for(j in 1:length(chain_b2)) {
+            if(is_same_seq(chain_b1[i], chain_b2[j], gap = gap[1])) {
+              all_pairs <- all_pairs + 1
+              break
+            }
+          }
+        }
+        if(all_pairs != length(chain_b1)) {
+          result <- FALSE
+        } else {
+          all_pairs <- 0
+          for(i in 1:length(chain_b2)) {
+            for(j in 1:length(chain_b1)) {
+              if(is_same_seq(chain_b2[i], chain_b1[j], gap = gap[1])) {
+                all_pairs <- all_pairs + 1
+                break
+              }
+            }
+          }
+          if(all_pairs != length(chain_b2)) {
+            result <- FALSE
+          }
+        }
+      } else {
+        result <- FALSE
+      }
+    } else if(option[1] == "ab_lenient" &&
+              length(chain_a1) > 0 &&
+              length(chain_a2) > 0 &&
+              length(chain_b1) > 0 &&
+              length(chain_b2) > 0) {
+      any_pairs <- 0
+      for(i in 1:length(chain_a1)) {
+        for(j in 1:length(chain_a2)) {
+          if(is_same_seq(chain_a1[i], chain_a2[j], gap = gap[1])) {
+            any_pairs <- 1
+            break
+          }
+        }
+        if(any_pairs > 0) {
+          break
+        }
+      }
+      if(any_pairs == 0) {
+        result <- FALSE
+      } else {
+        any_pairs <- 0
+        for(i in 1:length(chain_b1)) {
+          for(j in 1:length(chain_b2)) {
+            if(is_same_seq(chain_b1[i], chain_b2[j], gap = gap[1])) {
+              any_pairs <- 1
+              break
+            }
+          }
+          if(any_pairs > 0) {
+            break
+          }
+        }
+        if(any_pairs == 0) {
+          result <- FALSE
+        }
+      }
+    } else {
+      result <- FALSE
+    }
+    
+    return(result)
     
   }
   
@@ -71,12 +333,35 @@ clonotyping <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_
   Seurat_Obj@meta.data$global_clonotype_b_strict0 <- NA
   Seurat_Obj@meta.data$global_clonotype_ab_lenient0 <- NA
   Seurat_Obj@meta.data$global_clonotype_ab_lenient0[which(!is.na(Seurat_Obj@meta.data$cdr3_nt))] <- ""
+  result_mat <- matrix(NA, nrow(Seurat_Obj@meta.data), 8)
+  rownames(result_mat) <- rownames(Seurat_Obj@meta.data)
+  colnames(result_mat) <- c("global_clonotype_ab_strict1",
+                            "global_clonotype_a_strict1",
+                            "global_clonotype_b_strict1",
+                            "global_clonotype_ab_lenient1",
+                            "global_clonotype_ab_strict2",
+                            "global_clonotype_a_strict2",
+                            "global_clonotype_b_strict2",
+                            "global_clonotype_ab_lenient2")
+  result_mat[which(!is.na(Seurat_Obj@meta.data$cdr3_nt)),] <- ""
+  
+  ### set progress bar
+  cnt <- 0
+  pb <- txtProgressBar(min = 0, max = length(unique(Seurat_Obj@meta.data$Library)), style = 3)
+  
+  ### start time
+  start_time <- Sys.time()
   
   ### each library has its own barcode system
   ### so run them separately
   for(lib in unique(Seurat_Obj@meta.data$Library)) {
     ### indicies that assign to the given library
     lib_idx <- which(Seurat_Obj@meta.data$Library == lib)
+    
+    ### remove NA, "NA", and ""
+    lib_idx <- intersect(lib_idx, intersect(intersect(which(!is.na(Seurat_Obj@meta.data$cdr3_nt)),
+                                                      which(Seurat_Obj@meta.data$cdr3_nt != "NA")),
+                                            which(Seurat_Obj@meta.data$cdr3_nt != "")))
     
     ### 1 
     ### give the strict version of global clonotypes using all alpha & beta chains
@@ -87,9 +372,9 @@ clonotyping <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_
     unique_seqs <- unique(Seurat_Obj@meta.data$cdr3_nt[lib_idx])
     
     ### remove NA, "NA", and ""
-    unique_seqs <- unique_seqs[-intersect(intersect(which(is.na(unique_seqs)),
-                                                    which(unique_seqs == "NA")),
-                                          which(unique_seqs == ""))]
+    unique_seqs <- unique_seqs[intersect(intersect(which(!is.na(unique_seqs)),
+                                                    which(unique_seqs != "NA")),
+                                          which(unique_seqs != ""))]
     
     ### give clonotypes
     for(i in 1:length(unique_seqs)) {
@@ -105,9 +390,9 @@ clonotyping <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_
     unique_seqs <- unique(tcr_a[lib_idx])
     
     ### remove NA, "NA", and ""
-    unique_seqs <- unique_seqs[-intersect(intersect(which(is.na(unique_seqs)),
-                                                    which(unique_seqs == "NA")),
-                                          which(unique_seqs == ""))]
+    unique_seqs <- unique_seqs[intersect(intersect(which(!is.na(unique_seqs)),
+                                                   which(unique_seqs != "NA")),
+                                         which(unique_seqs != ""))]
     
     ### give clonotypes
     for(i in 1:length(unique_seqs)) {
@@ -123,9 +408,9 @@ clonotyping <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_
     unique_seqs <- unique(tcr_b[lib_idx])
     
     ### remove NA, "NA", and ""
-    unique_seqs <- unique_seqs[-intersect(intersect(which(is.na(unique_seqs)),
-                                                    which(unique_seqs == "NA")),
-                                          which(unique_seqs == ""))]
+    unique_seqs <- unique_seqs[intersect(intersect(which(!is.na(unique_seqs)),
+                                                   which(unique_seqs != "NA")),
+                                         which(unique_seqs != ""))]
     
     ### give clonotypes
     for(i in 1:length(unique_seqs)) {
@@ -140,9 +425,9 @@ clonotyping <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_
     unique_seqs <- unique(Seurat_Obj@meta.data$cdr3_nt[lib_idx])
     
     ### remove NA, "NA", and ""
-    unique_seqs <- unique_seqs[-intersect(intersect(which(is.na(unique_seqs)),
-                                                    which(unique_seqs == "NA")),
-                                          which(unique_seqs == ""))]
+    unique_seqs <- unique_seqs[intersect(intersect(which(!is.na(unique_seqs)),
+                                                   which(unique_seqs != "NA")),
+                                         which(unique_seqs != ""))]
     
     ### give clonotypes
     for(i in 1:length(unique_seqs)) {
@@ -153,16 +438,54 @@ clonotyping <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_
           idx <- c(idx, j)
         }
       }
-      
       Seurat_Obj@meta.data$global_clonotype_ab_lenient0[idx] <- paste(Seurat_Obj@meta.data$global_clonotype_ab_lenient0[idx],
                                                                       paste0("clonotype", i), sep = ";")
     }
     
     ### 8 cases - 4 types x GAP 1 & 2
+    for(col in colnames(result_mat)) {
+      ### parse the options
+      type <- paste(strsplit(col, split = "_", fixed = TRUE)[[1]][3:4], collapse = "_")
+      gap <- as.integer(substr(type, nchar(type), nchar(type)))
+      type <- substr(type, 1, nchar(type)-1)
+      
+      ### give clonotypes
+      for(i in 1:length(unique_seqs)) {
+        idx <- NULL
+        for(j in lib_idx) {
+          if(is_same_clone(unique_seqs[i], Seurat_Obj@meta.data$cdr3_nt[j],
+                           option = type, gap = gap)) {
+            idx <- c(idx, j)
+          }
+        }
+        result_mat[idx,col] <- paste(result_mat[idx, col], paste0("clonotype", i), sep = ";")
+      }
+    }
     
+    ### save the partial data
+    assign(paste0("vec", cnt), Seurat_Obj@meta.data$global_clonotype_ab_lenient0[lib_idx,])
+    assign(paste0("mat", cnt), result_mat[lib_idx,])
+    save(list = c("lib_idx", paste0("vec", cnt), paste0("mat", cnt)),
+         file = paste0(dirname(outRobjPath), "/partial_result", cnt, ".rda"))
     
+    ### update the progress bar
+    cnt <- cnt + 1
+    setTxtProgressBar(pb, cnt)
   }
   
+  ### close the connections
+  close(pb)
+  
+  ### merge result_mat and the Seurat object
+  Seurat_Obj@meta.data <- cbind(Seurat_Obj@meta.data, result_mat)
+  
+  ### end time
+  end_time <- Sys.time()
+  
+  ### print out the running time
+  cat(paste("Running Time:",
+            signif(as.numeric(difftime(end_time, start_time, units = "mins")), digits = 3),
+            "mins"))
   
   ### change the object name to the original one
   assign(obj_name, Seurat_Obj)
