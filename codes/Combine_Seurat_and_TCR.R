@@ -13,9 +13,9 @@
 #
 #   Example
 #               > source("The_directory_of_Combine_Seurat_and_TCR.R/Combine_Seurat_and_TCR.R")
-#               > combineSeuratNTCR(Seurat_RObj_path="./data/JCC212_Px5.Robj",
+#               > combineSeuratNTCR(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress.Robj",
 #                                   TCR_data_dirs="C:/Users/hkim8/SJ/SJCAR19/TCRoutputs/",
-#                                   outFilePath="./data/JCC212_Px5_TCR_combined.Robj")
+#                                   outFilePath="./data/JCC212_21Feb2020Aggreg_regress_TCR_combined.Robj")
 ###
 
 combineSeuratNTCR <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress.Robj",
