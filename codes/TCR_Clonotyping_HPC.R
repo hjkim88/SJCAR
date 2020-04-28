@@ -161,21 +161,25 @@ clonotyping_hpc <- function(metadata_path="./data/metadata_hpc.rda",
       return(strsplit(x, split = ":", fixed = TRUE)[[1]][2])
     })
     
+    ### chain existence
+    is_chain_a <- length(chain_a1) > 0 && length(chain_a2) > 0
+    is_chain_b <- length(chain_b1) > 0 && length(chain_b2) > 0
+    is_at_least_one <- is_chain_a || is_chain_b
+    is_both <- is_chain_a && is_chain_b
+    
     ### are they in the same clone?
     result <- TRUE
-    if(option[1] == "ab_strict" &&
-       length(chain_a1) > 0 &&
-       length(chain_a2) > 0 &&
-       length(chain_b1) > 0 &&
-       length(chain_b2) > 0) {
+    if(option[1] == "ab_strict" && is_at_least_one) {
       if((length(chain_a1) == length(chain_a2)) &&
          (length(chain_b1) == length(chain_b2))) {
         all_pairs <- 0
-        for(i in 1:length(chain_a1)) {
-          for(j in 1:length(chain_a2)) {
-            if(is_same_seq(chain_a1[i], chain_a2[j], gap = gap[1])) {
-              all_pairs <- all_pairs + 1
-              break
+        if(is_chain_a) {
+          for(i in 1:length(chain_a1)) {
+            for(j in 1:length(chain_a2)) {
+              if(is_same_seq(chain_a1[i], chain_a2[j], gap = gap[1])) {
+                all_pairs <- all_pairs + 1
+                break
+              }
             }
           }
         }
@@ -183,11 +187,13 @@ clonotyping_hpc <- function(metadata_path="./data/metadata_hpc.rda",
           result <- FALSE
         } else {
           all_pairs <- 0
-          for(i in 1:length(chain_a2)) {
-            for(j in 1:length(chain_a1)) {
-              if(is_same_seq(chain_a2[i], chain_a1[j], gap = gap[1])) {
-                all_pairs <- all_pairs + 1
-                break
+          if(is_chain_a) {
+            for(i in 1:length(chain_a2)) {
+              for(j in 1:length(chain_a1)) {
+                if(is_same_seq(chain_a2[i], chain_a1[j], gap = gap[1])) {
+                  all_pairs <- all_pairs + 1
+                  break
+                }
               }
             }
           }
@@ -195,11 +201,13 @@ clonotyping_hpc <- function(metadata_path="./data/metadata_hpc.rda",
             result <- FALSE
           } else {
             all_pairs <- 0
-            for(i in 1:length(chain_b1)) {
-              for(j in 1:length(chain_b2)) {
-                if(is_same_seq(chain_b1[i], chain_b2[j], gap = gap[1])) {
-                  all_pairs <- all_pairs + 1
-                  break
+            if(is_chain_b) {
+              for(i in 1:length(chain_b1)) {
+                for(j in 1:length(chain_b2)) {
+                  if(is_same_seq(chain_b1[i], chain_b2[j], gap = gap[1])) {
+                    all_pairs <- all_pairs + 1
+                    break
+                  }
                 }
               }
             }
@@ -207,11 +215,13 @@ clonotyping_hpc <- function(metadata_path="./data/metadata_hpc.rda",
               result <- FALSE
             } else {
               all_pairs <- 0
-              for(i in 1:length(chain_b2)) {
-                for(j in 1:length(chain_b1)) {
-                  if(is_same_seq(chain_b2[i], chain_b1[j], gap = gap[1])) {
-                    all_pairs <- all_pairs + 1
-                    break
+              if(is_chain_b) {
+                for(i in 1:length(chain_b2)) {
+                  for(j in 1:length(chain_b1)) {
+                    if(is_same_seq(chain_b2[i], chain_b1[j], gap = gap[1])) {
+                      all_pairs <- all_pairs + 1
+                      break
+                    }
                   }
                 }
               }
@@ -224,7 +234,7 @@ clonotyping_hpc <- function(metadata_path="./data/metadata_hpc.rda",
       } else {
         result <- FALSE
       }
-    } else if(option[1] == "a_strict" && length(chain_a1) > 0 && length(chain_a2) > 0) {
+    } else if(option[1] == "a_strict" && is_chain_a) {
       if(length(chain_a1) == length(chain_a2)) {
         all_pairs <- 0
         for(i in 1:length(chain_a1)) {
@@ -254,7 +264,7 @@ clonotyping_hpc <- function(metadata_path="./data/metadata_hpc.rda",
       } else {
         result <- FALSE
       }
-    } else if(option[1] == "b_strict" && length(chain_b1) > 0 && length(chain_b2) > 0) {
+    } else if(option[1] == "b_strict" && is_chain_b) {
       if(length(chain_b1) == length(chain_b2)) {
         all_pairs <- 0
         for(i in 1:length(chain_b1)) {
@@ -284,40 +294,76 @@ clonotyping_hpc <- function(metadata_path="./data/metadata_hpc.rda",
       } else {
         result <- FALSE
       }
-    } else if(option[1] == "ab_lenient" &&
-              length(chain_a1) > 0 &&
-              length(chain_a2) > 0 &&
-              length(chain_b1) > 0 &&
-              length(chain_b2) > 0) {
-      any_pairs <- 0
-      for(i in 1:length(chain_a1)) {
-        for(j in 1:length(chain_a2)) {
-          if(is_same_seq(chain_a1[i], chain_a2[j], gap = gap[1])) {
-            any_pairs <- 1
-            break
-          }
-        }
-        if(any_pairs > 0) {
-          break
-        }
-      }
-      if(any_pairs == 0) {
-        result <- FALSE
-      } else {
+    } else if(option[1] == "ab_lenient" && is_at_least_one) {
+      if(is_both) {
         any_pairs <- 0
-        for(i in 1:length(chain_b1)) {
-          for(j in 1:length(chain_b2)) {
-            if(is_same_seq(chain_b1[i], chain_b2[j], gap = gap[1])) {
-              any_pairs <- 1
+        if(is_chain_a) {
+          for(i in 1:length(chain_a1)) {
+            for(j in 1:length(chain_a2)) {
+              if(is_same_seq(chain_a1[i], chain_a2[j], gap = gap[1])) {
+                any_pairs <- 1
+                break
+              }
+            }
+            if(any_pairs > 0) {
               break
             }
-          }
-          if(any_pairs > 0) {
-            break
           }
         }
         if(any_pairs == 0) {
           result <- FALSE
+        } else {
+          any_pairs <- 0
+          if(is_chain_b) {
+            for(i in 1:length(chain_b1)) {
+              for(j in 1:length(chain_b2)) {
+                if(is_same_seq(chain_b1[i], chain_b2[j], gap = gap[1])) {
+                  any_pairs <- 1
+                  break
+                }
+              }
+              if(any_pairs > 0) {
+                break
+              }
+            }
+          }
+          if(any_pairs == 0) {
+            result <- FALSE
+          }
+        }
+      } else {
+        if(is_chain_a) {
+          any_pairs <- 0
+          for(i in 1:length(chain_a1)) {
+            for(j in 1:length(chain_a2)) {
+              if(is_same_seq(chain_a1[i], chain_a2[j], gap = gap[1])) {
+                any_pairs <- 1
+                break
+              }
+            }
+            if(any_pairs > 0) {
+              break
+            }
+          }
+          if(any_pairs == 0) {
+            result <- FALSE
+          }
+        } else {
+          any_pairs <- 0
+          for(i in 1:length(chain_b1)) {
+            for(j in 1:length(chain_b2)) {
+              if(is_same_seq(chain_b1[i], chain_b2[j], gap = gap[1])) {
+                any_pairs <- 1
+                break
+              }
+            }
+            if(any_pairs > 0) {
+              break
+            }
+          }
+          if(any_pairs == 0) {
+            result <- FALSE
+          }
         }
       }
     } else {
@@ -359,21 +405,23 @@ clonotyping_hpc <- function(metadata_path="./data/metadata_hpc.rda",
   start_time <- Sys.time()
   
   ### give clonotypes
-  for(i in 1:length(unique_seqs)) {
-    idx <- NULL
-    for(j in lib_idx) {
-      if(is_same_clone(unique_seqs[i], metadata$cdr3_nt[j],
-                       option = option, gap = gap)) {
-        idx <- c(idx, j)
+  if(length(unique_seqs) > 0) {
+    for(i in 1:length(unique_seqs)) {
+      idx <- NULL
+      for(j in lib_idx) {
+        if(is_same_clone(unique_seqs[i], metadata$cdr3_nt[j],
+                         option = option, gap = gap)) {
+          idx <- c(idx, j)
+        }
       }
+      metadata$clonotype[idx] <- paste(metadata$clonotype[idx], paste0("clonotype", i), sep = ";")
+      
+      ### save partial results
+      partialDir <- paste0(outputDir, paste("partial", lib, option, gap, sep = "_"), "/")
+      dir.create(partialDir, showWarnings = FALSE, recursive = TRUE)
+      write.table(t(c(paste0("clonotype", i), idx)), file = paste0(partialDir, pfName, ".txt"),
+                  row.names = FALSE, col.names = FALSE, append = TRUE)
     }
-    metadata$clonotype[idx] <- paste(metadata$clonotype[idx], paste0("clonotype", i), sep = ";")
-    
-    ### save partial results
-    partialDir <- paste0(outputDir, paste("partial", lib, option, gap, sep = "_"), "/")
-    dir.create(partialDir, showWarnings = FALSE, recursive = TRUE)
-    write.table(t(c(paste0("clonotype", i), idx)), file = paste0(partialDir, pfName, "_", i, ".txt"),
-                row.names = FALSE, col.names = FALSE, append = TRUE)
   }
   
   ### end time
