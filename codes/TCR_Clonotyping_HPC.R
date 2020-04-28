@@ -28,10 +28,6 @@ clonotyping_hpc <- function(metadata_path="./data/metadata_hpc.rda",
                             outputDir="./data/") {
   
   ### load library
-  if(!require(Seurat, quietly = TRUE)) {
-    install.packages("Seurat")
-    require(Seurat, quietly = TRUE)
-  }
   if(!require(Biostrings, quietly = TRUE)) {
     if (!requireNamespace("BiocManager", quietly = TRUE))
       install.packages("BiocManager")
@@ -355,6 +351,10 @@ clonotyping_hpc <- function(metadata_path="./data/metadata_hpc.rda",
   ### partial file name
   pfName <- paste("partial", lib, option, gap, sep = "_")
   
+  ### partial directory
+  partialDir <- paste0(outputDir, paste("partial", lib, option, gap, sep = "_"), "/")
+  dir.create(partialDir, showWarnings = FALSE, recursive = TRUE)
+  
   ### start time
   start_time <- Sys.time()
   
@@ -370,7 +370,9 @@ clonotyping_hpc <- function(metadata_path="./data/metadata_hpc.rda",
     metadata$clonotype[idx] <- paste(metadata$clonotype[idx], paste0("clonotype", i), sep = ";")
     
     ### save partial results
-    write.table(t(c(paste0("clonotype", i), idx)), file = paste0(outputDir, pfName, ".txt"),
+    partialDir <- paste0(outputDir, paste("partial", lib, option, gap, sep = "_"), "/")
+    dir.create(partialDir, showWarnings = FALSE, recursive = TRUE)
+    write.table(t(c(paste0("clonotype", i), idx)), file = paste0(partialDir, pfName, "_", i, ".txt"),
                 row.names = FALSE, col.names = FALSE, append = TRUE)
   }
   
