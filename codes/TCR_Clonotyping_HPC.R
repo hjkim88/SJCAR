@@ -386,8 +386,25 @@ clonotyping_hpc <- function(metadata_path="./data/metadata_hpc.rda",
                                                     which(metadata$cdr3_nt != "NA")),
                                           which(metadata$cdr3_nt != "")))
   
+  ### get patient id
+  patient <- unique(metadata$Px[lib_idx])
+  
+  ### get patient indices
+  px_idx <- which(metadata$Px == patient)
+  
+  ### remove NA, "NA", and ""
+  px_idx <- intersect(px_idx, intersect(intersect(which(!is.na(metadata$cdr3_nt)),
+                                                    which(metadata$cdr3_nt != "NA")),
+                                          which(metadata$cdr3_nt != "")))
+  
   ### the unique "cdr3_nt" sequences
-  unique_seqs <- unique(metadata$cdr3_nt[lib_idx])
+  if(option == "a_strict") {
+    unique_seqs <- unique(tcr_a[px_idx])
+  } else if(option == "b_strict") {
+    unique_seqs <- unique(tcr_b[px_idx])
+  } else {
+    unique_seqs <- unique(metadata$cdr3_nt[px_idx])
+  }
   
   ### remove NA, "NA", and ""
   unique_seqs <- unique_seqs[intersect(intersect(which(!is.na(unique_seqs)),
@@ -420,7 +437,7 @@ clonotyping_hpc <- function(metadata_path="./data/metadata_hpc.rda",
       partialDir <- paste0(outputDir, paste("partial", lib, option, gap, sep = "_"), "/")
       dir.create(partialDir, showWarnings = FALSE, recursive = TRUE)
       write.table(t(c(paste0("clonotype", i), idx)), file = paste0(partialDir, pfName, ".txt"),
-                  row.names = FALSE, col.names = FALSE, append = TRUE)
+                  row.names = FALSE, col.names = FALSE, quote = FALSE, append = TRUE)
     }
   }
   
