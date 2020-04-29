@@ -49,7 +49,129 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
   rm(tmp_env)
   gc()
   
-  ### make a table that shows how clonotype frequency (and proportion) changes over time
+  ### get alpha only and beta only sequences
+  cdr3 <- strsplit(Seurat_Obj@meta.data[,"cdr3_nt"], split = ";", fixed = TRUE)
+  ### only retain alpha chains
+  tcr_a <- sapply(1:length(cdr3), function(x) {
+    return(paste(cdr3[[x]][grep("TRA", cdr3[[x]])], collapse = ";"))
+  })
+  ### only retain beta chains
+  tcr_b <- sapply(1:length(cdr3), function(x) {
+    return(paste(cdr3[[x]][grep("TRB", cdr3[[x]])], collapse = ";"))
+  })
+  
+  ### global clonotypes in the Seurat objects
+  global_clonotypes <- colnames(Seurat_Obj@meta.data)[grep("global_clonotype", colnames(Seurat_Obj@meta.data), fixed = TRUE)]
+  
+  for(patient in unique(Seurat_Obj@meta.data$Px)) {
+    
+    ### indicies that assign to the given patient
+    px_idx <- which(Seurat_Obj@meta.data$Px == patient)
+    
+    ### remove NA, "NA", and ""
+    px_idx <- intersect(px_idx, intersect(intersect(which(!is.na(Seurat_Obj@meta.data$cdr3_nt)),
+                                                    which(Seurat_Obj@meta.data$cdr3_nt != "NA")),
+                                          which(Seurat_Obj@meta.data$cdr3_nt != "")))
+    
+    ### make a table that shows how clonotype frequency (and proportion) changes over time
+    unique_clonotypes <- vector("list", length(global_clonotypes))
+    names(unique_clonotypes) <- global_clonotypes
+    
+    unique_time_points <- vector("list", length(global_clonotypes))
+    names(unique_time_points) <- global_clonotypes
+    
+    frequency_over_time <- vector("list", length(global_clonotypes))
+    names(frequency_over_time) <- global_clonotypes
+    
+    car_frequency_over_time <- vector("list", length(global_clonotypes))
+    names(car_frequency_over_time) <- global_clonotypes
+    
+    proportion_over_time <- vector("list", length(global_clonotypes))
+    names(proportion_over_time) <- global_clonotypes
+    
+    car_proportion_over_time <- vector("list", length(global_clonotypes))
+    names(car_proportion_over_time) <- global_clonotypes
+    
+    for(type in global_clonotypes) {
+      target_idx <- intersect(px_idx, which(!is.na(Seurat_Obj@meta.data[,type])))
+      
+      unique_clonotypes[[type]] <- unique(Seurat_Obj@meta.data[target_idx,type])
+      
+      unique_time_points[[type]] <- levels(Seurat_Obj@meta.data$TimeF[target_idx])
+      
+      frequency_over_time[[type]] <- matrix(0, length(unique_clonotypes[[type]]), length(unique_time_points[[type]]))
+      rownames(frequency_over_time[[type]]) <- unique_clonotypes[[type]]
+      colnames(frequency_over_time[[type]]) <- unique_time_points[[type]]
+      
+      car_frequency_over_time[[type]] <- matrix(0, length(unique_clonotypes[[type]]), length(unique_time_points[[type]]))
+      rownames(car_frequency_over_time[[type]]) <- unique_clonotypes[[type]]
+      colnames(car_frequency_over_time[[type]]) <- unique_time_points[[type]]
+      
+      proportion_over_time[[type]] <- matrix(0, length(unique_clonotypes[[type]]), length(unique_time_points[[type]]))
+      rownames(proportion_over_time[[type]]) <- unique_clonotypes[[type]]
+      colnames(proportion_over_time[[type]]) <- unique_time_points[[type]]
+      
+      car_proportion_over_time[[type]] <- matrix(0, length(unique_clonotypes[[type]]), length(unique_time_points[[type]]))
+      rownames(car_proportion_over_time[[type]]) <- unique_clonotypes[[type]]
+      colnames(car_proportion_over_time[[type]]) <- unique_time_points[[type]]
+      
+      ### start time
+      start_time <- Sys.time()
+      
+      ### set progress bar
+      pb <- txtProgressBar(min = 0, max = length(unique_clonotypes_strict)*length(unique_time_points), style = 3)
+      
+      ### fill out the frequency tables
+      cnt <- 0
+      for(time in unique_time_points[[type]]) {
+        for(clonotype in unique_clonotypes[[type]]) {
+          frequency_over_time[[type]][clonotype,time] <- length(intersect(which(Seurat_Obj@meta.data[,type] == clonotype),
+                                                                  which(Seurat_Obj@meta.data$Time == time)))
+          car_frequency_over_time[[type]][clonotype,time] <- length(intersect(intersect(which(Seurat_Obj@meta.data[,type] == clonotype),
+                                                                                which(Seurat_Obj@meta.data$Time == time)),
+                                                                      which(Seurat_Obj@meta.data$CAR == "CARpos")))
+          
+          ### update the progress bar
+          cnt <- cnt + 1
+          setTxtProgressBar(pb, cnt)
+        }
+        
+        ### fill out the proportion tables
+        cells_time_num <- length(which(Seurat_Obj@meta.data$Time == time))
+        car_cells_time_num <- length(intersect(which(Seurat_Obj@meta.data$Time == time),
+                                               which(Seurat_Obj@meta.data$CAR == "CARpos")))
+        if(car_cells_time_num > 0) {
+          proportion_over_time[[type]][,time] <- signif(100*frequency_over_time[[type]][,time]/cells_time_num, digits = 4)
+          car_proportion_over_time[[type]][,time] <- signif(100*car_frequency_over_time[[type]][,time]/car_cells_time_num, digits = 4)
+        } else if(cells_time_num > 0) {
+          proportion_over_time[[type]][,time] <- signif(100*frequency_over_time[[type]][,time]/cells_time_num, digits = 4)
+        } else {
+          proportion_over_time[[type]][,time] <- 0
+          car_proportion_over_time[[type]][,time] <- 0
+        }
+      }
+      close(pb)
+      
+      ### end time
+      end_time <- Sys.time()
+      
+      ### print out the running time
+      cat(paste("Running Time:",
+                signif(as.numeric(difftime(end_time, start_time, units = "mins")), digits = 3),
+                "mins"))
+      
+      
+      
+    }
+    
+    
+    
+    
+    
+  }
+  
+  
+  
   unique_clonotypes_strict <- unique(Seurat_Obj@meta.data$global_clonotype_strict[which(!is.na(Seurat_Obj@meta.data$global_clonotype_strict))])
   unique_time_points <- levels(Seurat_Obj@meta.data$TimeF)
   frequency_over_time <- matrix(0, length(unique_clonotypes_strict), length(unique_time_points))
@@ -218,16 +340,89 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
   ggsave(file = paste0(outputDir, "/", fName, ".png"), g, width = 20, height = 12, dpi = 300)
   
   
+  ### the number of lineages - considering 1. alpha & beta, 2. beta only, 3. alpha only
+  ### Lineages: the number of lineages that appeared more than one time points in the Seurat object
+  ### Lineages_CARpos: the number of lineages in CAR+ cells that appeared more than one time points in the Seurat object
+  ### Clonotypes: the number of clonotypes in the Seurat object
+  ### Clonotypes_CARpos: the number of clonotypes in CAR+ cells in the Seurat object
+  ### Filtered_Clonotypes: This is similar to the "Clonotypes" but unique (that exist only one in the data)
+  ###                    clonotypes were filtered out 
+  lineage_abstract_table <- matrix(0, 5, 4)
+  rownames(lineage_abstract_table) <- c("Lineages", "Lineages_CARpos",
+                                        "Clonotypes", "Clonotypes_CARpos", "Filtered_Clonotypes")
+  colnames(lineage_abstract_table) <- c("Alpha&Beta", "Alpha_Only", "Beta_Only", "Only_one_Aplha&Beta")
   
-  ### clonal diversity of CAR+ T cells
-  ### pie chart (in implementation)
-  ggplot(data = cdf[cdf$Group == group[1],], aes(x = "", y = Number, fill = Gender)) +
-    theme_minimal() +
-    theme(plot.title = element_text(hjust = 0.5, color = "black")) +
-    geom_bar(stat = "identity", width = 1) +
-    coord_polar(theta="y") +
-    geom_text(aes(label = cdf$pcnt[cdf$Group == group[1]]), position = position_stack(vjust = 0.5)) +
-    labs(x = NULL, y = NULL, title = group[1])
+  only_one_strict_clonotypes_idx <- intersect(which(!is.na(Seurat_Obj@meta.data$cdr3_aa)),
+                                              which(is.na(Seurat_Obj@meta.data$global_clonotype_strict)))
+  only_one_lenient_clonotypes_idx <- intersect(which(!is.na(Seurat_Obj@meta.data$cdr3_aa)),
+                                              which(is.na(Seurat_Obj@meta.data$global_clonotype_lenient)))
+  only_one_strict_clonotypes_carpos_idx <- intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                                     only_one_strict_clonotypes_idx)
+  only_one_lenient_clonotypes_carpos_idx <- intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                                      only_one_lenient_clonotypes_idx)
+  
+  ### Lineages
+  ab <- unique(Seurat_Obj@meta.data$global_clonotype_strict)
+  ab <- ab[!is.na(ab)]
+  cnt <- 0
+  for(i in 1:length(ab)) {
+    if(length(unique(Seurat_Obj@meta.data$Time[which(Seurat_Obj@meta.data$global_clonotype_strict == ab[i])])) > 1) {
+      cnt <- cnt+1
+    }
+  }
+  lineage_abstract_table["Lineages","Alpha&Beta"] <- cnt
+  
+  b <- unique(Seurat_Obj@meta.data$global_clonotype_lenient)
+  b <- b[!is.na(b)]
+  cnt <- 0
+  for(i in 1:length(b)) {
+    if(length(unique(Seurat_Obj@meta.data$Time[which(Seurat_Obj@meta.data$global_clonotype_lenient == b[i])])) > 1) {
+      cnt <- cnt+1
+    }
+  }
+  lineage_abstract_table["Lineages","Beta_Only"] <- cnt
+  
+  ### Lineages - CAR+
+  cnt <- 0
+  for(i in 1:length(ab)) {
+    if(length(unique(Seurat_Obj@meta.data$Time[intersect(which(Seurat_Obj@meta.data$global_clonotype_strict == ab[i]),
+                                                         which(Seurat_Obj@meta.data$CAR == "CARpos"))])) > 1) {
+      cnt <- cnt+1
+    }
+  }
+  lineage_abstract_table["Lineages_CARpos","Alpha&Beta"] <- cnt
+  
+  cnt <- 0
+  for(i in 1:length(b)) {
+    if(length(unique(Seurat_Obj@meta.data$Time[intersect(which(Seurat_Obj@meta.data$global_clonotype_lenient == b[i]),
+                                                         which(Seurat_Obj@meta.data$CAR == "CARpos"))])) > 1) {
+      cnt <- cnt+1
+    }
+  }
+  lineage_abstract_table["Lineages_CARpos","Beta_Only"] <- cnt
+  
+  ### Clonotypes
+  lineage_abstract_table["Clonotypes","Alpha&Beta"] <- length(ab) +
+    length(only_one_strict_clonotypes_idx)
+    
+  lineage_abstract_table["Clonotypes","Beta_Only"] <- length(b) +
+    length(only_one_lenient_clonotypes_idx)
+  
+  ### Clonotypes - CAR+
+  lineage_abstract_table["Clonotypes_CARpos","Alpha&Beta"] <- length(unique(Seurat_Obj@meta.data$global_clonotype_strict[which(Seurat_Obj@meta.data$CAR == "CARpos")])) +
+    length(only_one_strict_clonotypes_carpos_idx)
+  
+  lineage_abstract_table["Clonotypes_CARpos","Beta_Only"] <- length(unique(Seurat_Obj@meta.data$global_clonotype_lenient[which(Seurat_Obj@meta.data$CAR == "CARpos")])) +
+    length(only_one_lenient_clonotypes_carpos_idx)
+  
+  ### Filtered_Clonotypes
+  lineage_abstract_table["Filtered_Clonotypes","Alpha&Beta"] <- length(ab)
+  lineage_abstract_table["Filtered_Clonotypes","Beta_Only"] <- length(b)
+  
+  
+  ### New task after the meeting at Apr 20
+  
+  
   
   
   
