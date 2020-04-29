@@ -47,7 +47,7 @@ make_scripts <- function(metadata_path="./data/metadata_hpc.rda",
         script <- paste0(script, "R CMD BATCH ${R_FILE}\n")
         
         ### append the master script
-        masterScript <- paste0(masterScript, "bsub -R \"rusage[mem=2500]\" -P SJCAR19 -q standard -J ",
+        masterScript <- paste0(masterScript, "bsub -R \"rusage[mem=1000]\" -P SJCAR19 -q standard -J ",
                                lib, "_", opt, "_", gap, " \"/home/hkim8/SJCAR19/codes/",
                                lib, "_", opt, "_", gap, ".sh\"\n")
         
