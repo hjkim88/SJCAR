@@ -63,7 +63,11 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
   ### global clonotypes in the Seurat objects
   global_clonotypes <- colnames(Seurat_Obj@meta.data)[grep("global_clonotype", colnames(Seurat_Obj@meta.data), fixed = TRUE)]
   
+  ### for each patient, make a statistics table
   for(patient in unique(Seurat_Obj@meta.data$Px)) {
+    
+    ### print progress
+    writeLines(paste(patient))
     
     ### indicies that assign to the given patient
     px_idx <- which(Seurat_Obj@meta.data$Px == patient)
@@ -73,63 +77,62 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
                                                     which(Seurat_Obj@meta.data$cdr3_nt != "NA")),
                                           which(Seurat_Obj@meta.data$cdr3_nt != "")))
     
+    ### set min-max values for x-y axes (will be used later)
+    x_range <- c(min(Seurat_Obj@meta.data$Full_UMAP1[px_idx]), max(Seurat_Obj@meta.data$Full_UMAP1[px_idx]))
+    y_range <- c(min(Seurat_Obj@meta.data$Full_UMAP2[px_idx]), max(Seurat_Obj@meta.data$Full_UMAP2[px_idx]))
+    
+    ### make an empty lineage table (will be used later)
+    lineage_abstract_table <- matrix(0, 5, length(global_clonotypes))
+    rownames(lineage_abstract_table) <- c("Lineages", "Lineages_CARpos",
+                                          "Clonotypes", "Clonotypes_CARpos", "Filtered_Clonotypes")
+    colnames(lineage_abstract_table) <- global_clonotypes
+    
     ### make a table that shows how clonotype frequency (and proportion) changes over time
-    unique_clonotypes <- vector("list", length(global_clonotypes))
-    names(unique_clonotypes) <- global_clonotypes
-    
-    unique_time_points <- vector("list", length(global_clonotypes))
-    names(unique_time_points) <- global_clonotypes
-    
-    frequency_over_time <- vector("list", length(global_clonotypes))
-    names(frequency_over_time) <- global_clonotypes
-    
-    car_frequency_over_time <- vector("list", length(global_clonotypes))
-    names(car_frequency_over_time) <- global_clonotypes
-    
-    proportion_over_time <- vector("list", length(global_clonotypes))
-    names(proportion_over_time) <- global_clonotypes
-    
-    car_proportion_over_time <- vector("list", length(global_clonotypes))
-    names(car_proportion_over_time) <- global_clonotypes
-    
     for(type in global_clonotypes) {
       target_idx <- intersect(px_idx, which(!is.na(Seurat_Obj@meta.data[,type])))
       
-      unique_clonotypes[[type]] <- unique(Seurat_Obj@meta.data[target_idx,type])
+      dups <- Seurat_Obj@meta.data[target_idx, type][which(duplicated(Seurat_Obj@meta.data[target_idx, type]))]
+      unique_clonotypes <- unique(dups)
+      unique_clonotypes <- unique_clonotypes[intersect(intersect(which(!is.na(unique_clonotypes)),
+                                                                 which(unique_clonotypes != "NA")),
+                                                       which(unique_clonotypes != ""))]
       
-      unique_time_points[[type]] <- levels(Seurat_Obj@meta.data$TimeF[target_idx])
+      unique_time_points <- levels(Seurat_Obj@meta.data$TimeF[target_idx])
       
-      frequency_over_time[[type]] <- matrix(0, length(unique_clonotypes[[type]]), length(unique_time_points[[type]]))
-      rownames(frequency_over_time[[type]]) <- unique_clonotypes[[type]]
-      colnames(frequency_over_time[[type]]) <- unique_time_points[[type]]
+      frequency_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
+      rownames(frequency_over_time) <- unique_clonotypes
+      colnames(frequency_over_time) <- unique_time_points
       
-      car_frequency_over_time[[type]] <- matrix(0, length(unique_clonotypes[[type]]), length(unique_time_points[[type]]))
-      rownames(car_frequency_over_time[[type]]) <- unique_clonotypes[[type]]
-      colnames(car_frequency_over_time[[type]]) <- unique_time_points[[type]]
+      car_frequency_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
+      rownames(car_frequency_over_time) <- unique_clonotypes
+      colnames(car_frequency_over_time) <- unique_time_points
       
-      proportion_over_time[[type]] <- matrix(0, length(unique_clonotypes[[type]]), length(unique_time_points[[type]]))
-      rownames(proportion_over_time[[type]]) <- unique_clonotypes[[type]]
-      colnames(proportion_over_time[[type]]) <- unique_time_points[[type]]
+      proportion_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
+      rownames(proportion_over_time) <- unique_clonotypes
+      colnames(proportion_over_time) <- unique_time_points
       
-      car_proportion_over_time[[type]] <- matrix(0, length(unique_clonotypes[[type]]), length(unique_time_points[[type]]))
-      rownames(car_proportion_over_time[[type]]) <- unique_clonotypes[[type]]
-      colnames(car_proportion_over_time[[type]]) <- unique_time_points[[type]]
+      car_proportion_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
+      rownames(car_proportion_over_time) <- unique_clonotypes
+      colnames(car_proportion_over_time) <- unique_time_points
       
       ### start time
       start_time <- Sys.time()
       
       ### set progress bar
-      pb <- txtProgressBar(min = 0, max = length(unique_clonotypes_strict)*length(unique_time_points), style = 3)
+      pb <- txtProgressBar(min = 0, max = length(unique_clonotypes)*length(unique_time_points), style = 3)
       
       ### fill out the frequency tables
       cnt <- 0
-      for(time in unique_time_points[[type]]) {
-        for(clonotype in unique_clonotypes[[type]]) {
-          frequency_over_time[[type]][clonotype,time] <- length(intersect(which(Seurat_Obj@meta.data[,type] == clonotype),
-                                                                  which(Seurat_Obj@meta.data$Time == time)))
-          car_frequency_over_time[[type]][clonotype,time] <- length(intersect(intersect(which(Seurat_Obj@meta.data[,type] == clonotype),
-                                                                                which(Seurat_Obj@meta.data$Time == time)),
-                                                                      which(Seurat_Obj@meta.data$CAR == "CARpos")))
+      for(time in unique_time_points) {
+        for(clonotype in unique_clonotypes) {
+          ### indicies for the specific patient, time, and clonotype
+          target_idx <- intersect(intersect(px_idx,
+                                            which(Seurat_Obj@meta.data$Time == time)),
+                                  which(Seurat_Obj@meta.data[,type] == clonotype))
+          
+          frequency_over_time[clonotype,time] <- length(target_idx)
+          car_frequency_over_time[clonotype,time] <- length(intersect(target_idx,
+                                                                              which(Seurat_Obj@meta.data$CAR == "CARpos")))
           
           ### update the progress bar
           cnt <- cnt + 1
@@ -137,17 +140,19 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
         }
         
         ### fill out the proportion tables
-        cells_time_num <- length(which(Seurat_Obj@meta.data$Time == time))
-        car_cells_time_num <- length(intersect(which(Seurat_Obj@meta.data$Time == time),
+        cells_time_num <- length(intersect(px_idx,
+                                           which(Seurat_Obj@meta.data$Time == time)))
+        car_cells_time_num <- length(intersect(intersect(px_idx,
+                                                         which(Seurat_Obj@meta.data$Time == time)),
                                                which(Seurat_Obj@meta.data$CAR == "CARpos")))
         if(car_cells_time_num > 0) {
-          proportion_over_time[[type]][,time] <- signif(100*frequency_over_time[[type]][,time]/cells_time_num, digits = 4)
-          car_proportion_over_time[[type]][,time] <- signif(100*car_frequency_over_time[[type]][,time]/car_cells_time_num, digits = 4)
+          proportion_over_time[,time] <- signif(100*frequency_over_time[,time]/cells_time_num, digits = 4)
+          car_proportion_over_time[,time] <- signif(100*car_frequency_over_time[,time]/car_cells_time_num, digits = 4)
         } else if(cells_time_num > 0) {
-          proportion_over_time[[type]][,time] <- signif(100*frequency_over_time[[type]][,time]/cells_time_num, digits = 4)
+          proportion_over_time[,time] <- signif(100*frequency_over_time[,time]/cells_time_num, digits = 4)
         } else {
-          proportion_over_time[[type]][,time] <- 0
-          car_proportion_over_time[[type]][,time] <- 0
+          proportion_over_time[,time] <- 0
+          car_proportion_over_time[,time] <- 0
         }
       }
       close(pb)
@@ -160,271 +165,165 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
                 signif(as.numeric(difftime(end_time, start_time, units = "mins")), digits = 3),
                 "mins"))
       
-      
-      
-    }
-    
-    
-    
-    
-    
-  }
-  
-  
-  
-  unique_clonotypes_strict <- unique(Seurat_Obj@meta.data$global_clonotype_strict[which(!is.na(Seurat_Obj@meta.data$global_clonotype_strict))])
-  unique_time_points <- levels(Seurat_Obj@meta.data$TimeF)
-  frequency_over_time <- matrix(0, length(unique_clonotypes_strict), length(unique_time_points))
-  rownames(frequency_over_time) <- unique_clonotypes_strict
-  colnames(frequency_over_time) <- unique_time_points
-  car_frequency_over_time <- matrix(0, length(unique_clonotypes_strict), length(unique_time_points))
-  rownames(car_frequency_over_time) <- unique_clonotypes_strict
-  colnames(car_frequency_over_time) <- unique_time_points
-  proportion_over_time <- matrix(0, length(unique_clonotypes_strict), length(unique_time_points))
-  rownames(proportion_over_time) <- unique_clonotypes_strict
-  colnames(proportion_over_time) <- unique_time_points
-  car_proportion_over_time <- matrix(0, length(unique_clonotypes_strict), length(unique_time_points))
-  rownames(car_proportion_over_time) <- unique_clonotypes_strict
-  colnames(car_proportion_over_time) <- unique_time_points
-  
-  ### start time
-  start_time <- Sys.time()
-  
-  ### set progress bar
-  pb <- txtProgressBar(min = 0, max = length(unique_clonotypes_strict)*length(unique_time_points), style = 3)
-  
-  ### fill out the frequency tables
-  cnt <- 0
-  for(time in unique_time_points) {
-    for(clonotype in unique_clonotypes_strict) {
-      frequency_over_time[clonotype,time] <- length(intersect(which(Seurat_Obj@meta.data$global_clonotype_strict == clonotype),
-                                                              which(Seurat_Obj@meta.data$Time == time)))
-      car_frequency_over_time[clonotype,time] <- length(intersect(intersect(which(Seurat_Obj@meta.data$global_clonotype_strict == clonotype),
-                                                                            which(Seurat_Obj@meta.data$Time == time)),
-                                                        which(Seurat_Obj@meta.data$CAR == "CARpos")))
-      
-      ### update the progress bar
-      cnt <- cnt + 1
-      setTxtProgressBar(pb, cnt)
-    }
-    
-    ### fill out the proportion tables
-    cells_time_num <- length(which(Seurat_Obj@meta.data$Time == time))
-    car_cells_time_num <- length(intersect(which(Seurat_Obj@meta.data$Time == time),
-                                           which(Seurat_Obj@meta.data$CAR == "CARpos")))
-    if(car_cells_time_num > 0) {
-      proportion_over_time[,time] <- signif(100*frequency_over_time[,time]/cells_time_num, digits = 4)
-      car_proportion_over_time[,time] <- signif(100*car_frequency_over_time[,time]/car_cells_time_num, digits = 4)
-    } else if(cells_time_num > 0) {
-      proportion_over_time[,time] <- signif(100*frequency_over_time[,time]/cells_time_num, digits = 4)
-    } else {
-      proportion_over_time[,time] <- 0
-      car_proportion_over_time[,time] <- 0
-    }
-  }
-  close(pb)
-  
-  ### end time
-  end_time <- Sys.time()
-  
-  ### print out the running time
-  cat(paste("Running Time:",
-            signif(as.numeric(difftime(end_time, start_time, units = "mins")), digits = 3),
-            "mins"))
-  
-  ### add total column
-  frequency_over_time <- data.frame(Clonotype=unique_clonotypes_strict,
-                                    frequency_over_time, Total=apply(frequency_over_time, 1, sum),
-                                    stringsAsFactors = FALSE, check.names = FALSE)
-  car_frequency_over_time <- data.frame(Clonotype=unique_clonotypes_strict,
-                                        car_frequency_over_time, Total=apply(car_frequency_over_time, 1, sum),
+      ### add total column
+      frequency_over_time <- data.frame(Clonotype=unique_clonotypes,
+                                        frequency_over_time,
+                                        Total=apply(frequency_over_time, 1, sum),
                                         stringsAsFactors = FALSE, check.names = FALSE)
-  proportion_over_time <- data.frame(Clonotype=unique_clonotypes_strict,
-                                     proportion_over_time, Total=apply(proportion_over_time, 1, sum),
-                                     stringsAsFactors = FALSE, check.names = FALSE)
-  car_proportion_over_time <- data.frame(Clonotype=unique_clonotypes_strict,
-                                         car_proportion_over_time, Total=apply(car_proportion_over_time, 1, sum),
+      car_frequency_over_time <- data.frame(Clonotype=unique_clonotypes,
+                                            car_frequency_over_time,
+                                            Total=apply(car_frequency_over_time, 1, sum),
+                                            stringsAsFactors = FALSE, check.names = FALSE)
+      proportion_over_time <- data.frame(Clonotype=unique_clonotypes,
+                                         proportion_over_time,
+                                         Total=apply(proportion_over_time, 1, sum),
                                          stringsAsFactors = FALSE, check.names = FALSE)
-  
-  ### order the data frames by the Total column
-  frequency_over_time <- frequency_over_time[order(-frequency_over_time[,"Total"]),]
-  proportion_over_time <- proportion_over_time[order(-proportion_over_time[,"Total"]),]
-  car_frequency_over_time <- car_frequency_over_time[order(-car_frequency_over_time[,"Total"]),]
-  car_proportion_over_time <- car_proportion_over_time[order(-car_proportion_over_time[,"Total"]),]
-  
-  ### save the tables in Excel format
-  write.xlsx2(frequency_over_time, file = paste0(outputDir, "clonotype_frequency_over_time.xlsx"),
-              sheetName = "clonotype_frequency_over_time", row.names = FALSE)
-  write.xlsx2(proportion_over_time, file = paste0(outputDir, "clonotype_frequency_over_time.xlsx"),
-              sheetName = "proportion_frequency_over_time", row.names = FALSE, append = TRUE)
-  write.xlsx2(car_frequency_over_time, file = paste0(outputDir, "car_clonotype_frequency_over_time.xlsx"),
-              sheetName = "car_clonotype_frequency_over_time", row.names = FALSE)
-  write.xlsx2(car_proportion_over_time, file = paste0(outputDir, "car_clonotype_frequency_over_time.xlsx"),
-              sheetName = "car_proportion_frequency_over_time", row.names = FALSE, append = TRUE)
-  
-  ### visualize the frequency and proportion of some interesting clonotypes with bar plots
-  top10_carts <- t(car_frequency_over_time[1:10,5:14])
-  top10_carts <- data.frame(top10_carts, Time=rownames(top10_carts),
-                            stringsAsFactors = FALSE, check.names = FALSE)
-  top10_carts$Time <- factor(top10_carts$Time, levels = levels(Seurat_Obj@meta.data$TimeF))
-  p <- vector("list", length = ncol(top10_carts)-1)
-  names(p) <- colnames(top10_carts)[1:length(p)]
-  for(clonotype in names(p)) {
-    p[[clonotype]] <- ggplot(top10_carts, aes_string(x="Time", y=clonotype)) +
-      labs(x="", y="Clone Size") +
-      geom_bar(fill = "grey50", position = "dodge", stat = "identity") +
-      ggtitle(paste0(clonotype)) +
-      guides(fill=guide_legend(title=NULL)) +
-      theme_classic(base_size = 16) +
-      theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, size = 14),
-            plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 14),
-            axis.title.y = element_text(size = 14))
-  }
-  
-  ### arrange the plots and save
-  fName <- paste0("Top10_CAR+_Tcells_Lineage_Tracing")
-  g <- arrangeGrob(grobs = p,
-                   nrow = 5,
-                   ncol = 2,
-                   top = fName)
-  ggsave(file = paste0(outputDir, "/", fName, ".png"), g, width = 12, height = 12, dpi = 300)
-  
-  
-  ### clone size of all the CAR+ T cells on UMAP
-  ### CAR+ T cells which have TCR info
-  
-  ### set min-max values for x-y axes
-  x_range <- c(min(Seurat_Obj@meta.data$Full_UMAP1), max(Seurat_Obj@meta.data$Full_UMAP1))
-  y_range <- c(min(Seurat_Obj@meta.data$Full_UMAP2), max(Seurat_Obj@meta.data$Full_UMAP2))
-  
-  ### One plot for each group
-  unique_time <- levels(Seurat_Obj@meta.data$TimeF)
-  p <- vector("list", length(unique_time))
-  names(p) <- unique_time
-  for(time in unique_time) {
-    ### data creation
-    temp <- Seurat_Obj@meta.data[which(Seurat_Obj@meta.data$Time == time),]
-    temp <- merge(temp, car_frequency_over_time[,c("Clonotype", time),drop=FALSE],
-                  by.x = "global_clonotype_strict", by.y = "Clonotype",
-                  all.x = TRUE)
-    plot_df <- data.frame(X=temp$Full_UMAP1,
-                          Y=temp$Full_UMAP2,
-                          Time=temp$TimeF,
-                          Clonotype=temp$global_clonotype_strict,
-                          Clone_Size=temp[,time])
-    plot_df$Clone_Size[intersect(which(is.na(plot_df$Clone_Size)),
-                                 intersect(which(!is.na(temp$cdr3_aa)),
-                                           which(temp$CAR == "CARpos")))] <- 1
-    plot_df <- plot_df[which(!is.na(plot_df$Clone_Size)),]
+      car_proportion_over_time <- data.frame(Clonotype=unique_clonotypes,
+                                             car_proportion_over_time,
+                                             Total=apply(car_proportion_over_time, 1, sum),
+                                             stringsAsFactors = FALSE, check.names = FALSE)
+      
+      ### order the data frames by the Total column
+      frequency_over_time <- frequency_over_time[order(-frequency_over_time[,"Total"]),]
+      proportion_over_time <- proportion_over_time[order(-proportion_over_time[,"Total"]),]
+      car_frequency_over_time <- car_frequency_over_time[order(-car_frequency_over_time[,"Total"]),]
+      car_proportion_over_time <- car_proportion_over_time[order(-car_proportion_over_time[,"Total"]),]
+      
+      ### save the tables in Excel format
+      write.xlsx2(frequency_over_time, file = paste0(outputDir, "clonotype_frequency_over_time_", patient, ".xlsx"),
+                  sheetName = type, row.names = FALSE, append = TRUE)
+      write.xlsx2(proportion_over_time, file = paste0(outputDir, "clonotype_proportion_over_time_", patient, ".xlsx"),
+                  sheetName = type, row.names = FALSE, append = TRUE)
+      write.xlsx2(car_frequency_over_time, file = paste0(outputDir, "car_clonotype_frequency_over_time_", patient, ".xlsx"),
+                  sheetName = type, row.names = FALSE, append = TRUE)
+      write.xlsx2(car_proportion_over_time, file = paste0(outputDir, "car_clonotype_proportion_over_time_", patient, ".xlsx"),
+                  sheetName = type, row.names = FALSE, append = TRUE)
+      
+      ###
+      ### visualize the frequency and proportion of some interesting clonotypes with bar plots
+      ###
+      top10_carts <- t(car_frequency_over_time[1:10,2:(ncol(car_frequency_over_time)-1)])
+      top10_carts <- data.frame(top10_carts,
+                                Time=rownames(top10_carts),
+                                stringsAsFactors = FALSE, check.names = FALSE)
+      top10_carts$Time <- factor(top10_carts$Time, levels = levels(Seurat_Obj@meta.data$TimeF))
+      p <- vector("list", length = ncol(top10_carts)-1)
+      names(p) <- colnames(top10_carts)[1:length(p)]
+      for(clonotype in names(p)) {
+        p[[clonotype]] <- ggplot(top10_carts, aes_string(x="Time", y=clonotype)) +
+          labs(x="", y="Clone Size") +
+          geom_bar(fill = "grey50", position = "dodge", stat = "identity") +
+          ggtitle(paste0(clonotype)) +
+          guides(fill=guide_legend(title=NULL)) +
+          theme_classic(base_size = 16) +
+          theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, size = 14),
+                plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 14),
+                axis.title.y = element_text(size = 14))
+      }
+      
+      ### arrange the plots and save
+      fName <- paste0("Top10_CAR+_Tcells_Lineage_Tracing_", patient, "_", type)
+      g <- arrangeGrob(grobs = p,
+                       nrow = 5,
+                       ncol = 2,
+                       top = fName)
+      ggsave(file = paste0(outputDir, "/", fName, ".png"), g, width = 12, height = 12, dpi = 300)
+      
+      
+      ###
+      ### clone size of all the CAR+ T cells on UMAP
+      ### CAR+ T cells which have TCR info
+      ###
+      
+      ### One plot for each group
+      p <- vector("list", length(unique_time_points))
+      names(p) <- unique_time_points
+      for(time in unique_time_points) {
+        ### data creation
+        temp <- Seurat_Obj@meta.data[intersect(which(Seurat_Obj@meta.data$Px == patient),
+                                               which(Seurat_Obj@meta.data$Time == time)),]
+        temp <- merge(temp, car_frequency_over_time[,c("Clonotype", time),drop=FALSE],
+                      by.x = type, by.y = "Clonotype",
+                      all.x = TRUE)
+        plot_df <- data.frame(X=temp$Full_UMAP1,
+                              Y=temp$Full_UMAP2,
+                              Time=temp$TimeF,
+                              Clonotype=temp[,type],
+                              Clone_Size=temp[,time])
+        plot_df$Clone_Size[intersect(which(is.na(plot_df$Clone_Size)),
+                                     intersect(which(!is.na(temp$cdr3_aa)),
+                                               which(temp$CAR == "CARpos")))] <- 1
+        plot_df <- plot_df[which(!is.na(plot_df$Clone_Size)),]
+        
+        ### UMAP for each time point
+        if(sum(plot_df$Clone_Size) == 0) {
+          p[[time]] <- NULL
+        } else {
+          p[[time]] <- ggplot(plot_df, aes_string(x="X", y="Y")) +
+            geom_point(aes_string(col="Clone_Size"), size=1.5, alpha=0.6) +
+            xlab("UMAP1") + ylab("UMAP2") +
+            xlim(x_range[1], x_range[2]) + ylim(y_range[1], y_range[2]) +
+            ggtitle(time) +
+            theme_classic(base_size = 16) +
+            theme(plot.title = element_text(hjust = 0.5)) +
+            scale_color_gradient(low="blue", high="red")
+        }
+      }
+      
+      ### arrange the plots and save
+      fName <- paste0("UMAP_CAR+_Tcells_Clone_Size_", patient, "_", type)
+      g <- arrangeGrob(grobs = p,
+                       nrow = 3,
+                       top = fName)
+      ggsave(file = paste0(outputDir, "/", fName, ".png"), g, width = 20, height = 12, dpi = 300)
+      
+      
+      ###
+      ### the number of lineages
+      ### Lineages: the number of lineages that appeared more than one time points in the Seurat object
+      ### Lineages_CARpos: the number of lineages in CAR+ cells that appeared more than one time points in the Seurat object
+      ### Clonotypes: the number of clonotypes in the Seurat object
+      ### Clonotypes_CARpos: the number of clonotypes in CAR+ cells in the Seurat object
+      ###
+      
+      ### Lineages
+      chains <- unique(Seurat_Obj@meta.data[px_idx,type])
+      chains <- chains[!is.na(chains)]
+      cnt <- 0
+      for(i in 1:length(chains)) {
+        if(length(unique(Seurat_Obj@meta.data$Time[intersect(px_idx,
+                                                             which(Seurat_Obj@meta.data[,type] == chains[i]))])) > 1) {
+          cnt <- cnt+1
+        }
+      }
+      lineage_abstract_table["Lineages",type] <- cnt
+      
+      ### Lineages - CAR+
+      cnt <- 0
+      for(i in 1:length(chains)) {
+        if(length(unique(Seurat_Obj@meta.data$Time[intersect(px_idx,
+                                                             intersect(which(Seurat_Obj@meta.data[,type] == chains[i]),
+                                                                       which(Seurat_Obj@meta.data$CAR == "CARpos")))])) > 1) {
+          cnt <- cnt+1
+        }
+      }
+      lineage_abstract_table["Lineages_CARpos",type] <- cnt
+      
+      ### Clonotypes
+      lineage_abstract_table["Clonotypes",type] <- length(chains)
+      
+      ### Clonotypes - CAR+
+      car_chains <- unique(Seurat_Obj@meta.data[intersect(px_idx,
+                                                          which(Seurat_Obj@meta.data$CAR == "CARpos")),type])
+      car_chains <- car_chains[!is.na(car_chains)]
+      lineage_abstract_table["Clonotypes_CARpos",type] <- length(car_chains)
+    }
     
-    ### UMAP for each time point
-    if(sum(plot_df$Clone_Size) == 0) {
-      p[[time]] <- NULL
-    } else {
-      p[[time]] <- ggplot(plot_df, aes_string(x="X", y="Y")) +
-        geom_point(aes_string(col="Clone_Size"), size=1.5, alpha=0.6) +
-        xlab("UMAP1") + ylab("UMAP2") +
-        xlim(x_range[1], x_range[2]) + ylim(y_range[1], y_range[2]) +
-        ggtitle(time) +
-        theme_classic(base_size = 16) +
-        theme(plot.title = element_text(hjust = 0.5)) +
-        scale_color_gradient(low="blue", high="red")
-    }
-  }
-  
-  ### arrange the plots and save
-  fName <- paste0("UMAP_CAR+_Tcells_Clone_Size")
-  g <- arrangeGrob(grobs = p,
-                   nrow = 3,
-                   top = fName)
-  ggsave(file = paste0(outputDir, "/", fName, ".png"), g, width = 20, height = 12, dpi = 300)
-  
-  
-  ### the number of lineages - considering 1. alpha & beta, 2. beta only, 3. alpha only
-  ### Lineages: the number of lineages that appeared more than one time points in the Seurat object
-  ### Lineages_CARpos: the number of lineages in CAR+ cells that appeared more than one time points in the Seurat object
-  ### Clonotypes: the number of clonotypes in the Seurat object
-  ### Clonotypes_CARpos: the number of clonotypes in CAR+ cells in the Seurat object
-  ### Filtered_Clonotypes: This is similar to the "Clonotypes" but unique (that exist only one in the data)
-  ###                    clonotypes were filtered out 
-  lineage_abstract_table <- matrix(0, 5, 4)
-  rownames(lineage_abstract_table) <- c("Lineages", "Lineages_CARpos",
-                                        "Clonotypes", "Clonotypes_CARpos", "Filtered_Clonotypes")
-  colnames(lineage_abstract_table) <- c("Alpha&Beta", "Alpha_Only", "Beta_Only", "Only_one_Aplha&Beta")
-  
-  only_one_strict_clonotypes_idx <- intersect(which(!is.na(Seurat_Obj@meta.data$cdr3_aa)),
-                                              which(is.na(Seurat_Obj@meta.data$global_clonotype_strict)))
-  only_one_lenient_clonotypes_idx <- intersect(which(!is.na(Seurat_Obj@meta.data$cdr3_aa)),
-                                              which(is.na(Seurat_Obj@meta.data$global_clonotype_lenient)))
-  only_one_strict_clonotypes_carpos_idx <- intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
-                                                     only_one_strict_clonotypes_idx)
-  only_one_lenient_clonotypes_carpos_idx <- intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
-                                                      only_one_lenient_clonotypes_idx)
-  
-  ### Lineages
-  ab <- unique(Seurat_Obj@meta.data$global_clonotype_strict)
-  ab <- ab[!is.na(ab)]
-  cnt <- 0
-  for(i in 1:length(ab)) {
-    if(length(unique(Seurat_Obj@meta.data$Time[which(Seurat_Obj@meta.data$global_clonotype_strict == ab[i])])) > 1) {
-      cnt <- cnt+1
-    }
-  }
-  lineage_abstract_table["Lineages","Alpha&Beta"] <- cnt
-  
-  b <- unique(Seurat_Obj@meta.data$global_clonotype_lenient)
-  b <- b[!is.na(b)]
-  cnt <- 0
-  for(i in 1:length(b)) {
-    if(length(unique(Seurat_Obj@meta.data$Time[which(Seurat_Obj@meta.data$global_clonotype_lenient == b[i])])) > 1) {
-      cnt <- cnt+1
-    }
-  }
-  lineage_abstract_table["Lineages","Beta_Only"] <- cnt
-  
-  ### Lineages - CAR+
-  cnt <- 0
-  for(i in 1:length(ab)) {
-    if(length(unique(Seurat_Obj@meta.data$Time[intersect(which(Seurat_Obj@meta.data$global_clonotype_strict == ab[i]),
-                                                         which(Seurat_Obj@meta.data$CAR == "CARpos"))])) > 1) {
-      cnt <- cnt+1
-    }
-  }
-  lineage_abstract_table["Lineages_CARpos","Alpha&Beta"] <- cnt
-  
-  cnt <- 0
-  for(i in 1:length(b)) {
-    if(length(unique(Seurat_Obj@meta.data$Time[intersect(which(Seurat_Obj@meta.data$global_clonotype_lenient == b[i]),
-                                                         which(Seurat_Obj@meta.data$CAR == "CARpos"))])) > 1) {
-      cnt <- cnt+1
-    }
-  }
-  lineage_abstract_table["Lineages_CARpos","Beta_Only"] <- cnt
-  
-  ### Clonotypes
-  lineage_abstract_table["Clonotypes","Alpha&Beta"] <- length(ab) +
-    length(only_one_strict_clonotypes_idx)
+    ### save the lineage table
+    write.xlsx2(lineage_abstract_table,
+                file = paste0(outputDir, "lineage_abstract_table_", patient, ".xlsx"),
+                sheetName = patient)
     
-  lineage_abstract_table["Clonotypes","Beta_Only"] <- length(b) +
-    length(only_one_lenient_clonotypes_idx)
-  
-  ### Clonotypes - CAR+
-  lineage_abstract_table["Clonotypes_CARpos","Alpha&Beta"] <- length(unique(Seurat_Obj@meta.data$global_clonotype_strict[which(Seurat_Obj@meta.data$CAR == "CARpos")])) +
-    length(only_one_strict_clonotypes_carpos_idx)
-  
-  lineage_abstract_table["Clonotypes_CARpos","Beta_Only"] <- length(unique(Seurat_Obj@meta.data$global_clonotype_lenient[which(Seurat_Obj@meta.data$CAR == "CARpos")])) +
-    length(only_one_lenient_clonotypes_carpos_idx)
-  
-  ### Filtered_Clonotypes
-  lineage_abstract_table["Filtered_Clonotypes","Alpha&Beta"] <- length(ab)
-  lineage_abstract_table["Filtered_Clonotypes","Beta_Only"] <- length(b)
-  
-  
-  ### New task after the meeting at Apr 20
-  
-  
-  
-  
-  
+  }
   
 }
