@@ -49,17 +49,6 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
   rm(tmp_env)
   gc()
   
-  ### get alpha only and beta only sequences
-  cdr3 <- strsplit(Seurat_Obj@meta.data[,"cdr3_nt"], split = ";", fixed = TRUE)
-  ### only retain alpha chains
-  tcr_a <- sapply(1:length(cdr3), function(x) {
-    return(paste(cdr3[[x]][grep("TRA", cdr3[[x]])], collapse = ";"))
-  })
-  ### only retain beta chains
-  tcr_b <- sapply(1:length(cdr3), function(x) {
-    return(paste(cdr3[[x]][grep("TRB", cdr3[[x]])], collapse = ";"))
-  })
-  
   ### global clonotypes in the Seurat objects
   global_clonotypes <- colnames(Seurat_Obj@meta.data)[grep("global_clonotype", colnames(Seurat_Obj@meta.data), fixed = TRUE)]
   
@@ -82,9 +71,9 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
     y_range <- c(min(Seurat_Obj@meta.data$Full_UMAP2[px_idx]), max(Seurat_Obj@meta.data$Full_UMAP2[px_idx]))
     
     ### make an empty lineage table (will be used later)
-    lineage_abstract_table <- matrix(0, 5, length(global_clonotypes))
+    lineage_abstract_table <- matrix(0, 4, length(global_clonotypes))
     rownames(lineage_abstract_table) <- c("Lineages", "Lineages_CARpos",
-                                          "Clonotypes", "Clonotypes_CARpos", "Filtered_Clonotypes")
+                                          "Clonotypes", "Clonotypes_CARpos")
     colnames(lineage_abstract_table) <- global_clonotypes
     
     ### make a table that shows how clonotype frequency (and proportion) changes over time
@@ -132,7 +121,7 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
           
           frequency_over_time[clonotype,time] <- length(target_idx)
           car_frequency_over_time[clonotype,time] <- length(intersect(target_idx,
-                                                                              which(Seurat_Obj@meta.data$CAR == "CARpos")))
+                                                                      which(Seurat_Obj@meta.data$CAR == "CARpos")))
           
           ### update the progress bar
           cnt <- cnt + 1
@@ -192,12 +181,16 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
       ### save the tables in Excel format
       write.xlsx2(frequency_over_time, file = paste0(outputDir, "clonotype_frequency_over_time_", patient, ".xlsx"),
                   sheetName = type, row.names = FALSE, append = TRUE)
+      gc()
       write.xlsx2(proportion_over_time, file = paste0(outputDir, "clonotype_proportion_over_time_", patient, ".xlsx"),
                   sheetName = type, row.names = FALSE, append = TRUE)
+      gc()
       write.xlsx2(car_frequency_over_time, file = paste0(outputDir, "car_clonotype_frequency_over_time_", patient, ".xlsx"),
                   sheetName = type, row.names = FALSE, append = TRUE)
+      gc()
       write.xlsx2(car_proportion_over_time, file = paste0(outputDir, "car_clonotype_proportion_over_time_", patient, ".xlsx"),
                   sheetName = type, row.names = FALSE, append = TRUE)
+      gc()
       
       ###
       ### visualize the frequency and proportion of some interesting clonotypes with bar plots
@@ -250,9 +243,17 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
                               Time=temp$TimeF,
                               Clonotype=temp[,type],
                               Clone_Size=temp[,time])
-        plot_df$Clone_Size[intersect(which(is.na(plot_df$Clone_Size)),
-                                     intersect(which(!is.na(temp$cdr3_aa)),
-                                               which(temp$CAR == "CARpos")))] <- 1
+        ### we only used dups, so
+        ### give 0 value to the only-one-clonotypes across time points
+        ### give 1 value if it is a CAR+ cell
+        plot_df$Clone_Size[intersect(intersect(which(!is.na(plot_df$Clonotype)),
+                                               which(plot_df$Clonotype != "")),
+                                     which(is.na(plot_df$Clone_Size)))] <- 0
+        plot_df$Clone_Size[intersect(intersect(intersect(which(!is.na(plot_df$Clonotype)),
+                                                         which(plot_df$Clonotype != "")),
+                                               which(is.na(plot_df$Clone_Size))),
+                                     which(temp$CAR == "CARpos"))] <- 1
+        ### remove cells that do not have TCR info
         plot_df <- plot_df[which(!is.na(plot_df$Clone_Size)),]
         
         ### UMAP for each time point
@@ -289,6 +290,7 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
       ### Lineages
       chains <- unique(Seurat_Obj@meta.data[px_idx,type])
       chains <- chains[!is.na(chains)]
+      chains <- chains[which(chains != "")]
       cnt <- 0
       for(i in 1:length(chains)) {
         if(length(unique(Seurat_Obj@meta.data$Time[intersect(px_idx,
