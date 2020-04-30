@@ -378,42 +378,46 @@ clonotyping <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_
   # ### ONLY WITH ab_strict0, a_strict0, and b_strict0
   # 
   # ### set as NA
+  # ### if TCR info exists, set as ""
   # Seurat_Obj@meta.data$global_clonotype_ab_strict0 <- NA
+  # Seurat_Obj@meta.data$global_clonotype_ab_strict0[which(!is.na(Seurat_Obj@meta.data$cdr3_nt))] <- ""
   # Seurat_Obj@meta.data$global_clonotype_a_strict0 <- NA
+  # Seurat_Obj@meta.data$global_clonotype_a_strict0[which(!is.na(Seurat_Obj@meta.data$cdr3_nt))] <- ""
   # Seurat_Obj@meta.data$global_clonotype_b_strict0 <- NA
+  # Seurat_Obj@meta.data$global_clonotype_b_strict0[which(!is.na(Seurat_Obj@meta.data$cdr3_nt))] <- ""
   # 
   # ### give clonotypes per each patient
   # pCnt <- 0
   # for(patient in unique(Seurat_Obj@meta.data$Px)) {
-  #   
+  # 
   #   ### indicies that assign to the given patient
   #   px_idx <- which(Seurat_Obj@meta.data$Px == patient)
-  #   
+  # 
   #   ### remove NA, "NA", and ""
   #   px_idx <- intersect(px_idx, intersect(intersect(which(!is.na(Seurat_Obj@meta.data$cdr3_nt)),
   #                                                     which(Seurat_Obj@meta.data$cdr3_nt != "NA")),
   #                                           which(Seurat_Obj@meta.data$cdr3_nt != "")))
-  #   
+  # 
   #   #
   #   ### 1 global_clonotype_ab_strict0
   #   #
   #   ###
-  #   
+  # 
   #   ### the unique "cdr3_nt" sequences
   #   unique_seqs <- unique(Seurat_Obj@meta.data$cdr3_nt[px_idx])
-  #   
+  # 
   #   ### remove NA, "NA", and ""
   #   unique_seqs <- unique_seqs[intersect(intersect(which(!is.na(unique_seqs)),
   #                                                  which(unique_seqs != "NA")),
   #                                        which(unique_seqs != ""))]
-  #   
+  # 
   #   ### get duplicated CDR3 NT sequences
   #   dups <- Seurat_Obj@meta.data$cdr3_nt[px_idx][which(duplicated(Seurat_Obj@meta.data$cdr3_nt[px_idx]))]
   #   unique_dups <- unique(dups)
   #   unique_dups <- unique_dups[intersect(intersect(which(!is.na(unique_dups)),
   #                                                  which(unique_dups != "NA")),
   #                                        which(unique_dups != ""))]
-  #   
+  # 
   #   ### give clonotypes to the duplicated sequences first
   #   unique_dup_idx <- NULL
   #   for(dup in unique_dups) {
@@ -422,34 +426,34 @@ clonotyping <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_
   #     unique_dup_idx <- c(unique_dup_idx, idx2)
   #     Seurat_Obj@meta.data$global_clonotype_ab_strict0[idx] <- paste0("clonotype", idx2)
   #   }
-  #   
+  # 
   #   ### give clonotypes to the remaining only-one-sequences
   #   target_idx <- setdiff(1:length(unique_seqs), unique_dup_idx)
   #   Seurat_Obj@meta.data$global_clonotype_ab_strict0[intersect(px_idx,
   #                                                              intersect(which(!is.na(Seurat_Obj@meta.data$cdr3_nt)),
-  #                                                                        which(is.na(Seurat_Obj@meta.data$global_clonotype_ab_strict0))))] <- paste0("clonotype", target_idx)
-  #   
-  #   
+  #                                                                        which(Seurat_Obj@meta.data$global_clonotype_ab_strict0 == "")))] <- paste0("clonotype", target_idx)
+  # 
+  # 
   #   #
   #   ### 2 global_clonotype_a_strict0
   #   #
   #   ###
-  #   
+  # 
   #   ### the unique "cdr3_nt" sequences
   #   unique_seqs <- unique(tcr_a[px_idx])
-  #   
+  # 
   #   ### remove NA, "NA", and ""
   #   unique_seqs <- unique_seqs[intersect(intersect(which(!is.na(unique_seqs)),
   #                                                  which(unique_seqs != "NA")),
   #                                        which(unique_seqs != ""))]
-  #   
+  # 
   #   ### get duplicated CDR3 NT sequences
   #   dups <- tcr_a[px_idx][which(duplicated(tcr_a[px_idx]))]
   #   unique_dups <- unique(dups)
   #   unique_dups <- unique_dups[intersect(intersect(which(!is.na(unique_dups)),
   #                                                  which(unique_dups != "NA")),
   #                                        which(unique_dups != ""))]
-  #   
+  # 
   #   ### give clonotypes to the duplicated sequences first
   #   unique_dup_idx <- NULL
   #   for(dup in unique_dups) {
@@ -458,34 +462,34 @@ clonotyping <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_
   #     unique_dup_idx <- c(unique_dup_idx, idx2)
   #     Seurat_Obj@meta.data$global_clonotype_a_strict0[idx] <- paste0("clonotype", idx2)
   #   }
-  #   
+  # 
   #   ### give clonotypes to the remaining only-one-sequences
   #   target_idx <- setdiff(1:length(unique_seqs), unique_dup_idx)
   #   Seurat_Obj@meta.data$global_clonotype_a_strict0[intersect(px_idx,
-  #                                                             intersect(which(!is.na(tcr_a)),
-  #                                                                       which(is.na(Seurat_Obj@meta.data$global_clonotype_a_strict0))))] <- paste0("clonotype", target_idx)
-  #   
-  #   
+  #                                                             intersect(which(tcr_a != ""),
+  #                                                                       which(Seurat_Obj@meta.data$global_clonotype_a_strict0 == "")))] <- paste0("clonotype", target_idx)
+  # 
+  # 
   #   #
   #   ### 3 global_clonotype_b_strict0
   #   #
   #   ###
-  #   
+  # 
   #   ### the unique "cdr3_nt" sequences
   #   unique_seqs <- unique(tcr_b[px_idx])
-  #   
+  # 
   #   ### remove NA, "NA", and ""
   #   unique_seqs <- unique_seqs[intersect(intersect(which(!is.na(unique_seqs)),
   #                                                  which(unique_seqs != "NA")),
   #                                        which(unique_seqs != ""))]
-  #   
+  # 
   #   ### get duplicated CDR3 NT sequences
   #   dups <- tcr_b[px_idx][which(duplicated(tcr_b[px_idx]))]
   #   unique_dups <- unique(dups)
   #   unique_dups <- unique_dups[intersect(intersect(which(!is.na(unique_dups)),
   #                                                  which(unique_dups != "NA")),
   #                                        which(unique_dups != ""))]
-  #   
+  # 
   #   ### give clonotypes to the duplicated sequences first
   #   unique_dup_idx <- NULL
   #   for(dup in unique_dups) {
@@ -494,13 +498,13 @@ clonotyping <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_
   #     unique_dup_idx <- c(unique_dup_idx, idx2)
   #     Seurat_Obj@meta.data$global_clonotype_b_strict0[idx] <- paste0("clonotype", idx2)
   #   }
-  #   
+  # 
   #   ### give clonotypes to the remaining only-one-sequences
   #   target_idx <- setdiff(1:length(unique_seqs), unique_dup_idx)
   #   Seurat_Obj@meta.data$global_clonotype_b_strict0[intersect(px_idx,
-  #                                                             intersect(which(!is.na(tcr_b)),
-  #                                                                       which(is.na(Seurat_Obj@meta.data$global_clonotype_b_strict0))))] <- paste0("clonotype", target_idx)
-  #   
+  #                                                             intersect(which(tcr_b != ""),
+  #                                                                       which(Seurat_Obj@meta.data$global_clonotype_b_strict0 == "")))] <- paste0("clonotype", target_idx)
+  # 
   #   pCnt <- pCnt + 1
   #   writeLines(paste(pCnt, "/", length(unique(Seurat_Obj@meta.data$Px))))
   # }
