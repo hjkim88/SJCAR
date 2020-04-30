@@ -449,12 +449,20 @@ clonotyping_hpc <- function(metadata_path="./data/metadata_hpc.rda",
             signif(as.numeric(difftime(end_time, start_time, units = "mins")), digits = 3),
             "mins"))
   
-  ### change the column name
-  colnames(metadata)[3] <- paste0("global_clonotype_", option, gap)
-  
   ### result file name
   fName <- paste(lib, option, gap, sep = "_")
   
+  ### only the library data
+  metadata <- metadata[which(metadata$Library == lib),]
+  
+  ### remove the very first ";" in the clonotype column
+  target_idx <- intersect(which(!is.na(metadata$clonotype)),
+                          which(metadata$clonotype != ""))
+  metadata$clonotype[target_idx] <- substring(metadata$clonotype[target_idx], 2)
+  
+  ### change the column name
+  colnames(metadata)[4] <- paste0("global_clonotype_", option, gap)
+    
   ### save the result
   save(list = c("metadata"), file = paste0(outputDir, fName, ".rda"))
   
