@@ -67,7 +67,11 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
                                           which(Seurat_Obj@meta.data$cdr3_nt != "")))
     
     if(length(px_idx) > 0) {
-    
+      
+      ### output directory for each patient
+      outputDir2 <- paste0(outputDir, "/", patient, "/")
+      dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+      
       ### set min-max values for x-y axes (will be used later)
       x_range <- c(min(Seurat_Obj@meta.data$Full_UMAP1[px_idx]), max(Seurat_Obj@meta.data$Full_UMAP1[px_idx]))
       y_range <- c(min(Seurat_Obj@meta.data$Full_UMAP2[px_idx]), max(Seurat_Obj@meta.data$Full_UMAP2[px_idx]))
@@ -181,16 +185,16 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
         car_proportion_over_time <- car_proportion_over_time[order(-car_proportion_over_time[,"Total"]),]
         
         ### save the tables in Excel format
-        write.xlsx2(frequency_over_time, file = paste0(outputDir, "clonotype_frequency_over_time_", patient, ".xlsx"),
+        write.xlsx2(frequency_over_time, file = paste0(outputDir2, "clonotype_frequency_over_time_", patient, ".xlsx"),
                     sheetName = type, row.names = FALSE, append = TRUE)
         gc()
-        write.xlsx2(proportion_over_time, file = paste0(outputDir, "clonotype_proportion_over_time_", patient, ".xlsx"),
+        write.xlsx2(proportion_over_time, file = paste0(outputDir2, "clonotype_proportion_over_time_", patient, ".xlsx"),
                     sheetName = type, row.names = FALSE, append = TRUE)
         gc()
-        write.xlsx2(car_frequency_over_time, file = paste0(outputDir, "car_clonotype_frequency_over_time_", patient, ".xlsx"),
+        write.xlsx2(car_frequency_over_time, file = paste0(outputDir2, "car_clonotype_frequency_over_time_", patient, ".xlsx"),
                     sheetName = type, row.names = FALSE, append = TRUE)
         gc()
-        write.xlsx2(car_proportion_over_time, file = paste0(outputDir, "car_clonotype_proportion_over_time_", patient, ".xlsx"),
+        write.xlsx2(car_proportion_over_time, file = paste0(outputDir2, "car_clonotype_proportion_over_time_", patient, ".xlsx"),
                     sheetName = type, row.names = FALSE, append = TRUE)
         gc()
         
@@ -222,7 +226,39 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
                          nrow = 5,
                          ncol = 2,
                          top = fName)
-        ggsave(file = paste0(outputDir, "/", fName, ".png"), g, width = 12, height = 12, dpi = 300)
+        ggsave(file = paste0(outputDir2, "/", fName, ".png"), g, width = 12, height = 12, dpi = 300)
+        
+        
+        ###
+        ### similar to the bar plot above but with the top GMP clonotypes
+        ###
+        frequency_over_time <- frequency_over_time[order(-as.numeric(frequency_over_time$GMP)),]
+        top10_gmps <- t(frequency_over_time[1:10,2:(ncol(frequency_over_time)-1)])
+        top10_gmps <- data.frame(top10_gmps,
+                                 Time=rownames(top10_gmps),
+                                 stringsAsFactors = FALSE, check.names = FALSE)
+        top10_gmps$Time <- factor(top10_gmps$Time, levels = levels(Seurat_Obj@meta.data$TimeF))
+        p <- vector("list", length = ncol(top10_gmps)-1)
+        names(p) <- colnames(top10_gmps)[1:length(p)]
+        for(clonotype in names(p)) {
+          p[[clonotype]] <- ggplot(top10_gmps, aes_string(x="Time", y=clonotype)) +
+            labs(x="", y="Clone Size") +
+            geom_bar(fill = "grey50", position = "dodge", stat = "identity") +
+            ggtitle(paste0(clonotype)) +
+            guides(fill=guide_legend(title=NULL)) +
+            theme_classic(base_size = 16) +
+            theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, size = 14),
+                  plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 14),
+                  axis.title.y = element_text(size = 14))
+        }
+        
+        ### arrange the plots and save
+        fName <- paste0("Top10_GMP_Clone_Size_Lineage_Tracing_", patient, "_", type)
+        g <- arrangeGrob(grobs = p,
+                         nrow = 5,
+                         ncol = 2,
+                         top = fName)
+        ggsave(file = paste0(outputDir2, "/", fName, ".png"), g, width = 12, height = 12, dpi = 300)
         
         
         ###
@@ -278,7 +314,7 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
         g <- arrangeGrob(grobs = p,
                          nrow = 3,
                          top = fName)
-        ggsave(file = paste0(outputDir, "/", fName, ".png"), g, width = 20, height = 12, dpi = 300)
+        ggsave(file = paste0(outputDir2, "/", fName, ".png"), g, width = 20, height = 12, dpi = 300)
         
         
         ###
@@ -325,11 +361,81 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
       
       ### save the lineage table
       write.xlsx2(lineage_abstract_table,
-                  file = paste0(outputDir, "lineage_abstract_table_", patient, ".xlsx"),
+                  file = paste0(outputDir2, "lineage_abstract_table_", patient, ".xlsx"),
                   sheetName = patient)
     
     }
     
   }
+  
+  ###
+  ### the number of clonotypes that appeared in GMP and also in the later time points in CAR+ cells
+  ###
+  
+  ### get directories
+  f <- list.files(path = outputDir)
+  
+  ### make an empty matrix for the result
+  clonotype_gmp_all_patients <- matrix(0, length(global_clonotypes), length(f))
+  rownames(clonotype_gmp_all_patients) <- global_clonotypes
+  colnames(clonotype_gmp_all_patients) <- f
+  
+  ### for each patient
+  for(i in 1:length(f)) {
+    ### for each type of clonotyping approach
+    for(type in global_clonotypes) {
+      
+      ### load the ingridient table
+      car_frequency_over_time <- read.xlsx2(file = paste0(outputDir, f[i], "/car_clonotype_frequency_over_time_", f[i], ".xlsx"),
+                                            sheetName = type, stringsAsFactors = FALSE, check.names = FALSE)
+      rownames(car_frequency_over_time) <- car_frequency_over_time$Clonotype
+      
+      ### numerize the table
+      for(j in 2:ncol(car_frequency_over_time)) {
+        car_frequency_over_time[,j] <- as.numeric(car_frequency_over_time[,j])
+      }
+      
+      ### get the number
+      temp <- car_frequency_over_time[which(car_frequency_over_time$GMP > 0),
+                                      setdiff(colnames(car_frequency_over_time),
+                                              c("Clonotype", "PreTrans", "GMP", "Wk-1", "Wk0", "Total"))]
+      temp <- apply(temp, 1, sum)
+      clonotype_gmp_all_patients[type,i] <- length(which(temp > 0))
+      
+      ### garbage collection
+      gc()
+      
+    }
+  }
+  
+  ### save the table
+  write.xlsx2(data.frame(clonotype_gmp_all_patients, stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "clonotype_gmp_later_carpos.xlsx"),
+              sheetName = "clonotype_gmp_all_patients",
+              check.names = FALSE)
+  
+  ### make a graph
+  p <- vector("list", length = length(global_clonotypes))
+  names(p) <- global_clonotypes
+  for(type in names(p)) {
+    plot_df <- data.frame(t(clonotype_gmp_all_patients[type,,drop=FALSE]), check.names = FALSE)
+    plot_df$Px <- rownames(plot_df)
+    p[[type]] <- ggplot(plot_df, aes_string(x="Px", y=type)) +
+      labs(x="", y="The Number of GMP-Post GMP CAR+ Cases") +
+      geom_bar(fill = "grey50", position = "dodge", stat = "identity") +
+      ggtitle(paste0(type)) +
+      guides(fill=guide_legend(title=NULL)) +
+      theme_classic(base_size = 16) +
+      theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, size = 14),
+            plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 14),
+            axis.title.y = element_text(size = 10))
+  }
+  
+  ### arrange the plots and save
+  fName <- paste0("clonotype_gmp_later_carpos")
+  g <- arrangeGrob(grobs = p,
+                   nrow = 3,
+                   top = fName)
+  ggsave(file = paste0(outputDir, fName, ".png"), g, width = 15, height = 10, dpi = 300)
   
 }
