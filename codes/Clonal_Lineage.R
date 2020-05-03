@@ -373,7 +373,7 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
   ###
   
   ### get directories
-  f <- list.files(path = outputDir)
+  f <- list.dirs(outputDir, full.names = FALSE, recursive = FALSE)
   
   ### make an empty matrix for the result
   clonotype_gmp_all_patients <- matrix(0, length(global_clonotypes), length(f))
@@ -437,5 +437,85 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
                    nrow = 3,
                    top = fName)
   ggsave(file = paste0(outputDir, fName, ".png"), g, width = 15, height = 10, dpi = 300)
+  
+  
+  ###
+  ### the number of clonotypes and lineages in CAR+ cells of all the patients
+  ###
+  
+  ### get directories
+  f <- list.dirs(outputDir, full.names = FALSE, recursive = FALSE)
+  
+  ### make empty matrices for the results
+  clonotype_all_patients_car <- matrix(0, length(global_clonotypes), length(f))
+  rownames(clonotype_all_patients_car) <- global_clonotypes
+  colnames(clonotype_all_patients_car) <- f
+  lineage_all_patients_car <- matrix(0, length(global_clonotypes), length(f))
+  rownames(lineage_all_patients_car) <- global_clonotypes
+  colnames(lineage_all_patients_car) <- f
+  
+  ### for each patient
+  for(i in 1:length(f)) {
+    ### load the ingridient table
+    lineage_abstract_table <- read.xlsx2(file = paste0(outputDir, f[i], "/lineage_abstract_table_", f[i], ".xlsx"),
+                                         sheetIndex = 1, row.names = 1,
+                                         stringsAsFactors = FALSE, check.names = FALSE)
+    
+    ### fill out the matrices
+    for(type in global_clonotypes) {
+      clonotype_all_patients_car[type, f[i]] <- as.numeric(lineage_abstract_table["Clonotypes_CARpos",type])
+      lineage_all_patients_car[type,f[i]] <- as.numeric(lineage_abstract_table["Lineages_CARpos",type])
+    }
+  }
+  
+  ### save the tables
+  write.xlsx2(data.frame(clonotype_all_patients_car, stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "clonotype_carpos.xlsx"),
+              sheetName = "clonotype_carpos",
+              check.names = FALSE)
+  write.xlsx2(data.frame(lineage_all_patients_car, stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "lineage_carpos.xlsx"),
+              sheetName = "lineage_carpos",
+              check.names = FALSE)
+  
+  ### bar plot
+  p <- vector("list", 2)
+  plot_df <- data.frame(matrix(0, length(global_clonotypes)*length(f), 3))
+  colnames(plot_df) <- c("Number", "Type", "Patient")
+  plot_df[,"Number"] <- as.vector(clonotype_all_patients_car)
+  plot_df[,"Type"] <- rep(global_clonotypes, length(f))
+  plot_df[,"Patient"] <- as.vector(sapply(f, function(x) rep(x, 3)))
+  p[[1]] <- ggplot(plot_df, aes_string(x="Patient", y="Number", fill="Type")) +
+    labs(x="", y="The Number of Clonotypes in CAR+ Cells") +
+    geom_bar(position = "dodge", stat = "identity") +
+    ggtitle("The Number of Clonotypes in CAR+ Cells") +
+    scale_fill_manual(values=c("#999999", "#E69F00", "#56B4E9")) +
+    guides(fill=guide_legend(title=NULL)) +
+    theme_classic(base_size = 16) +
+    theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, size = 14),
+          plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 14),
+          axis.title.y = element_text(size = 10))
+  plot_df <- data.frame(matrix(0, length(global_clonotypes)*length(f), 3))
+  colnames(plot_df) <- c("Number", "Type", "Patient")
+  plot_df[,"Number"] <- as.vector(lineage_all_patients_car)
+  plot_df[,"Type"] <- rep(global_clonotypes, length(f))
+  plot_df[,"Patient"] <- as.vector(sapply(f, function(x) rep(x, 3)))
+  p[[2]] <- ggplot(plot_df, aes_string(x="Patient", y="Number", fill="Type")) +
+    labs(x="", y="The Number of Lineages across CAR+ Cells") +
+    geom_bar(position = "dodge", stat = "identity") +
+    ggtitle("The Number of Lineages across CAR+ Cells") +
+    scale_fill_manual(values=c("#999999", "#E69F00", "#56B4E9")) +
+    guides(fill=guide_legend(title=NULL)) +
+    theme_classic(base_size = 16) +
+    theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, size = 14),
+          plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 14),
+          axis.title.y = element_text(size = 10))
+  
+  ### arrange the plots and save
+  fName <- paste0("Clonotypes_and_Lineages_in_CARpos_Cells")
+  g <- arrangeGrob(grobs = p,
+                   nrow = 2,
+                   top = "")
+  ggsave(file = paste0(outputDir, fName, ".png"), g, width = 20, height = 10, dpi = 300)
   
 }
