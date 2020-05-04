@@ -184,6 +184,10 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
         car_frequency_over_time <- car_frequency_over_time[order(-car_frequency_over_time[,"Total"]),]
         car_proportion_over_time <- car_proportion_over_time[order(-car_proportion_over_time[,"Total"]),]
         
+        ### trim the car tables
+        car_proportion_over_time <- car_proportion_over_time[which(car_frequency_over_time[,"Total"] > 1),]
+        car_frequency_over_time <- car_frequency_over_time[which(car_frequency_over_time[,"Total"] > 1),]
+        
         ### save the tables in Excel format
         write.xlsx2(frequency_over_time, file = paste0(outputDir2, "clonotype_frequency_over_time_", patient, ".xlsx"),
                     sheetName = type, row.names = FALSE, append = TRUE)
@@ -284,9 +288,10 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
           ### we only used dups, so
           ### give 0 value to the only-one-clonotypes across time points
           ### give 1 value if it is a CAR+ cell
-          plot_df$Clone_Size[intersect(intersect(which(!is.na(plot_df$Clonotype)),
-                                                 which(plot_df$Clonotype != "")),
-                                       which(is.na(plot_df$Clone_Size)))] <- 0
+          plot_df$Clone_Size[intersect(intersect(intersect(which(!is.na(plot_df$Clonotype)),
+                                                           which(plot_df$Clonotype != "")),
+                                                 which(is.na(plot_df$Clone_Size))),
+                                       which(temp$CAR == "CARneg"))] <- 0
           plot_df$Clone_Size[intersect(intersect(intersect(which(!is.na(plot_df$Clonotype)),
                                                            which(plot_df$Clonotype != "")),
                                                  which(is.na(plot_df$Clone_Size))),
