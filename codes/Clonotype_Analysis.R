@@ -250,5 +250,67 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
   ggsave(file = paste0(outputDir2, "/", fName, ".png"), g, width = 20, height = 12, dpi = 300)
   
   
+  ###
+  ### Gene expression profiling
+  ###
+  
+  ### set new group for DE
+  new.ident <- paste0(Seurat_Obj@meta.data$Library, "_", Seurat_Obj@meta.data$CAR)
+  Idents(object = Seurat_Obj) <- new.ident
+  
+  ### start time
+  start_time <- Sys.time()
+  
+  ### set progress bar
+  pb <- txtProgressBar(min = 0, max = length(unique(Seurat_Obj@meta.data$Library)), style = 3)
+  
+  ### in every library, compare CAR+ and CAR-
+  compare_car <- list()
+  cnt <- 0
+  for(lib in unique(Seurat_Obj@meta.data$Library)) {
+    ### get indicies for the library
+    lib_idx <- which(Seurat_Obj@meta.data$Library == lib)
+    
+    ### run only if there are both CARpos and CARneg in the given library
+    car <- unique(Seurat_Obj@meta.data$CAR[lib_idx])
+    if(length(car) == 2) {
+      compare_car <- c(compare_car, list(FindMarkers(Seurat_Obj,
+                                                     ident.1 = paste0(lib, "_", car[1]),
+                                                     ident.2 = paste0(lib, "_", car[2]),
+                                                     logfc.threshold = 0)))
+      names(compare_car)[length(compare_car)] <- lib
+    }
+    
+    cnt <- cnt + 1
+    setTxtProgressBar(pb, cnt)
+  }
+  close(pb)
+  
+  ### end time
+  end_time <- Sys.time()
+  
+  ### print out the running time
+  cat(paste("Running Time:",
+            signif(as.numeric(difftime(end_time, start_time, units = "mins")), digits = 3),
+            "mins"))
+  
+  ### get significant results
+  sig_results <- data.frame()
+  for(lib in names(compare_car)) {
+    significant_idx <- which(compare_car[[lib]][,"p_val_adj"] < 0.05)
+    if(length(significant_idx) > 0) {
+      sig_results <- rbind(sig_results, data.frame(compare_car[[lib]], lib=lib, stringsAsFactors = FALSE, check.names = FALSE))
+    }
+  }
+  
+  ### write the significant result
+  write.xlsx2(sig_results,
+              file = paste0(outputDir2, "/DE_CAR_pos_vs_neg_0.05.xlsx"))
+  
+  
+  ### in every library, compare (interesting) big clonotype groups
+  
+  
+  
   
 }
