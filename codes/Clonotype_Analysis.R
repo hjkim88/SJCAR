@@ -308,9 +308,35 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
               file = paste0(outputDir2, "/DE_CAR_pos_vs_neg_0.05.xlsx"))
   
   
-  ### in every library, compare (interesting) big clonotype groups
+  ###
+  ### with the shared NT sequences across all the patients,
+  ### we would like to see conserved genes among the cells that have the same NT sequences (same clonotype)
+  ###
   
+  ### only use the clonotypes that were appeared in different time points more than the cut-off
+  time_point_cut_off <- 2
+  target_clonotypes <- data.frame()
+  for(i in 1:length(shared_nt_sequences)) {
+    for(j in 1:nrow(shared_nt_sequences[[i]])) {
+      if(length(which(shared_nt_sequences[[i]][j,] > 0)) > time_point_cut_off) {
+        target_clonotypes <- rbind(target_clonotypes, shared_nt_sequences[[i]][j,,drop=FALSE])
+      }
+    }
+  }
   
+  ### give new idents for the gene conservation analysis
+  new.ident <- rep(NA, nrow(Seurat_Obj@meta.data))
+  for(nt_seq in rownames(target_clonotypes)) {
+    new.ident[which(Seurat_Obj@meta.data$)]
+  }
+  Idents(object = Seurat_Obj) <- new.ident
+  
+  ### compute the conserved genes for each of the selected clonotype
+  for(nt_seq in rownames(target_clonotypes)) {
+    
+    
+    
+  }
   
   
 }
