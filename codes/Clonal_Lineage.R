@@ -40,6 +40,10 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
     install.packages("gridExtra")
     require(gridExtra, quietly = TRUE)
   }
+  if(!require(ggsci, quietly = TRUE)) {
+    install.packages("ggsci")
+    require(ggsci, quietly = TRUE)
+  }
   
   ### load the Seurat object and save the object name
   tmp_env <- new.env()
@@ -522,5 +526,79 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
                    nrow = 2,
                    top = "")
   ggsave(file = paste0(outputDir, fName, ".png"), g, width = 20, height = 10, dpi = 300)
+  
+  
+  ###
+  ### clonotype diversity after GMP
+  ###
+  
+  ### get target patients
+  target_px <- unique(Seurat_Obj@meta.data$Px[intersect(intersect(intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                                                            which(Seurat_Obj@meta.data$Time != "GMP")),
+                                                                  which(Seurat_Obj@meta.data$Time != "PreTrans")),
+                                                        which(!is.na(Seurat_Obj@meta.data$cdr3_nt)))])
+  target_px <- target_px[order(target_px)]
+  
+  ### get target time points
+  target_tp <- unique(Seurat_Obj@meta.data$Time[which(Seurat_Obj@meta.data$Px %in% target_px)])
+  target_tp <- factor(target_tp, levels = levels(Seurat_Obj@meta.data$TimeF))
+  target_tp <- as.character(target_tp[order(target_tp)])
+  target_tp <- setdiff(target_tp, c("PreTrans", "Wk-1", "Wk0"))
+  
+  ### for each patient, make a clonotype diversity table and draw a plot
+  p <- vector("list", length = length(target_px))
+  names(p) <- target_px
+  for(patient in target_px) {
+    
+    ### make an empty matrix for plot
+    plot_df <- data.frame(matrix(NA, length(target_tp)*length(global_clonotypes), 3),
+                          stringsAsFactors = FALSE, check.names = FALSE)
+    colnames(plot_df) <- c("Number", "Time", "Type")
+    
+    ### for each time point, fill out the matrix
+    for(i in 1:length(target_tp)) {
+      ### for each clonotyping type
+      for(j in 1:length(global_clonotypes)) {
+        ### the number of clonotypes
+        plot_df[(i-1)*3+j,"Number"] <- length(unique(Seurat_Obj@meta.data[intersect(intersect(which(Seurat_Obj@meta.data$Px == patient),
+                                                                                              which(Seurat_Obj@meta.data$Time == target_tp[i])),
+                                                                                    intersect(which(Seurat_Obj@meta.data[,global_clonotypes[j]] != ""),
+                                                                                              which(!is.na(Seurat_Obj@meta.data[,global_clonotypes[j]])))),
+                                                                          global_clonotypes[j]]))
+      }
+    }
+    plot_df[,"Time"] <- as.vector(sapply(target_tp, function(x) rep(x, length(global_clonotypes))))
+    plot_df[,"Type"] <- rep(global_clonotypes, length(target_tp))
+    
+    ### make 0 values to NA
+    plot_df$Number[which(plot_df$Number == 0)] <- NA
+    
+    ### make "Time" factorized
+    plot_df$Time <- factor(plot_df$Time, levels = levels(Seurat_Obj@meta.data$TimeF))
+    
+    p[[patient]] <- ggplot(plot_df, aes_string(x="Time", y="Number", fill="Type", group="Type")) +
+      labs(x="", y="The Number of Clonotypes") +
+      geom_bar(position = "dodge", stat = "identity") +
+      geom_text(aes_string(label="Number", color="Type", group="Type"),
+                position=position_dodge(width=1), size=3.5, hjust=0.5, vjust=-0.25,
+                show.legend = FALSE) +
+      ggtitle(patient) +
+      scale_fill_npg() +
+      scale_color_npg() +
+      guides(fill=guide_legend(title=NULL)) +
+      ylim(0, max(plot_df$Number, na.rm = TRUE)*1.1) +
+      theme_classic(base_size = 16) +
+      theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, size = 14),
+            plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 14),
+            axis.title.y = element_text(size = 10), legend.position="top")
+  }
+  
+  ### arrange the plots and save
+  fName <- "Clonotype_Diversity_After_GMP"
+  g <- arrangeGrob(grobs = p,
+                   nrow = 4,
+                   ncol = 2,
+                   top = fName)
+  ggsave(file = paste0(outputDir, "/", fName, ".png"), g, width = 24, height = 12, dpi = 300)
   
 }
