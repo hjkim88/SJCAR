@@ -383,6 +383,7 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
   
   ### get directories
   f <- list.dirs(outputDir, full.names = FALSE, recursive = FALSE)
+  f <- f[startsWith(f, "SJCAR19")]
   
   ### make an empty matrix for the result
   clonotype_gmp_all_patients <- matrix(0, length(global_clonotypes), length(f))
@@ -548,34 +549,73 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
   ### for each patient, make a clonotype diversity table and draw a plot
   p <- vector("list", length = length(target_px))
   names(p) <- target_px
+  car_p <- vector("list", length = length(target_px))
+  names(car_p) <- target_px
+  norm_p <- vector("list", length = length(target_px))
+  names(norm_p) <- target_px
+  car_norm_p <- vector("list", length = length(target_px))
+  names(car_norm_p) <- target_px
   for(patient in target_px) {
-    
     ### make an empty matrix for plot
     plot_df <- data.frame(matrix(NA, length(target_tp)*length(global_clonotypes), 3),
                           stringsAsFactors = FALSE, check.names = FALSE)
     colnames(plot_df) <- c("Number", "Time", "Type")
+    car_plot_df <- data.frame(matrix(NA, length(target_tp)*length(global_clonotypes), 3),
+                              stringsAsFactors = FALSE, check.names = FALSE)
+    colnames(car_plot_df) <- c("Number", "Time", "Type")
+    norm_plot_df <- data.frame(matrix(NA, length(target_tp)*length(global_clonotypes), 3),
+                               stringsAsFactors = FALSE, check.names = FALSE)
+    colnames(norm_plot_df) <- c("Number", "Time", "Type")
+    car_norm_plot_df <- data.frame(matrix(NA, length(target_tp)*length(global_clonotypes), 3),
+                                   stringsAsFactors = FALSE, check.names = FALSE)
+    colnames(car_norm_plot_df) <- c("Number", "Time", "Type")
     
     ### for each time point, fill out the matrix
     for(i in 1:length(target_tp)) {
       ### for each clonotyping type
       for(j in 1:length(global_clonotypes)) {
+        ### the number of cells in the patient that have TCR info
+        nc_idx <- intersect(intersect(which(Seurat_Obj@meta.data$Px == patient),
+                                      which(Seurat_Obj@meta.data$Time == target_tp[i])),
+                            intersect(which(Seurat_Obj@meta.data[,global_clonotypes[j]] != ""),
+                                      which(!is.na(Seurat_Obj@meta.data[,global_clonotypes[j]]))))
+        nc <- length(nc_idx)
+        
+        ### the number of CAR+ cells in the patient that have TCR info
+        ncc_idx <- intersect(nc_idx, which(Seurat_Obj@meta.data$CAR == "CARpos"))
+        ncc <- length(ncc_idx)
+        
         ### the number of clonotypes
-        plot_df[(i-1)*3+j,"Number"] <- length(unique(Seurat_Obj@meta.data[intersect(intersect(which(Seurat_Obj@meta.data$Px == patient),
-                                                                                              which(Seurat_Obj@meta.data$Time == target_tp[i])),
-                                                                                    intersect(which(Seurat_Obj@meta.data[,global_clonotypes[j]] != ""),
-                                                                                              which(!is.na(Seurat_Obj@meta.data[,global_clonotypes[j]])))),
+        plot_df[(i-1)*3+j,"Number"] <- length(unique(Seurat_Obj@meta.data[nc_idx,
                                                                           global_clonotypes[j]]))
+        car_plot_df[(i-1)*3+j,"Number"] <- length(unique(Seurat_Obj@meta.data[ncc_idx,
+                                                                              global_clonotypes[j]]))
+        norm_plot_df[(i-1)*3+j,"Number"] <- signif(plot_df[(i-1)*3+j,"Number"] * 100 / nc, 3)
+        car_norm_plot_df[(i-1)*3+j,"Number"] <- signif(car_plot_df[(i-1)*3+j,"Number"] * 100 / ncc, 3)
       }
     }
     plot_df[,"Time"] <- as.vector(sapply(target_tp, function(x) rep(x, length(global_clonotypes))))
     plot_df[,"Type"] <- rep(global_clonotypes, length(target_tp))
+    car_plot_df[,"Time"] <- as.vector(sapply(target_tp, function(x) rep(x, length(global_clonotypes))))
+    car_plot_df[,"Type"] <- rep(global_clonotypes, length(target_tp))
+    norm_plot_df[,"Time"] <- as.vector(sapply(target_tp, function(x) rep(x, length(global_clonotypes))))
+    norm_plot_df[,"Type"] <- rep(global_clonotypes, length(target_tp))
+    car_norm_plot_df[,"Time"] <- as.vector(sapply(target_tp, function(x) rep(x, length(global_clonotypes))))
+    car_norm_plot_df[,"Type"] <- rep(global_clonotypes, length(target_tp))
     
     ### make 0 values to NA
     plot_df$Number[which(plot_df$Number == 0)] <- NA
+    car_plot_df$Number[which(car_plot_df$Number == 0)] <- NA
+    norm_plot_df$Number[which(norm_plot_df$Number == 0)] <- NA
+    car_norm_plot_df$Number[which(car_norm_plot_df$Number == 0)] <- NA
     
     ### make "Time" factorized
     plot_df$Time <- factor(plot_df$Time, levels = levels(Seurat_Obj@meta.data$TimeF))
+    car_plot_df$Time <- factor(car_plot_df$Time, levels = levels(Seurat_Obj@meta.data$TimeF))
+    norm_plot_df$Time <- factor(norm_plot_df$Time, levels = levels(Seurat_Obj@meta.data$TimeF))
+    car_norm_plot_df$Time <- factor(car_norm_plot_df$Time, levels = levels(Seurat_Obj@meta.data$TimeF))
     
+    ### save the plot to the list
     p[[patient]] <- ggplot(plot_df, aes_string(x="Time", y="Number", fill="Type", group="Type")) +
       labs(x="", y="The Number of Clonotypes") +
       geom_bar(position = "dodge", stat = "identity") +
@@ -591,11 +631,74 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
       theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, size = 14),
             plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 14),
             axis.title.y = element_text(size = 10), legend.position="top")
+    car_p[[patient]] <- ggplot(car_plot_df, aes_string(x="Time", y="Number", fill="Type", group="Type")) +
+      labs(x="", y="The Number of Clonotypes in CAR+") +
+      geom_bar(position = "dodge", stat = "identity") +
+      geom_text(aes_string(label="Number", color="Type", group="Type"),
+                position=position_dodge(width=1), size=3.5, hjust=0.5, vjust=-0.25,
+                show.legend = FALSE) +
+      ggtitle(patient) +
+      scale_fill_npg() +
+      scale_color_npg() +
+      guides(fill=guide_legend(title=NULL)) +
+      ylim(0, max(car_plot_df$Number, na.rm = TRUE)*1.1) +
+      theme_classic(base_size = 16) +
+      theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, size = 14),
+            plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 14),
+            axis.title.y = element_text(size = 10), legend.position="top")
+    norm_p[[patient]] <- ggplot(norm_plot_df, aes_string(x="Time", y="Number", fill="Type", group="Type")) +
+      labs(x="", y="Clonotypes Norm.# x 10^2") +
+      geom_bar(position = "dodge", stat = "identity") +
+      geom_text(aes_string(label="Number", color="Type", group="Type"),
+                position=position_dodge(width=1), size=3.5, hjust=0.5, vjust=-0.25,
+                show.legend = FALSE) +
+      ggtitle(patient) +
+      scale_fill_npg() +
+      scale_color_npg() +
+      guides(fill=guide_legend(title=NULL)) +
+      ylim(0, max(norm_plot_df$Number, na.rm = TRUE)*1.1) +
+      theme_classic(base_size = 16) +
+      theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, size = 14),
+            plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 14),
+            axis.title.y = element_text(size = 10), legend.position="top")
+    car_norm_p[[patient]] <- ggplot(car_norm_plot_df, aes_string(x="Time", y="Number", fill="Type", group="Type")) +
+      labs(x="", y="Clonotypes Norm.# in CAR+ x 10^2") +
+      geom_bar(position = "dodge", stat = "identity") +
+      geom_text(aes_string(label="Number", color="Type", group="Type"),
+                position=position_dodge(width=1), size=3.5, hjust=0.5, vjust=-0.25,
+                show.legend = FALSE) +
+      ggtitle(patient) +
+      scale_fill_npg() +
+      scale_color_npg() +
+      guides(fill=guide_legend(title=NULL)) +
+      ylim(0, max(car_norm_plot_df$Number, na.rm = TRUE)*1.1) +
+      theme_classic(base_size = 16) +
+      theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, size = 14),
+            plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 14),
+            axis.title.y = element_text(size = 10), legend.position="top")
   }
   
   ### arrange the plots and save
   fName <- "Clonotype_Diversity_After_GMP"
   g <- arrangeGrob(grobs = p,
+                   nrow = 4,
+                   ncol = 2,
+                   top = fName)
+  ggsave(file = paste0(outputDir, "/", fName, ".png"), g, width = 24, height = 12, dpi = 300)
+  fName <- "Clonotype_Diversity_After_GMP_In_CAR+"
+  g <- arrangeGrob(grobs = car_p,
+                   nrow = 4,
+                   ncol = 2,
+                   top = fName)
+  ggsave(file = paste0(outputDir, "/", fName, ".png"), g, width = 24, height = 12, dpi = 300)
+  fName <- "Clonotype_Diversity_After_GMP_Norm"
+  g <- arrangeGrob(grobs = norm_p,
+                   nrow = 4,
+                   ncol = 2,
+                   top = fName)
+  ggsave(file = paste0(outputDir, "/", fName, ".png"), g, width = 24, height = 12, dpi = 300)
+  fName <- "Clonotype_Diversity_After_GMP_In_CAR+_Norm"
+  g <- arrangeGrob(grobs = car_norm_p,
                    nrow = 4,
                    ncol = 2,
                    top = fName)
