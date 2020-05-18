@@ -590,8 +590,8 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
                                                                           global_clonotypes[j]]))
         car_plot_df[(i-1)*3+j,"Number"] <- length(unique(Seurat_Obj@meta.data[ncc_idx,
                                                                               global_clonotypes[j]]))
-        norm_plot_df[(i-1)*3+j,"Number"] <- signif(plot_df[(i-1)*3+j,"Number"] * 100 / nc, 3)
-        car_norm_plot_df[(i-1)*3+j,"Number"] <- signif(car_plot_df[(i-1)*3+j,"Number"] * 100 / ncc, 3)
+        norm_plot_df[(i-1)*3+j,"Number"] <- signif(plot_df[(i-1)*3+j,"Number"] / nc, 3)
+        car_norm_plot_df[(i-1)*3+j,"Number"] <- signif(car_plot_df[(i-1)*3+j,"Number"] / ncc, 3)
       }
     }
     plot_df[,"Time"] <- as.vector(sapply(target_tp, function(x) rep(x, length(global_clonotypes))))
@@ -647,7 +647,7 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
             plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 14),
             axis.title.y = element_text(size = 10), legend.position="top")
     norm_p[[patient]] <- ggplot(norm_plot_df, aes_string(x="Time", y="Number", fill="Type", group="Type")) +
-      labs(x="", y="Clonotypes Norm.# x 10^2") +
+      labs(x="", y="Clonotypes Norm.#") +
       geom_bar(position = "dodge", stat = "identity") +
       geom_text(aes_string(label="Number", color="Type", group="Type"),
                 position=position_dodge(width=1), size=3.5, hjust=0.5, vjust=-0.25,
@@ -662,7 +662,7 @@ lineage_analysis <- function(Seurat_RObj_path="./data/JCC212_Px5_TCR_clonotyped2
             plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 14),
             axis.title.y = element_text(size = 10), legend.position="top")
     car_norm_p[[patient]] <- ggplot(car_norm_plot_df, aes_string(x="Time", y="Number", fill="Type", group="Type")) +
-      labs(x="", y="Clonotypes Norm.# in CAR+ x 10^2") +
+      labs(x="", y="Clonotypes Norm.# in CAR+") +
       geom_bar(position = "dodge", stat = "identity") +
       geom_text(aes_string(label="Number", color="Type", group="Type"),
                 position=position_dodge(width=1), size=3.5, hjust=0.5, vjust=-0.25,
