@@ -309,6 +309,125 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
   
   
   ###
+  ### find markers for each clonotype in each patient
+  ###
+  
+  ### set frequency cut-off
+  ### we are finding markers for clonotypes that appeared equal to or more than the cut-off in the patient
+  # freq_cut_off <- 10
+  ### we are finding markers with the top clonotypes in each patient
+  top_freq <- 5
+  
+  ### create an empty maker list
+  markers <- vector("list", length = length(global_clonotypes))
+  names(markers) <- global_clonotypes
+  
+  ### for each clonotyping type
+  for(type in global_clonotypes) {
+    
+    ### show progress
+    writeLines(paste("###", type))
+    
+    ### new idents for the analysis
+    new.ident <- Seurat_Obj@meta.data[,type]
+    
+    ### create an empty maker list for the type
+    markers[[type]] <- vector("list", length = length(unique(Seurat_Obj@meta.data$Px)))
+    names(markers[[type]]) <- unique(Seurat_Obj@meta.data$Px)
+    
+    ### for each patient update idents
+    ### we will find markers for clonotypes that have more than one frequencies
+    for(px in unique(Seurat_Obj@meta.data$Px)) {
+      ### indicies for the given patient
+      px_idx <- which(Seurat_Obj@meta.data$Px == px)
+      
+      ### load the car clonotype frequency data
+      freq_d <- read.xlsx2(file = paste0(outputDir, px, "/car_clonotype_frequency_over_time_", px, ".xlsx"),
+                           sheetName = type, stringsAsFactors = FALSE, check.names = FALSE, row.names = 1)
+      
+      ### numerize the table
+      for(j in 1:ncol(freq_d)) {
+        freq_d[,j] <- as.numeric(freq_d[,j])
+      }
+      
+      ### select clonotypes that appeared in GMP and also in any of the later time points
+      freq_d <- freq_d[which(freq_d$GMP > 0),
+                             setdiff(colnames(freq_d),
+                                     c("Clonotype", "PreTrans", "GMP", "Wk-1", "Wk0", "Total"))]
+      target_clonotypes <- rownames(freq_d)[which(apply(freq_d, 1, sum) > 0)]
+      
+      ###
+      
+      # ### duplicated clonotypes in the patient
+      # dups <- unique(Seurat_Obj@meta.data[px_idx[which(duplicated(Seurat_Obj@meta.data[px_idx,type]))],type])
+      # 
+      # ### remove NA, "", and "NA"
+      # dups <- dups[intersect(intersect(which(!is.na(dups)),
+      #                                  which(dups != "")),
+      #                        which(dups != "NA"))]
+      
+      # ### remove dups that appeared less than freq_cut_off in the list
+      # dup_remove_idx <- NULL
+      # for(i in 1:length(dups)) {
+      #   freq <- length(intersect(px_idx, which(Seurat_Obj@meta.data[,type] == dups[i])))
+      #   if(freq < freq_cut_off) {
+      #     dup_remove_idx <- c(dup_remove_idx, i)
+      #   }
+      # }
+      # if(length(dup_remove_idx) > 0) {
+      #   dups <- dups[-dup_remove_idx]
+      # }
+      
+      ### create an empty maker list for the type
+      markers[[type]][[px]] <- vector("list", length = length(dups))
+      names(markers[[type]][[px]]) <- dups
+      
+      ### get unique clonotype indicies in the patient (to be modified to NA) 
+      remove_idx <- setdiff(px_idx, intersect(px_idx, which(Seurat_Obj@meta.data[,type] %in% dups)))
+      
+      new.ident[remove_idx] <- NA
+    }
+    
+    ### set new idents
+    Seurat_Obj@meta.data$Marker_Cluster <- new.ident
+    Idents(object = Seurat_Obj) <- Seurat_Obj@meta.data$Px
+    
+    ### start time
+    start_time <- Sys.time()
+    
+    ### find markers in each patient
+    cnt <- 0
+    for(px in unique(Seurat_Obj@meta.data$Px)) {
+      ### find markers for each clonotype
+      for(clono in names(markers[[type]][[px]])) {
+        ### find differentially expressed genes
+        markers[[type]][[px]][[clono]] <- FindMarkers(Seurat_Obj,
+                                                      ident.1 = clono,
+                                                      group.by = "Marker_Cluster",
+                                                      subset.ident = px)
+        
+        ### update the progress
+        cnt <- cnt + 1
+        writeLines(paste(cnt))
+      }
+    }
+    
+    ### end time
+    end_time <- Sys.time()
+    
+    ### print out the running time
+    cat(paste("Running Time:",
+              signif(as.numeric(difftime(end_time, start_time, units = "mins")), digits = 3),
+              "mins"))
+    
+  }
+  
+  ### save the marker discovery results
+  save(list = c("markers"), file = paste0(outputDir2, "markers.RDATA"))
+  
+  
+  
+  ###
   ### with the shared NT sequences across all the patients,
   ### we would like to see conserved genes among the cells that have the same NT sequences (same clonotype)
   ###
