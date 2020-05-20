@@ -343,37 +343,44 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
         target_file[,i] <- as.numeric(target_file[,i])
       }
       
+      ### remove all zero time points
+      time_points <- colnames(target_file)[which(apply(target_file, 2, sum) != 0)]
+      
       ### get time points after GMP infusion
-      time_points <- setdiff(colnames(target_file),
+      time_points <- setdiff(time_points,
                              c("PreTrans", "Wk-1", "Wk0", "Total"))
       
       ### an empty list for saving the marker results
       markers[[px]][[type]] <- vector("list", length = length(time_points)-1)
       names(markers[[px]][[type]]) <- time_points[-length(time_points)]
       
-      ### for each time point - current time point cells that appears later vs not
-      for(i in 1:(length(time_points)-1)) {
-        ### select clonotypes
-        target_file <- target_file[which(target_file[,time_points[i]] > 0),
-                                  time_points[(i+1):length(time_points)]]
-        target_clonotypes <- rownames(target_file)[which(apply(target_file, 1, sum) > 0)]
-        
-        ### set ident.1 and ident.2 for DE analysis
-        ### ident.1 - current time point cells that appears later
-        ### ident.2 - current time point cells that never appears later
-        new.ident <- rep(NA, nrow(Seurat_Obj@meta.data))
-        px_time_idx <- intersect(which(Seurat_Obj@meta.data$Px == px),
-                                 which(Seurat_Obj@meta.data$Time == time_points[i]))
-        new.ident[which(intersect(px_time_idx,
-                                  which(Seurat_Obj@meta.data[,type] %in% target_clonotypes)))] <- "ident1"
-        new.ident[which(intersect(px_time_idx,
-                                  which(is.na(Seurat_Obj@meta.data[,type]))))] <- "ident2"
-        Idents(object = Seurat_Obj) <- new.ident
-        
-        ### perform DE analysis
-        markers[[px]][[type]][[i]] <- FindMarkers(Seurat_Obj,
-                                                  ident.1 = "ident1",
-                                                  ident.2 = "ident2")
+      if(length(time_points) > 1) {
+        ### for each time point - current time point cells that appears later vs not
+        for(i in 1:(length(time_points)-1)) {
+          ### select clonotypes
+          target_file <- target_file[which(target_file[,time_points[i]] > 0),
+                                    time_points[(i+1):length(time_points)]]
+          target_clonotypes <- rownames(target_file)[which(apply(target_file, 1, sum) > 0)]
+          
+          if(length(target_clonotypes) > 0) {
+            ### set ident.1 and ident.2 for DE analysis
+            ### ident.1 - current time point cells that appears later
+            ### ident.2 - current time point cells that never appears later
+            new.ident <- rep(NA, nrow(Seurat_Obj@meta.data))
+            px_time_idx <- intersect(which(Seurat_Obj@meta.data$Px == px),
+                                     which(Seurat_Obj@meta.data$Time == time_points[i]))
+            new.ident[which(intersect(px_time_idx,
+                                      which(Seurat_Obj@meta.data[,type] %in% target_clonotypes)))] <- "ident1"
+            new.ident[which(intersect(px_time_idx,
+                                      which(is.na(Seurat_Obj@meta.data[,type]))))] <- "ident2"
+            Idents(object = Seurat_Obj) <- new.ident
+            
+            ### perform DE analysis
+            markers[[px]][[type]][[i]] <- FindMarkers(Seurat_Obj,
+                                                      ident.1 = "ident1",
+                                                      ident.2 = "ident2")
+          }
+        }
       }
     }
   }
