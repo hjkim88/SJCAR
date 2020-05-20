@@ -359,7 +359,7 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
         for(i in 1:(length(time_points)-1)) {
           ### select clonotypes
           target_temp <- target_file[which(target_file[,time_points[i]] > 0),
-                                     time_points[(i+1):length(time_points)]]
+                                     time_points[(i+1):length(time_points)],drop=FALSE]
           target_clonotypes <- rownames(target_temp)[which(apply(target_temp, 1, sum) > 0)]
           
           if(length(target_clonotypes) > 0) {
@@ -371,14 +371,18 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
                                      which(Seurat_Obj@meta.data$Time == time_points[i]))
             new.ident[intersect(px_time_idx,
                                 which(Seurat_Obj@meta.data[,type] %in% target_clonotypes))] <- "ident1"
-            new.ident[intersect(px_time_idx,
-                                which(is.na(Seurat_Obj@meta.data[,type])))] <- "ident2"
-            Idents(object = Seurat_Obj) <- new.ident
             
-            ### perform DE analysis
-            markers[[px]][[type]][[i]] <- FindMarkers(Seurat_Obj,
-                                                      ident.1 = "ident1",
-                                                      ident.2 = "ident2")
+            ### there should be at least 3 samples in each class for DE analysis
+            if(length(which(new.ident == "ident1")) >= 3) {
+              new.ident[intersect(px_time_idx,
+                                  which(is.na(Seurat_Obj@meta.data[,type])))] <- "ident2"
+              Idents(object = Seurat_Obj) <- new.ident
+              
+              ### perform DE analysis
+              markers[[px]][[type]][[i]] <- FindMarkers(Seurat_Obj,
+                                                        ident.1 = "ident1",
+                                                        ident.2 = "ident2")
+            }
           }
         }
       }
