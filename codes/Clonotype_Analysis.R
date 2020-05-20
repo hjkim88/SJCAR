@@ -381,7 +381,8 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
               ### perform DE analysis
               markers[[px]][[type]][[i]] <- FindMarkers(Seurat_Obj,
                                                         ident.1 = "ident1",
-                                                        ident.2 = "ident2")
+                                                        ident.2 = "ident2",
+                                                        logfc.threshold = 0)
             }
           }
         }
