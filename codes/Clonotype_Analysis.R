@@ -369,10 +369,10 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
             new.ident <- rep(NA, nrow(Seurat_Obj@meta.data))
             px_time_idx <- intersect(which(Seurat_Obj@meta.data$Px == px),
                                      which(Seurat_Obj@meta.data$Time == time_points[i]))
-            new.ident[which(intersect(px_time_idx,
-                                      which(Seurat_Obj@meta.data[,type] %in% target_clonotypes)))] <- "ident1"
-            new.ident[which(intersect(px_time_idx,
-                                      which(is.na(Seurat_Obj@meta.data[,type]))))] <- "ident2"
+            new.ident[intersect(px_time_idx,
+                                which(Seurat_Obj@meta.data[,type] %in% target_clonotypes))] <- "ident1"
+            new.ident[intersect(px_time_idx,
+                                which(is.na(Seurat_Obj@meta.data[,type])))] <- "ident2"
             Idents(object = Seurat_Obj) <- new.ident
             
             ### perform DE analysis
