@@ -358,9 +358,9 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
         ### for each time point - current time point cells that appears later vs not
         for(i in 1:(length(time_points)-1)) {
           ### select clonotypes
-          target_file <- target_file[which(target_file[,time_points[i]] > 0),
-                                    time_points[(i+1):length(time_points)]]
-          target_clonotypes <- rownames(target_file)[which(apply(target_file, 1, sum) > 0)]
+          target_temp <- target_file[which(target_file[,time_points[i]] > 0),
+                                     time_points[(i+1):length(time_points)]]
+          target_clonotypes <- rownames(target_temp)[which(apply(target_temp, 1, sum) > 0)]
           
           if(length(target_clonotypes) > 0) {
             ### set ident.1 and ident.2 for DE analysis
