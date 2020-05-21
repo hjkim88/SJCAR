@@ -39,6 +39,12 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
     install.packages("gridExtra")
     require(gridExtra, quietly = TRUE)
   }
+  if(!require(metaseqR, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("metaseqR")
+    require(metaseqR, quietly = TRUE)
+  }
   
   ### load the Seurat object and save the object name
   tmp_env <- new.env()
@@ -393,7 +399,66 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
   ### save the marker discovery results
   save(list = c("markers"), file = paste0(outputDir2, "markers.RDATA"))
   
+  ###
   ### find common genes among time points and also among patients
+  ###
   
+  ### set p-value threshold for determining DE genes
+  pv_threshold <- 0.05
+  
+  ### get existing time points
+  exs_time_points <- setdiff(levels(Seurat_Obj@meta.data$TimeF), c("PreTrans", "Wk-1", "Wk0"))
+  
+  ### for each time point
+  de_genes <- vector("list", length = length(global_clonotypes))
+  names(de_genes) <- global_clonotypes
+  for(type in global_clonotypes) {
+    de_genes[[type]] <- vector("list", length = length(exs_time_points))
+    names(de_genes[[type]]) <- exs_time_points
+    for(tp in exs_time_points) {
+      de_genes[[type]][[tp]] <- data.frame()
+      for(px in names(markers)) {
+        if(!is.null(markers[[px]][[type]][[tp]])) {
+          thresh_idx <- which(markers[[px]][[type]][[tp]][,"p_val_adj"] < pv_threshold)
+          if(length(thresh_idx) > 0) {
+            de_genes[[type]][[tp]] <- rbind(de_genes[[type]][[tp]],
+                                            cbind(paste0(px, "-", tp),
+                                                  rownames(markers[[px]][[type]][[tp]][thresh_idx,]),
+                                                  markers[[px]][[type]][[tp]][thresh_idx,]))
+          }
+        }
+      }
+      if(length(de_genes[[type]][[tp]]) > 0) {
+        colnames(de_genes[[type]][[tp]]) <- c("Px-Time", "Gene_Symbol", "p_val", "avg_logFC", "pct.1", "pct.2", "p_val_adj")
+        
+        ### handle duplicated genes
+        dup_idx <- which(duplicated(de_genes[[type]][[tp]][,"Gene_Symbol"]))
+        if(length(dup_idx) > 0) {
+          dups <- de_genes[[type]][[tp]][dup_idx,,drop=FALSE]
+          de_genes[[type]][[tp]] <- de_genes[[type]][[tp]][-dup_idx,,drop=FALSE]
+          for(i in 1:nrow(dups)) {
+            for(j in 1:nrow(de_genes)) {
+              match_idx <- which(de_genes[j,"Gene_Symbol"] == dups[i,"Gene_Symbol"])
+              if(length(match_idx) > 0) {
+                ### combine multiple rows into one
+                de_genes[[type]][[tp]][match_idx,]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  
+  ### just use all the DE genes
+  
+  
+  
+  
+  
+  ### UMAP plot
+  
+  ### pathway analysis
   
 }
