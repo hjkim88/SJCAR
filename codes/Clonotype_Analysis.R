@@ -39,6 +39,12 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
     install.packages("gridExtra")
     require(gridExtra, quietly = TRUE)
   }
+  if(!require(org.Hs.eg.db, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("org.Hs.eg.db")
+    require(org.Hs.eg.db, quietly = TRUE)
+  }
   if(!require(metaseqR, quietly = TRUE)) {
     if (!requireNamespace("BiocManager", quietly = TRUE))
       install.packages("BiocManager")
@@ -417,6 +423,8 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
     names(de_genes[[type]]) <- exs_time_points
     for(tp in exs_time_points) {
       de_genes[[type]][[tp]] <- data.frame()
+      
+      ### combine all the rows
       for(px in names(markers)) {
         if(!is.null(markers[[px]][[type]][[tp]])) {
           thresh_idx <- which(markers[[px]][[type]][[tp]][,"p_val_adj"] < pv_threshold)
@@ -431,34 +439,62 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
       if(length(de_genes[[type]][[tp]]) > 0) {
         colnames(de_genes[[type]][[tp]]) <- c("Px-Time", "Gene_Symbol", "p_val", "avg_logFC", "pct.1", "pct.2", "p_val_adj")
         
+        ### unfactorize the columns
+        de_genes[[type]][[tp]][,"Px-Time"] <- as.character(de_genes[[type]][[tp]][,"Px-Time"])
+        de_genes[[type]][[tp]][,"Gene_Symbol"] <- as.character(de_genes[[type]][[tp]][,"Gene_Symbol"])
+        
+        ### add gene name column
+        de_genes[[type]][[tp]]$Gene_Name <- mapIds(org.Hs.eg.db, keys=rownames(de_genes[[type]][[tp]]),
+                                                   column="GENENAME", keytype="SYMBOL")
+        
+        ### add count column
+        de_genes[[type]][[tp]]$Count <- 1
+        
         ### handle duplicated genes
         dup_idx <- which(duplicated(de_genes[[type]][[tp]][,"Gene_Symbol"]))
         if(length(dup_idx) > 0) {
           dups <- de_genes[[type]][[tp]][dup_idx,,drop=FALSE]
           de_genes[[type]][[tp]] <- de_genes[[type]][[tp]][-dup_idx,,drop=FALSE]
           for(i in 1:nrow(dups)) {
-            for(j in 1:nrow(de_genes)) {
-              match_idx <- which(de_genes[j,"Gene_Symbol"] == dups[i,"Gene_Symbol"])
-              if(length(match_idx) > 0) {
-                ### combine multiple rows into one
-                de_genes[[type]][[tp]][match_idx,]
-              }
-            }
+            match_idx <- which(de_genes[[type]][[tp]][,"Gene_Symbol"] == dups[i,"Gene_Symbol"])
+            
+            ### combine multiple rows into one
+            combine_cols <- c("Px-Time", "p_val", "avg_logFC", "pct.1", "pct.2", "p_val_adj")
+            de_genes[[type]][[tp]][match_idx,combine_cols] <- paste(de_genes[[type]][[tp]][match_idx,combine_cols],
+                                                        dups[i,combine_cols],
+                                                        sep = ";")
+            de_genes[[type]][[tp]][match_idx,"Count"] <- de_genes[[type]][[tp]][match_idx,"Count"] + 1
           }
         }
+        
+        ### add combined p_val
+        de_genes[[type]][[tp]]$Combined_p_val <- de_genes[[type]][[tp]][,"p_val"]
+        multi_idx <- which(de_genes[[type]][[tp]][,"Count"] > 1)
+        de_genes[[type]][[tp]][multi_idx,"Combined_p_val"] <- sapply(de_genes[[type]][[tp]][multi_idx,"Combined_p_val"], function(x) {
+          temp <- as.numeric(strsplit(x, split = ";", fixed = TRUE)[[1]])
+          return(fisher.method(matrix(temp, nrow = 1))[,"p.value"])
+        })
+        
+        ### add combined adj.p_val
+        de_genes[[type]][[tp]]$Combined_p_val_adj <- p.adjust(de_genes[[type]][[tp]]$Combined_p_val, method = "BH")
+        
+        ### order the data frame by 1. Count and 2. combined adj.p 
+        de_genes[[type]][[tp]] <- de_genes[[type]][[tp]][order(de_genes[[type]][[tp]][,"Combined_p_val_adj"]),]
       }
     }
   }
+  
+  ### pathway analysis
+  
+  ### GeneRIF
+  
+  ### UMAP plot
+  
   
   
   ### just use all the DE genes
   
   
   
-  
-  
-  ### UMAP plot
-  
-  ### pathway analysis
   
 }
