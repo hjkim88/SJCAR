@@ -379,15 +379,16 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
             ### ident.1 - current time point cells that appears later
             ### ident.2 - current time point cells that never appears later
             new.ident <- rep(NA, nrow(Seurat_Obj@meta.data))
-            px_time_idx <- intersect(which(Seurat_Obj@meta.data$Px == px),
-                                     which(Seurat_Obj@meta.data$Time == time_points[i]))
+            px_time_idx <- intersect(intersect(which(Seurat_Obj@meta.data$Px == px),
+                                               which(Seurat_Obj@meta.data$Time == time_points[i])),
+                                     which(Seurat_Obj@meta.data$CAR == "CARpos"))
             new.ident[intersect(px_time_idx,
                                 which(Seurat_Obj@meta.data[,type] %in% target_clonotypes))] <- "ident1"
+            new.ident[setdiff(px_time_idx,
+                              which(Seurat_Obj@meta.data[,type] %in% target_clonotypes))] <- "ident2"
             
             ### there should be at least 3 samples in each class for DE analysis
-            if(length(which(new.ident == "ident1")) >= 3) {
-              new.ident[intersect(px_time_idx,
-                                  which(is.na(Seurat_Obj@meta.data[,type])))] <- "ident2"
+            if((length(which(new.ident == "ident1")) >= 3) && (length(which(new.ident == "ident2")) >= 3)) {
               Idents(object = Seurat_Obj) <- new.ident
               
               ### perform DE analysis
@@ -484,7 +485,30 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
     }
   }
   
+  ### remove NULL results
+  for(name1 in names(de_genes)) {
+    for(name2 in names(de_genes[[name1]])) {
+      if(length(de_genes[[name1]][[name2]]) == 0) {
+        de_genes[[name1]][[name2]] <- NULL
+      }
+    }
+  }
+  
+  ### save the combined results
+  save(list = c("de_genes"), file = paste0(outputDir2, "combined_markers.RDATA"))
+  
+  ### save the combined results in Excel files
+  for(type in names(de_genes)) {
+    for(tp in names(de_genes[[type]])) {
+      write.xlsx2(de_genes[[type]][[tp]], file = paste0(outputDir2, "combined_de_genes_", type, ".xlsx"),
+                  row.names = FALSE, sheetName = tp, append = TRUE)
+    }
+  }
+  
   ### pathway analysis
+  
+  
+  
   
   ### GeneRIF
   
