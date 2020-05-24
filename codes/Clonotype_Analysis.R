@@ -479,8 +479,9 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
         ### add combined adj.p_val
         de_genes[[type]][[tp]]$Combined_p_val_adj <- p.adjust(de_genes[[type]][[tp]]$Combined_p_val, method = "BH")
         
-        ### order the data frame by 1. Count and 2. combined adj.p 
-        de_genes[[type]][[tp]] <- de_genes[[type]][[tp]][order(de_genes[[type]][[tp]][,"Combined_p_val_adj"]),]
+        ### order the data frame by 1. combined adj.p and 2. Count 
+        de_genes[[type]][[tp]] <- de_genes[[type]][[tp]][order(de_genes[[type]][[tp]][,"Combined_p_val_adj"],
+                                                               de_genes[[type]][[tp]][,"Count"]),]
       }
     }
   }
