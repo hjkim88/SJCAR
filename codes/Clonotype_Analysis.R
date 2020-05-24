@@ -60,6 +60,9 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
   rm(tmp_env)
   gc()
   
+  ### rownames in the meta.data should be in the same order as colnames in the counts
+  Seurat_Obj@meta.data <- Seurat_Obj@meta.data[colnames(Seurat_Obj@assays$RNA@counts),]
+  
   ### get alpha only and beta only sequences
   cdr3 <- strsplit(Seurat_Obj@meta.data[,"cdr3_nt"], split = ";", fixed = TRUE)
   ### only retain alpha chains
@@ -505,6 +508,31 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
                   row.names = FALSE, sheetName = tp, append = TRUE)
     }
   }
+  
+  # ### test
+  # target_idx <- intersect(intersect(intersect(which(Seurat_Obj@meta.data$Px == "SJCAR19-07"),
+  #                                             which(Seurat_Obj@meta.data$Time == "GMP")),
+  #                                   which(Seurat_Obj@meta.data$CAR == "CARpos")),
+  #                         which(Seurat_Obj@meta.data$global_clonotype_ab_strict0 %in% c("clonotype3184",
+  #                                                                                       "clonotype3716",
+  #                                                                                       "clonotype3512",
+  #                                                                                       "clonotype5939")))
+  # target_cells <- rownames(Seurat_Obj@meta.data)[target_idx]
+  # target_idx2 <- setdiff(intersect(intersect(which(Seurat_Obj@meta.data$Px == "SJCAR19-07"),
+  #                                            which(Seurat_Obj@meta.data$Time == "GMP")),
+  #                                  which(Seurat_Obj@meta.data$CAR == "CARpos")),
+  #                        which(Seurat_Obj@meta.data$global_clonotype_ab_strict0 %in% c("clonotype3184",
+  #                                                                                      "clonotype3716",
+  #                                                                                      "clonotype3512",
+  #                                                                                      "clonotype5939")))
+  # target_cells2 <- rownames(Seurat_Obj@meta.data)[target_idx2]
+  # 
+  # target_mat <- as.data.frame(Seurat_Obj@assays$RNA@counts[,target_cells])
+  # target_mat2 <- as.data.frame(Seurat_Obj@assays$RNA@counts[,target_cells2])
+  
+  
+  
+  
   
   ### pathway analysis
   
