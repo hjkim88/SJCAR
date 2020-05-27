@@ -750,13 +750,36 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
                 sheetName = type, append = TRUE, row.names = FALSE)
   }
   
+  ### just use all the DE genes for pathway analysis
+  merged_pathway_results_GO <- vector("list", length = length(global_clonotypes))
+  names(merged_pathway_results_GO) <- global_clonotypes
+  merged_pathway_results_KEGG <- vector("list", length = length(global_clonotypes))
+  names(merged_pathway_results_KEGG) <- global_clonotypes
+  for(type in names(merged_de_genes)) {
+    target_genes <- unique(merged_de_genes[[type]][,"Gene_Symbol"])
+    
+    merged_pathway_results_GO[[type]] <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db, target_genes, "ENTREZID", "SYMBOL"),
+                                                            org = "human", database = "GO",
+                                                            title = paste0("Merged_Pathway_Results_", type),
+                                                            displayNum = 50, imgPrint = TRUE,
+                                                            dir = paste0(outputDir2))
+    merged_pathway_results_KEGG[[type]] <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db, target_genes, "ENTREZID", "SYMBOL"),
+                                                              org = "human", database = "KEGG",
+                                                              title = paste0("Merged_Pathway_Results_", type),
+                                                              displayNum = 50, imgPrint = TRUE,
+                                                              dir = paste0(outputDir2))
+  }
+  ### save the merged pathway results in Excel files
+  for(type in global_clonotypes) {
+    write.xlsx2(merged_pathway_results_GO[[type]], file = paste0(outputDir2, "GO_merged_pathway_results.xlsx"),
+                row.names = FALSE, sheetName = type, append = TRUE)
+    write.xlsx2(merged_pathway_results_KEGG[[type]], file = paste0(outputDir2, "KEGG_merged_pathway_results.xlsx"),
+                row.names = FALSE, sheetName = type, append = TRUE)
+  }
+  
+  ### UMAP plot with gene expression for some interesting genes
   
   
-  ### UMAP plot
-  
-  
-  
-  ### just use all the DE genes
   
   
   
