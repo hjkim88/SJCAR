@@ -16,10 +16,12 @@
 #   Example
 #               > source("The_directory_of_Clonotype_Analysis.R/Clonotype_Analysis.R")
 #               > clonotype_analysis(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_TCR_clonotyped_PROTO2.Robj",
+#                                    geneRIFPath="./data/generifs_basic.txt",
 #                                    outputDir="./results/PROTO/")
 ###
 
 clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_TCR_clonotyped_PROTO2.Robj",
+                               geneRIFPath="./data/generifs_basic.txt",
                                outputDir="./results/PROTO/") {
   
   ### load libraries
@@ -38,6 +40,12 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
   if(!require(gridExtra, quietly = TRUE)) {
     install.packages("gridExtra")
     require(gridExtra, quietly = TRUE)
+  }
+  if(!require(DESeq2, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("DESeq2")
+    require(DESeq2, quietly = TRUE)
   }
   if(!require(org.Hs.eg.db, quietly = TRUE)) {
     if (!requireNamespace("BiocManager", quietly = TRUE))
@@ -267,6 +275,7 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
   
   ###
   ### Gene expression profiling
+  ### CAR+ vs CAR- for every library
   ###
   
   ### set new group for DE
@@ -398,7 +407,11 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
               markers[[px]][[type]][[i]] <- FindMarkers(Seurat_Obj,
                                                         ident.1 = "ident1",
                                                         ident.2 = "ident2",
-                                                        logfc.threshold = 0)
+                                                        logfc.threshold = 0,
+                                                        test.use = "DESeq2")
+              
+              ### garbage collection
+              gc()
             }
           }
         }
@@ -484,7 +497,7 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
         
         ### order the data frame by 1. combined adj.p and 2. Count 
         de_genes[[type]][[tp]] <- de_genes[[type]][[tp]][order(de_genes[[type]][[tp]][,"Combined_p_val_adj"],
-                                                               de_genes[[type]][[tp]][,"Count"]),]
+                                                               -de_genes[[type]][[tp]][,"Count"]),]
       }
     }
   }
@@ -509,37 +522,235 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
     }
   }
   
-  # ### test
-  # target_idx <- intersect(intersect(intersect(which(Seurat_Obj@meta.data$Px == "SJCAR19-07"),
-  #                                             which(Seurat_Obj@meta.data$Time == "GMP")),
-  #                                   which(Seurat_Obj@meta.data$CAR == "CARpos")),
-  #                         which(Seurat_Obj@meta.data$global_clonotype_ab_strict0 %in% c("clonotype3184",
-  #                                                                                       "clonotype3716",
-  #                                                                                       "clonotype3512",
-  #                                                                                       "clonotype5939")))
-  # target_cells <- rownames(Seurat_Obj@meta.data)[target_idx]
-  # target_idx2 <- setdiff(intersect(intersect(which(Seurat_Obj@meta.data$Px == "SJCAR19-07"),
-  #                                            which(Seurat_Obj@meta.data$Time == "GMP")),
-  #                                  which(Seurat_Obj@meta.data$CAR == "CARpos")),
-  #                        which(Seurat_Obj@meta.data$global_clonotype_ab_strict0 %in% c("clonotype3184",
-  #                                                                                      "clonotype3716",
-  #                                                                                      "clonotype3512",
-  #                                                                                      "clonotype5939")))
-  # target_cells2 <- rownames(Seurat_Obj@meta.data)[target_idx2]
-  # 
-  # target_mat <- as.data.frame(Seurat_Obj@assays$RNA@counts[,target_cells])
-  # target_mat2 <- as.data.frame(Seurat_Obj@assays$RNA@counts[,target_cells2])
-  
-  
-  
-  
   
   ### pathway analysis
   
+  # ******************************************************************************************
+  # Pathway Analysis with clusterProfiler package
+  # Input: geneList     = a vector of gene Entrez IDs for pathway analysis [numeric or character]
+  #        org          = organism that will be used in the analysis ["human" or "mouse"]
+  #                       should be either "human" or "mouse"
+  #        database     = pathway analysis database (KEGG or GO) ["KEGG" or "GO"]
+  #        title        = title of the pathway figure [character]
+  #        pv_threshold = pathway analysis p-value threshold (not DE analysis threshold) [numeric]
+  #        displayNum   = the number of pathways that will be displayed [numeric]
+  #                       (If there are many significant pathways show the few top pathways)
+  #        imgPrint     = print a plot of pathway analysis [TRUE/FALSE]
+  #        dir          = file directory path of the output pathway figure [character]
+  #
+  # Output: Pathway analysis results in figure - using KEGG and GO pathways
+  #         The x-axis represents the number of DE genes in the pathway
+  #         The y-axis represents pathway names
+  #         The color of a bar indicates adjusted p-value from the pathway analysis
+  #         For Pathview Result, all colored genes are found DE genes in the pathway,
+  #         and the color indicates log2(fold change) of the DE gene from DE analysis
+  # ******************************************************************************************
+  pathwayAnalysis_CP <- function(geneList,
+                                 org,
+                                 database,
+                                 title="Pathway_Results",
+                                 pv_threshold=0.05,
+                                 displayNum=Inf,
+                                 imgPrint=TRUE,
+                                 dir="./") {
+    
+    ### load library
+    if(!require(clusterProfiler, quietly = TRUE)) {
+      if (!requireNamespace("BiocManager", quietly = TRUE))
+        install.packages("BiocManager")
+      BiocManager::install("clusterProfiler")
+      require(clusterProfiler, quietly = TRUE)
+    }
+    if(!require(ggplot2)) {
+      install.packages("ggplot2")
+      library(ggplot2)
+    }
+    
+    
+    ### collect gene list (Entrez IDs)
+    geneList <- geneList[which(!is.na(geneList))]
+    
+    if(!is.null(geneList)) {
+      ### make an empty list
+      p <- list()
+      
+      if(database == "KEGG") {
+        ### KEGG Pathway
+        kegg_enrich <- enrichKEGG(gene = geneList, organism = org, pvalueCutoff = pv_threshold)
+        
+        if(is.null(kegg_enrich)) {
+          writeLines("KEGG Result does not exist")
+          return(NULL)
+        } else {
+          kegg_enrich@result <- kegg_enrich@result[which(kegg_enrich@result$p.adjust < pv_threshold),]
+          
+          if(imgPrint == TRUE) {
+            if((displayNum == Inf) || (nrow(kegg_enrich@result) <= displayNum)) {
+              result <- kegg_enrich@result
+              description <- kegg_enrich@result$Description
+            } else {
+              result <- kegg_enrich@result[1:displayNum,]
+              description <- kegg_enrich@result$Description[1:displayNum]
+            }
+            
+            if(nrow(kegg_enrich) > 0) {
+              p[[1]] <- ggplot(result, aes(x=Description, y=Count)) + labs(x="", y="Gene Counts") + 
+                theme_classic(base_size = 16) + geom_bar(aes(fill = p.adjust), stat="identity") + coord_flip() +
+                scale_x_discrete(limits = rev(description)) +
+                guides(fill = guide_colorbar(ticks=FALSE, title="P.Val", barheight=10)) +
+                ggtitle(paste0("KEGG ", title))
+              
+              png(paste0(dir, "kegg_", title, "_CB.png"), width = 2000, height = 1000)
+              print(p[[1]])
+              dev.off()
+            } else {
+              writeLines("KEGG Result does not exist")
+            }
+          }
+          
+          return(kegg_enrich@result)
+        }
+      } else if(database == "GO") {
+        ### GO Pathway
+        if(org == "human") {
+          go_enrich <- enrichGO(gene = geneList, OrgDb = 'org.Hs.eg.db', readable = T, ont = "BP", pvalueCutoff = pv_threshold)
+        } else if(org == "mouse") {
+          go_enrich <- enrichGO(gene = geneList, OrgDb = 'org.Mm.eg.db', readable = T, ont = "BP", pvalueCutoff = pv_threshold)
+        } else {
+          go_enrich <- NULL
+          writeLines(paste("Unknown org variable:", org))
+        }
+        
+        if(is.null(go_enrich)) {
+          writeLines("GO Result does not exist")
+          return(NULL)
+        } else {
+          go_enrich@result <- go_enrich@result[which(go_enrich@result$p.adjust < pv_threshold),]
+          
+          if(imgPrint == TRUE) {
+            if((displayNum == Inf) || (nrow(go_enrich@result) <= displayNum)) {
+              result <- go_enrich@result
+              description <- go_enrich@result$Description
+            } else {
+              result <- go_enrich@result[1:displayNum,]
+              description <- go_enrich@result$Description[1:displayNum]
+            }
+            
+            if(nrow(go_enrich) > 0) {
+              p[[2]] <- ggplot(result, aes(x=Description, y=Count)) + labs(x="", y="Gene Counts") + 
+                theme_classic(base_size = 16) + geom_bar(aes(fill = p.adjust), stat="identity") + coord_flip() +
+                scale_x_discrete(limits = rev(description)) +
+                guides(fill = guide_colorbar(ticks=FALSE, title="P.Val", barheight=10)) +
+                ggtitle(paste0("GO ", title))
+              
+              png(paste0(dir, "go_", title, "_CB.png"), width = 2000, height = 1000)
+              print(p[[2]])
+              dev.off()
+            } else {
+              writeLines("GO Result does not exist")
+            }
+          }
+          
+          return(go_enrich@result)
+        }
+      } else {
+        stop("database prameter should be \"GO\" or \"KEGG\"")
+      }
+    } else {
+      writeLines("geneList = NULL")
+    }
+  }
+  
+  ### create empty pathway result list
+  pathway_results_GO <- vector("list", length = length(global_clonotypes))
+  names(pathway_results_GO) <- global_clonotypes
+  pathway_results_KEGG <- vector("list", length = length(global_clonotypes))
+  names(pathway_results_KEGG) <- global_clonotypes
+  
+  ### pathway analysis
+  for(type in global_clonotypes) {
+    pathway_results_GO[[type]] <- vector("list", length = length(de_genes[[type]]))
+    names(pathway_results_GO[[type]]) <- names(de_genes[[type]])
+    pathway_results_KEGG[[type]] <- vector("list", length = length(de_genes[[type]]))
+    names(pathway_results_KEGG[[type]]) <- names(de_genes[[type]])
+    
+    for(tp in names(pathway_results_GO[[type]])) {
+      pathway_results_GO[[type]][[tp]] <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db, de_genes[[type]][[tp]][,"Gene_Symbol"], "ENTREZID", "SYMBOL"),
+                                                             org = "human", database = "GO",
+                                                             title = paste0("Pathway_Results_", type, "_", tp),
+                                                             displayNum = 50, imgPrint = TRUE,
+                                                             dir = paste0(outputDir2))
+      pathway_results_KEGG[[type]][[tp]] <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db, de_genes[[type]][[tp]][,"Gene_Symbol"], "ENTREZID", "SYMBOL"),
+                                                               org = "human", database = "KEGG",
+                                                               title = paste0("Pathway_Results_", type, "_", tp),
+                                                               displayNum = 50, imgPrint = TRUE,
+                                                               dir = paste0(outputDir2))
+    }
+  }
+  ### save the pathway results in Excel files
+  for(type in global_clonotypes) {
+    for(tp in names(pathway_results_GO[[type]])) {
+      write.xlsx2(pathway_results_GO[[type]][[tp]], file = paste0(outputDir2, "GO_pathway_results_", type, ".xlsx"),
+                  row.names = FALSE, sheetName = tp, append = TRUE)
+    }
+    for(tp in names(pathway_results_KEGG[[type]])) {
+      write.xlsx2(pathway_results_KEGG[[type]][[tp]], file = paste0(outputDir2, "KEGG_pathway_results_", type, ".xlsx"),
+                  row.names = FALSE, sheetName = tp, append = TRUE)
+    }
+  }
+  
+  ### merge the DE results in each patient
+  merged_de_genes <- vector("list", length = length(global_clonotypes))
+  names(merged_de_genes) <- global_clonotypes
+  for(type in global_clonotypes) {
+    
+    merged_de_genes[[type]] <- data.frame()
+    for(tp in names(de_genes[[type]])) {
+      merged_de_genes[[type]] <- rbind(merged_de_genes[[type]],
+                                       de_genes[[type]][[tp]])  
+    }
+    
+    write.xlsx2(merged_de_genes[[type]], file = paste0(outputDir2, "Merged_DE_Genes.xlsx"),
+                sheetName = type, append = TRUE, row.names = FALSE)
+  }
   
   
-  
+  #
   ### GeneRIF
+  #
+  
+  ### load geneRIF
+  geneRIF <- read.table(file = geneRIFPath, header = FALSE, sep = "\t", check.names = FALSE)
+  
+  ### get merged & unique DE genes
+  input_de_genes <- lapply(merged_de_genes, function(x) {
+    y <- unique(x[,"Gene_Symbol"])
+    return(mapIds(org.Hs.eg.db, y, "ENTREZID", "SYMBOL"))
+  })
+  
+  ### create an empty list for the results
+  geneRIF_results <- vector("list", length = length(global_clonotypes))
+  names(geneRIF_results) <- global_clonotypes
+  
+  ### GeneRIF annotation
+  for(type in global_clonotypes) {
+    ### extract geneRIF for the specific genes
+    add_info <- geneRIF[which(geneRIF$V2 %in% input_de_genes[[type]]),c(2,3,5)]
+    colnames(add_info) <- c("Gene_Name", "PubMed_ID", "Gene_RIF")
+    
+    ### change Entrez IDs to gene symbols
+    add_info[,1] <- mapIds(org.Hs.eg.db, as.character(add_info[,1]), "SYMBOL", "ENTREZID")
+    
+    ### remove duplicates
+    rIdx <- duplicated.data.frame(add_info)
+    add_info <- add_info[!rIdx,]
+    
+    ### write out the result
+    write.xlsx2(add_info, file = paste0(outputDir2, "Merged_DE_Genes_GeneRIF_Annotated.xlsx"),
+                sheetName = type, append = TRUE, row.names = FALSE)
+  }
+  
+  
   
   ### UMAP plot
   
