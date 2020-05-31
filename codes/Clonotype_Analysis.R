@@ -782,6 +782,132 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
   
   
   
+  #
+  ### merged lineage abstract table
+  #
+  for(px in f) {
+    ### load the file
+    target_file <- read.xlsx2(file = paste0(outputDir, px, "/lineage_abstract_table_", px, ".xlsx"),
+                              sheetName = px, row.names = 1,
+                              stringsAsFactors = FALSE, check.names = FALSE)
+    
+    ### numerize the matrix
+    rowN <- rownames(target_file)
+    target_file <- sapply(target_file, as.numeric)
+    rownames(target_file) <- rowN
+    
+    ### merge
+    if(px == f[1]) {
+      result_file <- target_file
+    } else {
+      for(i in 1:nrow(result_file)) {
+        for(j in 1:ncol(result_file)) {
+          result_file[i,j] <- result_file[i,j] + target_file[i,j]
+        }
+      }
+    }
+    
+    ### progress
+    writeLines(paste(px))
+    
+    ### garbage collection
+    gc()
+  }
   
+  ### save the result table
+  write.xlsx2(result_file, file = paste0(outputDir2, "Merged_lineage_abstract_table.xlsx"),
+              sheetName = "Merged_Lineage_Abstract")
+  
+  
+  #
+  ### DE analysis - GMP_Last_All vs Control
+  ### the above ones are done separately for each patient
+  ### here, only consider ab_strict0 and GMP CAR+ cells
+  #
+  
+  ### for each patient that has TCR info
+  type <- global_clonotypes[1]
+  all_gmp_last <- NULL
+  for(px in f) {
+    ### print progress
+    writeLines(paste(px))
+    
+    ### load the file
+    target_file <- read.xlsx2(file = paste0(outputDir, px, "/car_clonotype_frequency_over_time_", px, ".xlsx"),
+                              sheetName = type, stringsAsFactors = FALSE, check.names = FALSE,
+                              row.names = 1)
+    
+    ### numerize the table
+    for(i in 1:ncol(target_file)) {
+      target_file[,i] <- as.numeric(target_file[,i])
+    }
+    
+    ### remove all zero time points
+    time_points <- colnames(target_file)[which(apply(target_file, 2, sum) != 0)]
+    
+    ### get time points after GMP infusion
+    time_points <- setdiff(time_points,
+                           c("PreTrans", "Wk-1", "Wk0", "Total"))
+    
+    if(length(time_points) > 1 && length(which(time_points == "GMP")) > 0) {
+      ### select clonotypes
+      tidx <- which(time_points == "GMP")
+      target_temp <- target_file[which(target_file[,"GMP"] > 0),
+                                 time_points[(tidx+1):length(time_points)],drop=FALSE]
+      target_clonotypes <- rownames(target_temp)[which(apply(target_temp, 1, sum) > 0)]
+      
+      if(length(target_clonotypes) > 0) {
+        px_time_idx <- intersect(intersect(which(Seurat_Obj@meta.data$Px == px),
+                                           which(Seurat_Obj@meta.data$Time == time_points[tidx])),
+                                 which(Seurat_Obj@meta.data$CAR == "CARpos"))
+        all_gmp_last <- c(all_gmp_last, intersect(px_time_idx,
+                                                  which(Seurat_Obj@meta.data[,type] %in% target_clonotypes)))
+      }
+    }
+  }
+  
+  ### Ident configure
+  new.ident <- rep(NA, nrow(Seurat_Obj@meta.data))
+  new.ident[all_gmp_last] <- "ident1"
+  new.ident[setdiff(setdiff(intersect(intersect(which(Seurat_Obj@meta.data$Time == "GMP"),
+                                        which(Seurat_Obj@meta.data$CAR == "CARpos")),
+                              which(!is.na(Seurat_Obj@meta.data$cdr3_nt))),
+                            all_gmp_last),
+                    which(Seurat_Obj@meta.data$Px %in% c("SJCAR19-00", "SJCAR19-01")))] <- "ident2"
+  Idents(object = Seurat_Obj) <- new.ident
+  
+  ### DE analysis
+  all_de_result <- FindMarkers(Seurat_Obj,
+                               ident.1 = "ident1",
+                               ident.2 = "ident2",
+                               logfc.threshold = 0,
+                               min.pct = 0.1)
+  
+  ### rearange the columns
+  all_de_result <- data.frame(Gene_Symbol=rownames(all_de_result),
+                              all_de_result[,-which(colnames(all_de_result) == "p_val_adj")],
+                              FDR=p.adjust(all_de_result$p_val, method = "BH"),
+                              stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### save in Excel
+  write.xlsx2(all_de_result, file = paste0(outputDir2, "ALL_Patients_DE_Genes.xlsx"),
+              sheetName = "ALL", row.names = FALSE)
+  
+  ### pathway analysis
+  target_genes <- all_de_result$Gene_Symbol[which(all_de_result$FDR < 0.05)]
+  all_pathway_result_GO <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db, target_genes, "ENTREZID", "SYMBOL"),
+                                              org = "human", database = "GO",
+                                              title = paste0("All_Pathway_Results"),
+                                              displayNum = 50, imgPrint = TRUE,
+                                              dir = paste0(outputDir2))
+  write.xlsx2(all_pathway_result_GO, file = paste0(outputDir2, "GO_all_pathway_results.xlsx"),
+              row.names = FALSE, sheetName = "GO")
+  all_pathway_result_KEGG <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db, target_genes, "ENTREZID", "SYMBOL"),
+                                                org = "human", database = "KEGG",
+                                                title = paste0("All_Pathway_Results"),
+                                                displayNum = 50, imgPrint = TRUE,
+                                                dir = paste0(outputDir2))
+  write.xlsx2(all_pathway_result_KEGG, file = paste0(outputDir2, "KEGG_all_pathway_results.xlsx"),
+              row.names = FALSE, sheetName = "KEGG")
   
 }
