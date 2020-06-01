@@ -876,7 +876,7 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
                     which(Seurat_Obj@meta.data$Px %in% c("SJCAR19-00", "SJCAR19-01")))] <- "ident2"
   Idents(object = Seurat_Obj) <- new.ident
   
-  ### DE analysis
+  ### DE analysis with Wilcoxon test
   all_de_result <- FindMarkers(Seurat_Obj,
                                ident.1 = "ident1",
                                ident.2 = "ident2",
@@ -909,5 +909,77 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
                                                 dir = paste0(outputDir2))
   write.xlsx2(all_pathway_result_KEGG, file = paste0(outputDir2, "KEGG_all_pathway_results.xlsx"),
               row.names = FALSE, sheetName = "KEGG")
+  
+  ### DE analysis with DESeq2
+  
+  ### first becuase we are in short of memory for DESeq2,
+  ### we need to extract the exact data from the object and use it only
+  
+  ### extract the data
+  subset_Seurat_Obj <- subset(Seurat_Obj, idents=c("ident1", "ident2"))
+  
+  ### remove the original Seurat object
+  rm(Seurat_Obj)
+  gc()
+  
+  ### perform DESeq2
+  all_de_result <- FindMarkers(subset_Seurat_Obj,
+                               ident.1 = "ident1",
+                               ident.2 = "ident2",
+                               logfc.threshold = 0,
+                               min.pct = 0.1,
+                               test.use = "DESeq2")
+  
+  ### rearange the columns
+  all_de_result <- data.frame(Gene_Symbol=rownames(all_de_result),
+                              all_de_result[,-which(colnames(all_de_result) == "p_val_adj")],
+                              FDR=p.adjust(all_de_result$p_val, method = "BH"),
+                              stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### save in Excel
+  write.xlsx2(all_de_result, file = paste0(outputDir2, "ALL_Patients_DE_Genes_DESeq2.xlsx"),
+              sheetName = "ALL_DESeq2", row.names = FALSE)
+
+  ### pathway analysis
+  target_genes <- all_de_result$Gene_Symbol[which(all_de_result$FDR < 0.05)]
+  all_pathway_result_GO <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db, target_genes, "ENTREZID", "SYMBOL"),
+                                              org = "human", database = "GO",
+                                              title = paste0("All_Pathway_Results_DESeq2"),
+                                              displayNum = 50, imgPrint = TRUE,
+                                              dir = paste0(outputDir2))
+  write.xlsx2(all_pathway_result_GO, file = paste0(outputDir2, "GO_all_pathway_results_DESeq2.xlsx"),
+              row.names = FALSE, sheetName = "GO")
+  all_pathway_result_KEGG <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db, target_genes, "ENTREZID", "SYMBOL"),
+                                                org = "human", database = "KEGG",
+                                                title = paste0("All_Pathway_Results_DESeq2"),
+                                                displayNum = 50, imgPrint = TRUE,
+                                                dir = paste0(outputDir2))
+  write.xlsx2(all_pathway_result_KEGG, file = paste0(outputDir2, "KEGG_all_pathway_results_DESeq2.xlsx"),
+              row.names = FALSE, sheetName = "KEGG")
+  
+  
+  ### load geneRIF
+  geneRIF <- read.table(file = geneRIFPath, header = FALSE, sep = "\t", check.names = FALSE)
+  
+  ### get merged & unique DE genes
+  input_de_genes <- mapIds(org.Hs.eg.db, target_genes, "ENTREZID", "SYMBOL")
+  
+  ### extract geneRIF for the specific genes
+  add_info <- geneRIF[which(geneRIF$V2 %in% input_de_genes),c(2,3,5)]
+  colnames(add_info) <- c("Gene_Name", "PubMed_ID", "Gene_RIF")
+  
+  ### change Entrez IDs to gene symbols
+  add_info[,1] <- mapIds(org.Hs.eg.db, as.character(add_info[,1]), "SYMBOL", "ENTREZID")
+  
+  ### remove duplicates
+  rIdx <- duplicated.data.frame(add_info)
+  add_info <- add_info[!rIdx,]
+  
+  ### write out the result
+  write.xlsx2(add_info, file = paste0(outputDir2, "DE_Genes_DESeq2_GeneRIF_Annotated.xlsx"),
+              sheetName = "DESeq2_GeneRIF", row.names = FALSE)
+  
+  
+  
   
 }
