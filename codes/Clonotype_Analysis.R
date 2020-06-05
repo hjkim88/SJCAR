@@ -59,6 +59,24 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
     BiocManager::install("metaseqR")
     require(metaseqR, quietly = TRUE)
   }
+  if(!require(ggalluvial, quietly = TRUE)) {
+    install.packages("ggalluvial")
+    require(ggalluvial, quietly = TRUE)
+  }
+  if(!require(ggpubr, quietly = TRUE)) {
+    install.packages("ggpubr")
+    require(ggpubr, quietly = TRUE)
+  }
+  if(!require(viridis, quietly = TRUE)) {
+    install.packages("viridis")
+    require(viridis, quietly = TRUE)
+  }
+  if(!require(OmicCircos, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("OmicCircos")
+    require(OmicCircos, quietly = TRUE)
+  }
   
   ### load the Seurat object and save the object name
   tmp_env <- new.env()
@@ -980,6 +998,43 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
               sheetName = "DESeq2_GeneRIF", row.names = FALSE)
   
   
+  ### Circular plot - visualization of the lineage tracing in each patient
+  for(px in f) {
+    
+    ### print progress
+    writeLines(paste(px))
+    
+    ### load the file
+    target_file <- read.xlsx2(file = paste0(outputDir, px, "/car_clonotype_frequency_over_time_", px, ".xlsx"),
+                              sheetIndex = 1, stringsAsFactors = FALSE, check.names = FALSE,
+                              row.names = 1)
+    
+    ### numerize the table
+    for(i in 1:ncol(target_file)) {
+      target_file[,i] <- as.numeric(target_file[,i])
+    }
+    
+    ### remove all zero time points
+    time_points <- colnames(target_file)[which(apply(target_file, 2, sum) != 0)]
+    
+    ### get time points after GMP infusion
+    time_points <- setdiff(time_points,
+                           c("PreTrans", "Wk-1", "Wk0", "Total"))
+    
+    if(length(time_points) > 1 && length(which(time_points == "GMP")) > 0) {
+      ### select clonotypes
+      tidx <- which(time_points == "GMP")
+      target_temp <- target_file[which(target_file[,"GMP"] > 0),
+                                 time_points[(tidx+1):length(time_points)],drop=FALSE]
+      target_clonotypes <- rownames(target_temp)[which(apply(target_temp, 1, sum) > 0)]
+      
+      if(length(target_clonotypes) > 0) {
+        target_file <- target_file[target_clonotypes,time_points]
+        
+      }
+    }
+    
+  }
   
   
 }
