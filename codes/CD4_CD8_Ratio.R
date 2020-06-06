@@ -20,17 +20,144 @@
 get_cd4_cd8_ratio <- function(Seurat_Obj=Seurat_Obj,
                               outputDir="./results/") {
   
+  ### load libraries
+  if(!require(Seurat, quietly = TRUE)) {
+    install.packages("Seurat")
+    require(Seurat, quietly = TRUE)
+  }
+  if(!require(xlsx, quietly = TRUE)) {
+    install.packages("xlsx")
+    require(xlsx, quietly = TRUE)
+  }
+  
   ### rownames in the meta.data should be in the same order as colnames in the counts
   Seurat_Obj@meta.data <- Seurat_Obj@meta.data[colnames(Seurat_Obj@assays$RNA@counts),]
   
   ### get gene expressions of CD4/CD8A/CD8B
   cd4_exps <- Seurat_Obj@assays$RNA@counts["CD4",]
   cd8a_exps <- Seurat_Obj@assays$RNA@counts["CD8A",]
-  cd8b_exps <- Seurat_Obj@assays$RNA@counts["CD8B",]
   
-  ###
+  ### plot the density
+  plot(density(cd4_exps[which(Seurat_Obj@meta.data$CAR == "CARpos")]), main = "CAR+ CD4 Expression Density")
+  plot(density(cd8a_exps[which(Seurat_Obj@meta.data$CAR == "CARpos")]), main = "CAR+ CD8A Expression Density")
+  plot(cd4_exps[which(Seurat_Obj@meta.data$CAR == "CARpos")],
+       cd8a_exps[which(Seurat_Obj@meta.data$CAR == "CARpos")],
+       xlab = "CD4 Expression", ylab = "CD8A Expression",
+       main = "CAR+ CD4-CD8A Expressions", pch = 16)
   
+  ### CD4 & CD8 table
+  result_table_p <- data.frame(matrix(0, length(unique(Seurat_Obj@meta.data$Library)), 10),
+                             stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(result_table_p) <- unique(Seurat_Obj@meta.data$Library)
+  colnames(result_table_p) <- c("Patient", "Time",
+                              "All_GEX_CD4_Ratio", "All_GEX_CD8_Ratio",
+                              "GEX_TCR_CD4_Ratio", "GEX_TCR_CD8_Ratio",
+                              "CAR+_All_GEX_CD4_Ratio", "CAR+_All_GEX_CD8_Ratio",
+                              "CAR+_GEX_TCR_CD4_Ratio", "CAR+_GEX_TCR_CD8_Ratio")
   
+  ### fill out the patient and the time columns
+  libs <- strsplit(unique(Seurat_Obj@meta.data$Library), split = "_", fixed = TRUE)
+  result_table_p[,"Patient"] <- sapply(libs, function(x) x[2])
+  result_table_p[,"Time"] <- sapply(libs, function(x) x[3])
   
+  ### we also need the real numbers
+  result_table_n <- result_table_p
+  colnames(result_table_n) <- c("Patient", "Time",
+                                "All_GEX_CD4_Number", "All_GEX_CD8_Number",
+                                "GEX_TCR_CD4_Number", "GEX_TCR_CD8_Number",
+                                "CAR+_All_GEX_CD4_Number", "CAR+_All_GEX_CD8_Number",
+                                "CAR+_GEX_TCR_CD4_Number", "CAR+_GEX_TCR_CD8_Number")
+  
+  ### fill out the ratios
+  for(i in 1:nrow(result_table_p)) {
+    all_cell_num <- length(which(Seurat_Obj@meta.data$Library == rownames(result_table_p)[i]))
+    gex_tcr_cell_num <- length(intersect(which(!is.na(Seurat_Obj@meta.data$cdr3_nt)),
+                                         which(Seurat_Obj@meta.data$Library == rownames(result_table_p)[i])))
+    carpos_all_cell_num <- length(intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                            which(Seurat_Obj@meta.data$Library == rownames(result_table_p)[i])))
+    carpos_gex_tcr_cell_num <- length(intersect(intersect(which(!is.na(Seurat_Obj@meta.data$cdr3_nt)),
+                                                          which(Seurat_Obj@meta.data$CAR == "CARpos")),
+                                                which(Seurat_Obj@meta.data$Library == rownames(result_table_p)[i])))
     
+    ### CD4
+    target_idx <- intersect(which(Seurat_Obj@meta.data$Library == rownames(result_table_p)[i]),
+                            which(cd4_exps > 0))
+    result_table_p[i,"All_GEX_CD4_Ratio"] <- length(target_idx) / all_cell_num
+    result_table_n[i,"All_GEX_CD4_Number"] <- length(target_idx)
+    if(gex_tcr_cell_num > 0) {
+      result_table_p[i,"GEX_TCR_CD4_Ratio"] <- length(intersect(target_idx,
+                                                              which(!is.na(Seurat_Obj@meta.data$cdr3_nt)))) / gex_tcr_cell_num
+      result_table_n[i,"GEX_TCR_CD4_Number"] <- length(intersect(target_idx,
+                                                                which(!is.na(Seurat_Obj@meta.data$cdr3_nt))))
+    }
+    target_idx <- intersect(target_idx,
+                            which(Seurat_Obj@meta.data$CAR == "CARpos"))
+    if(carpos_all_cell_num > 0) {
+      result_table_p[i,"CAR+_All_GEX_CD4_Ratio"] <- length(target_idx) / carpos_all_cell_num
+      result_table_n[i,"CAR+_All_GEX_CD4_Number"] <- length(target_idx)
+    }
+    if(carpos_gex_tcr_cell_num > 0) {
+      result_table_p[i,"CAR+_GEX_TCR_CD4_Ratio"] <- length(intersect(target_idx,
+                                                              which(!is.na(Seurat_Obj@meta.data$cdr3_nt)))) / carpos_gex_tcr_cell_num
+      result_table_n[i,"CAR+_GEX_TCR_CD4_Number"] <- length(intersect(target_idx,
+                                                                     which(!is.na(Seurat_Obj@meta.data$cdr3_nt))))
+    }
+    
+    ### CD8
+    target_idx <- intersect(which(Seurat_Obj@meta.data$Library == rownames(result_table_p)[i]),
+                            which(cd8a_exps > 1))
+    result_table_p[i,"All_GEX_CD8_Ratio"] <- length(target_idx) / all_cell_num
+    result_table_n[i,"All_GEX_CD8_Number"] <- length(target_idx)
+    if(gex_tcr_cell_num > 0) {
+      result_table_p[i,"GEX_TCR_CD8_Ratio"] <- length(intersect(target_idx,
+                                                              which(!is.na(Seurat_Obj@meta.data$cdr3_nt)))) / gex_tcr_cell_num
+      result_table_n[i,"GEX_TCR_CD8_Number"] <- length(intersect(target_idx,
+                                                                which(!is.na(Seurat_Obj@meta.data$cdr3_nt))))
+    }
+    target_idx <- intersect(target_idx,
+                            which(Seurat_Obj@meta.data$CAR == "CARpos"))
+    if(carpos_all_cell_num > 0) {
+      result_table_p[i,"CAR+_All_GEX_CD8_Ratio"] <- length(target_idx) / carpos_all_cell_num
+      result_table_n[i,"CAR+_All_GEX_CD8_Number"] <- length(target_idx)
+    }
+    if(carpos_gex_tcr_cell_num > 0) {
+      result_table_p[i,"CAR+_GEX_TCR_CD8_Ratio"] <- length(intersect(target_idx,
+                                                                   which(!is.na(Seurat_Obj@meta.data$cdr3_nt)))) / carpos_gex_tcr_cell_num
+      result_table_n[i,"CAR+_GEX_TCR_CD8_Number"] <- length(intersect(target_idx,
+                                                                     which(!is.na(Seurat_Obj@meta.data$cdr3_nt))))
+    }
+  }
+  
+  ### x 100 to compute the percentage
+  result_table_p[,c("All_GEX_CD4_Ratio", "All_GEX_CD8_Ratio",
+                  "GEX_TCR_CD4_Ratio", "GEX_TCR_CD8_Ratio",
+                  "CAR+_All_GEX_CD4_Ratio", "CAR+_All_GEX_CD8_Ratio",
+                  "CAR+_GEX_TCR_CD4_Ratio", "CAR+_GEX_TCR_CD8_Ratio")] <- result_table_p[,c("All_GEX_CD4_Ratio", "All_GEX_CD8_Ratio",
+                                                                                          "GEX_TCR_CD4_Ratio", "GEX_TCR_CD8_Ratio",
+                                                                                          "CAR+_All_GEX_CD4_Ratio", "CAR+_All_GEX_CD8_Ratio",
+                                                                                          "CAR+_GEX_TCR_CD4_Ratio", "CAR+_GEX_TCR_CD8_Ratio")] * 100
+  
+  ### round the numbers
+  result_table_p[,c("All_GEX_CD4_Ratio", "All_GEX_CD8_Ratio",
+                  "GEX_TCR_CD4_Ratio", "GEX_TCR_CD8_Ratio",
+                  "CAR+_All_GEX_CD4_Ratio", "CAR+_All_GEX_CD8_Ratio",
+                  "CAR+_GEX_TCR_CD4_Ratio", "CAR+_GEX_TCR_CD8_Ratio")] <- signif(result_table_p[,c("All_GEX_CD4_Ratio", "All_GEX_CD8_Ratio",
+                                                                                                 "GEX_TCR_CD4_Ratio", "GEX_TCR_CD8_Ratio",
+                                                                                                 "CAR+_All_GEX_CD4_Ratio", "CAR+_All_GEX_CD8_Ratio",
+                                                                                                 "CAR+_GEX_TCR_CD4_Ratio", "CAR+_GEX_TCR_CD8_Ratio")], digits = 4)
+  
+  ### only keep GMP info
+  result_table_p <- result_table_p[which(result_table_p$Time == "GMP"),]
+  result_table_n <- result_table_n[which(result_table_n$Time == "GMP"),]
+  
+  ### only keep CAR+ info
+  result_table_p <- result_table_p[,-c(3,4,5,6)]
+  result_table_n <- result_table_n[,-c(3,4,5,6)]
+  
+  ### write out the result
+  write.xlsx2(result_table_p, file = paste0(outputDir, "CD4_CD8_Ratio.xlsx"),
+              sheetName = "CD4_CD8_Ratio", row.names = FALSE)
+  write.xlsx2(result_table_n, file = paste0(outputDir, "CD4_CD8_Ratio.xlsx"),
+              sheetName = "CD4_CD8_Numbers", row.names = FALSE, append = TRUE)
+  
 }
