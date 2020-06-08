@@ -147,17 +147,66 @@ get_cd4_cd8_ratio <- function(Seurat_Obj=Seurat_Obj,
                                                                                                  "CAR+_GEX_TCR_CD4_Ratio", "CAR+_GEX_TCR_CD8_Ratio")], digits = 4)
   
   ### only keep GMP info
-  result_table_p <- result_table_p[which(result_table_p$Time == "GMP"),]
-  result_table_n <- result_table_n[which(result_table_n$Time == "GMP"),]
+  # result_table_p <- result_table_p[which(result_table_p$Time == "GMP"),]
+  # result_table_n <- result_table_n[which(result_table_n$Time == "GMP"),]
+  
+  ### only keep GMP+ time points
+  result_table_p <- result_table_p[which(result_table_p$Time %in% setdiff(unique(result_table_p$Time),
+                                                                          c("PreTrans",
+                                                                            "PreTransB",
+                                                                            "Wk-1",
+                                                                            "Wk-1Run1",
+                                                                            "Wk-1Run2",
+                                                                            "Wk0"))),]
+  result_table_n <- result_table_n[which(result_table_n$Time %in% setdiff(unique(result_table_n$Time),
+                                                                          c("PreTrans",
+                                                                            "PreTransB",
+                                                                            "Wk-1",
+                                                                            "Wk-1Run1",
+                                                                            "Wk-1Run2",
+                                                                            "Wk0"))),]
+  
+  ### reconstruct the ratio table with the numbers only
+  remove_idx <- NULL
+  for(i in 1:nrow(result_table_p)) {
+    sum_i <- result_table_n[i,3] + result_table_n[i,4]
+    if(sum_i == 0) {
+      remove_idx <- c(remove_idx, i)
+    } else {
+      result_table_p[i,3] <- signif(result_table_n[i,3] * 100 / sum_i, digits = 4)
+      result_table_p[i,4] <- signif(result_table_n[i,4] * 100 / sum_i, digits = 4)
+    }
+  }
+  if(length(remove_idx) > 0) {
+    result_table_p <- result_table_p[-remove_idx,]
+    result_table_n <- result_table_n[-remove_idx,]
+  }
   
   ### only keep CAR+ info
-  result_table_p <- result_table_p[,-c(3,4,5,6)]
-  result_table_n <- result_table_n[,-c(3,4,5,6)]
+  result_table_p <- result_table_p[,-c(3,4,5,6,9,10)]
+  result_table_n <- result_table_n[,-c(3,4,5,6,9,10)]
+  
+  ### get average ratios
+  new_table <- result_table_n[-which(result_table_n$Time == "GMP"),]
+  new_result_table <- data.frame(matrix(0, length(unique(new_table$Patient)), 3),
+                                        stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(new_result_table) <- unique(new_table$Patient)
+  colnames(new_result_table) <- c("Patient", "CAR+_All_GEX_CD4_Ratio", "CAR+_All_GEX_CD8_Ratio")
+  new_result_table$Patient <- rownames(new_result_table)
+  for(px in unique(new_table$Patient)) {
+    cd4_sum <- sum(new_table[which(new_table$Patient == px),3])
+    cd8_sum <- sum(new_table[which(new_table$Patient == px),4])
+    all_sum <- cd4_sum + cd8_sum
+    new_result_table[px,2] <- signif(cd4_sum * 100 / all_sum, digits = 4)
+    new_result_table[px,3] <- signif(cd8_sum * 100 / all_sum, digits = 4)
+  }
   
   ### write out the result
   write.xlsx2(result_table_p, file = paste0(outputDir, "CD4_CD8_Ratio.xlsx"),
               sheetName = "CD4_CD8_Ratio", row.names = FALSE)
   write.xlsx2(result_table_n, file = paste0(outputDir, "CD4_CD8_Ratio.xlsx"),
               sheetName = "CD4_CD8_Numbers", row.names = FALSE, append = TRUE)
+  write.xlsx2(new_result_table, file = paste0(outputDir, "CD4_CD8_Ratio.xlsx"),
+              sheetName = "CD4_CD8_Average_Ratio", row.names = FALSE, append = TRUE)
   
 }
