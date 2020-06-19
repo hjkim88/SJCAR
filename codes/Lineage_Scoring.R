@@ -75,6 +75,12 @@ give_lineage_score <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
                                       which(Seurat_Obj@meta.data$cdr3_nt == "NA")),
                                 which(Seurat_Obj@meta.data$cdr3_nt == "")))
     
+    ### remove "PreTrans", "Wk0", "Wk-1" data
+    target_idx <- setdiff(target_idx,
+                          union(union(which(Seurat_Obj@meta.data$Time == "PreTrans"),
+                                      which(Seurat_Obj@meta.data$Time == "Wk0")),
+                                which(Seurat_Obj@meta.data$Time == "Wk-1")))
+    
     ### get unique GMP CAR+ clones
     unique_gmp_carpos_clones <- unique(Seurat_Obj@meta.data$global_clonotype_ab_strict0[intersect(target_idx,
                                                                                                   which(Seurat_Obj@meta.data$Time == "GMP"))])
@@ -115,7 +121,7 @@ give_lineage_score <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
         for(tp in time_points) {
           ### get clone size
           c_mat[clone, tp] <- length(intersect(intersect(target_idx,
-                                                         which(Seurat_Obj@meta.data$Time == "GMP")),
+                                                         which(Seurat_Obj@meta.data$Time == tp)),
                                                which(Seurat_Obj@meta.data$global_clonotype_ab_strict0 == clone)))
           
           ### calculate p-value
@@ -143,11 +149,11 @@ give_lineage_score <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
       }
       
       ### fill out the total column
-      c_mat$Total <- apply(c_mat[,setdiff(time_points, "GMP")], 1, function(x) sum(x, na.rm = TRUE))
-      p_mat$Total <- fisher.method(pvals = p_mat[,setdiff(time_points, "GMP")],
+      c_mat$Total <- apply(c_mat[,setdiff(time_points, "GMP"),drop=FALSE], 1, function(x) sum(x, na.rm = TRUE))
+      p_mat$Total <- fisher.method(pvals = p_mat[,setdiff(time_points, "GMP"),drop=FALSE],
                                    p.corr = "BH",
-                                   na.rm = TRUE)
-      o_mat$Total <- apply(o_mat[,setdiff(time_points, "GMP")], 1, function(x) mean(x, na.rm = TRUE))
+                                   na.rm = TRUE)$p.adj
+      o_mat$Total <- apply(o_mat[,setdiff(time_points, "GMP"),drop=FALSE], 1, function(x) mean(x, na.rm = TRUE))
       
       ### order the tables
       c_mat <- c_mat[order(-c_mat$Total),]
@@ -156,17 +162,18 @@ give_lineage_score <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
       
       ### write the results
       write.xlsx2(c_mat,
-                  file = paste0(outputDir, f, "/GMP_CAR+_Lineage_Statistics_", f, ".xlsx"),
+                  file = paste0(outputDir, px, "/GMP_CAR+_Lineage_Statistics_", px, ".xlsx"),
                   sheetName = "Count",
                   append = FALSE)
       write.xlsx2(o_mat,
-                  file = paste0(outputDir, f, "/GMP_CAR+_Lineage_Statistics_", f, ".xlsx"),
+                  file = paste0(outputDir, px, "/GMP_CAR+_Lineage_Statistics_", px, ".xlsx"),
                   sheetName = "Odds_Ratio",
                   append = TRUE)
       write.xlsx2(p_mat,
-                  file = paste0(outputDir, f, "/GMP_CAR+_Lineage_Statistics_", f, ".xlsx"),
+                  file = paste0(outputDir, px, "/GMP_CAR+_Lineage_Statistics_", px, ".xlsx"),
                   sheetName = "P-value",
                   append = TRUE)
+      gc()
     }
   }
   
