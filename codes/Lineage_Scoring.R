@@ -3,13 +3,11 @@
 #   Author    : Hyunjin Kim
 #   Date      : Jun 17, 2020
 #   Email     : hyunjin.kim@stjude.org
-#   Purpose   : Give scores (or weights) to clones that indicate the probability of the clone will be
-#               lasting after GMP infusion.
-#
-#   * If GMP prob == Wk2 prob is the null hypothesis,
-#     When GMP prob >> Wk2 prob, the lineage represents a phenotype not good at lasting.
-#     When GMP prob << Wk2 prob, the lineage represents a phenotype that is good at lasting.
-#     We need to incorporate the pre-transduction population dynamics
+#   Purpose   : Give p-values to the GMP CAR+ clones that represent how significant a given CAR+ clone size is
+#               at each time point in terms of GMP lasting capability.
+#               * A matrix of rows: All GMP CAR+ Clones
+#                           & cols: All the GMP+ time points + Total p-value
+#               * One-tailed Fisher's exact test + Fisher's method
 #
 #   Instruction
 #               1. Source("Lineage_Scoring.R")
@@ -83,6 +81,39 @@ give_lineage_score <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
   
   ### rownames in the meta.data should be in the same order as colnames in the counts
   Seurat_Obj@meta.data <- Seurat_Obj@meta.data[colnames(Seurat_Obj@assays$RNA@counts),]
+  
+  ### get patient ids (dir names) from the result directory
+  f <- list.dirs(outputDir, full.names = FALSE, recursive = FALSE)
+  f <- f[grep("SJCAR19", f)]
+  
+  ### for each patient, perform the analysis
+  for(px in f) {
+    ### print progress
+    writeLines(paste(px))
+    
+    ### get unique GMP CAR+ clones
+    unique_gmp_carpos_clones <- unique(Seurat_Obj@meta.data$global_clonotype_ab_strict0[intersect(intersect(which(Seurat_Obj@meta.data$Px == px),
+                                                                                                            which(Seurat_Obj@meta.data$Time == "GMP")),
+                                                                                                  which(Seurat_Obj@meta.data$CAR == "CARpos"))])
+    
+    ### remove NA, "NA", "" from the clone list
+    unique_gmp_carpos_clones <- unique_gmp_carpos_clones[which(!is.na(unique_gmp_carpos_clones))]
+    unique_gmp_carpos_clones <- unique_gmp_carpos_clones[which(unique_gmp_carpos_clones != "NA")]
+    unique_gmp_carpos_clones <- unique_gmp_carpos_clones[which(unique_gmp_carpos_clones != "")]
+    
+    ### get CAR+ time points
+    time_points <- 
+    
+    if(length(unique_gmp_carpos_clones) > 0) {
+      ### make an empty matrix
+      result_mat <- matrix(0, nrow = length(unique_gmp_carpos_clones), ncol = )
+    }
+  }
+  
+  
+  
+  
+  
   
   
 }
