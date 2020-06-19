@@ -40,35 +40,9 @@ give_lineage_score <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
     install.packages("gridExtra")
     require(gridExtra, quietly = TRUE)
   }
-  if(!require(DESeq2, quietly = TRUE)) {
-    if (!requireNamespace("BiocManager", quietly = TRUE))
-      install.packages("BiocManager")
-    BiocManager::install("DESeq2")
-    require(DESeq2, quietly = TRUE)
-  }
-  if(!require(org.Hs.eg.db, quietly = TRUE)) {
-    if (!requireNamespace("BiocManager", quietly = TRUE))
-      install.packages("BiocManager")
-    BiocManager::install("org.Hs.eg.db")
-    require(org.Hs.eg.db, quietly = TRUE)
-  }
-  if(!require(metaseqR, quietly = TRUE)) {
-    if (!requireNamespace("BiocManager", quietly = TRUE))
-      install.packages("BiocManager")
-    BiocManager::install("metaseqR")
-    require(metaseqR, quietly = TRUE)
-  }
-  if(!require(ggalluvial, quietly = TRUE)) {
-    install.packages("ggalluvial")
-    require(ggalluvial, quietly = TRUE)
-  }
   if(!require(ggpubr, quietly = TRUE)) {
     install.packages("ggpubr")
     require(ggpubr, quietly = TRUE)
-  }
-  if(!require(viridis, quietly = TRUE)) {
-    install.packages("viridis")
-    require(viridis, quietly = TRUE)
   }
   
   ### load the Seurat object and save the object name
@@ -91,29 +65,109 @@ give_lineage_score <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
     ### print progress
     writeLines(paste(px))
     
-    ### get unique GMP CAR+ clones
-    unique_gmp_carpos_clones <- unique(Seurat_Obj@meta.data$global_clonotype_ab_strict0[intersect(intersect(which(Seurat_Obj@meta.data$Px == px),
-                                                                                                            which(Seurat_Obj@meta.data$Time == "GMP")),
-                                                                                                  which(Seurat_Obj@meta.data$CAR == "CARpos"))])
+    ### Patient-CAR+ idx
+    target_idx <- intersect(which(Seurat_Obj@meta.data$Px == px),
+                            which(Seurat_Obj@meta.data$CAR == "CARpos"))
     
-    ### remove NA, "NA", "" from the clone list
-    unique_gmp_carpos_clones <- unique_gmp_carpos_clones[which(!is.na(unique_gmp_carpos_clones))]
-    unique_gmp_carpos_clones <- unique_gmp_carpos_clones[which(unique_gmp_carpos_clones != "NA")]
-    unique_gmp_carpos_clones <- unique_gmp_carpos_clones[which(unique_gmp_carpos_clones != "")]
+    ### remove NA, "NA", and ""
+    target_idx <- setdiff(target_idx,
+                          union(union(which(is.na(Seurat_Obj@meta.data$cdr3_nt)),
+                                      which(Seurat_Obj@meta.data$cdr3_nt == "NA")),
+                                which(Seurat_Obj@meta.data$cdr3_nt == "")))
+    
+    ### get unique GMP CAR+ clones
+    unique_gmp_carpos_clones <- unique(Seurat_Obj@meta.data$global_clonotype_ab_strict0[intersect(target_idx,
+                                                                                                  which(Seurat_Obj@meta.data$Time == "GMP"))])
     
     ### get CAR+ time points
-    time_points <- 
+    time_points <- unique(Seurat_Obj@meta.data$Time[target_idx])
     
-    if(length(unique_gmp_carpos_clones) > 0) {
-      ### make an empty matrix
-      result_mat <- matrix(0, nrow = length(unique_gmp_carpos_clones), ncol = )
+    if(length(unique_gmp_carpos_clones) > 0 && length(time_points) > 1) {
+      ### get CDR3 sequences of the unique GMP CAR+ clones
+      unique_cdr3_seqs <- unique(Seurat_Obj@meta.data$cdr3_nt[intersect(target_idx,
+                                                                        which(Seurat_Obj@meta.data$Time == "GMP"))])
+      
+      ### make two empty matrices (a: count, b:p-value from FET, c:p-value from OR)
+      c_mat <- matrix(0, nrow = length(unique_gmp_carpos_clones), ncol = length(time_points)+1)
+      rownames(c_mat) <- unique_gmp_carpos_clones
+      colnames(c_mat) <- c(time_points, "Total")
+      c_mat <- data.frame(Clone_ID=unique_gmp_carpos_clones,
+                          CDR3_NT=unique_cdr3_seqs,
+                          c_mat,
+                          stringsAsFactors = FALSE, check.names = FALSE)
+      p_mat <- matrix(1, nrow = length(unique_gmp_carpos_clones), ncol = length(time_points)+1)
+      rownames(p_mat) <- unique_gmp_carpos_clones
+      colnames(p_mat) <- c(time_points, "Total")
+      p_mat <- data.frame(Clone_ID=unique_gmp_carpos_clones,
+                          CDR3_NT=unique_cdr3_seqs,
+                          p_mat,
+                          stringsAsFactors = FALSE, check.names = FALSE)
+      o_mat <- matrix(0, nrow = length(unique_gmp_carpos_clones), ncol = length(time_points)+1)
+      rownames(o_mat) <- unique_gmp_carpos_clones
+      colnames(o_mat) <- c(time_points, "Total")
+      o_mat <- data.frame(Clone_ID=unique_gmp_carpos_clones,
+                          CDR3_NT=unique_cdr3_seqs,
+                          o_mat,
+                          stringsAsFactors = FALSE, check.names = FALSE)
+      
+      ### get p-values for each clone and for each time point
+      for(clone in unique_gmp_carpos_clones) {
+        for(tp in time_points) {
+          ### get clone size
+          c_mat[clone, tp] <- length(intersect(intersect(target_idx,
+                                                         which(Seurat_Obj@meta.data$Time == "GMP")),
+                                               which(Seurat_Obj@meta.data$global_clonotype_ab_strict0 == clone)))
+          
+          ### calculate p-value
+          ### Fisher's exact test
+          ###
+          ###           TP CAR+   No TP (GMP) CAR+
+          ###          ----------------------------
+          ###    Clone |   X            Y
+          ### No Clone |   Z            W
+          X <- c_mat[clone, tp]
+          Y <- length(intersect(intersect(target_idx,
+                                          which(Seurat_Obj@meta.data$Time == tp)),
+                                which(Seurat_Obj@meta.data$global_clonotype_ab_strict0 == clone)))
+          Z <- length(intersect(intersect(target_idx,
+                                          which(Seurat_Obj@meta.data$Time == tp)),
+                                which(Seurat_Obj@meta.data$global_clonotype_ab_strict0 != clone)))
+          W <- length(intersect(intersect(target_idx,
+                                          which(Seurat_Obj@meta.data$Time == "GMP")),
+                                which(Seurat_Obj@meta.data$global_clonotype_ab_strict0 != clone)))
+          p_mat[clone, tp] <- fisher.test(matrix(c(X, Z, Y, W), 2, 2), alternative = "greater")$p.value
+          
+          ### Odds ratio
+          o_mat[clone, tp] <- fisher.test(matrix(c(X, Z, Y, W), 2, 2), alternative = "greater")$estimate
+        }
+      }
+      
+      ### fill out the total column
+      c_mat$Total <- apply(c_mat[,setdiff(time_points, "GMP")], 1, function(x) sum(x, na.rm = TRUE))
+      p_mat$Total <- fisher.method(pvals = p_mat[,setdiff(time_points, "GMP")],
+                                   p.corr = "BH",
+                                   na.rm = TRUE)
+      o_mat$Total <- apply(o_mat[,setdiff(time_points, "GMP")], 1, function(x) mean(x, na.rm = TRUE))
+      
+      ### order the tables
+      c_mat <- c_mat[order(-c_mat$Total),]
+      p_mat <- p_mat[order(p_mat$Total),]
+      o_mat <- o_mat[order(-o_mat$Total),]
+      
+      ### write the results
+      write.xlsx2(c_mat,
+                  file = paste0(outputDir, f, "/GMP_CAR+_Lineage_Statistics_", f, ".xlsx"),
+                  sheetName = "Count",
+                  append = FALSE)
+      write.xlsx2(o_mat,
+                  file = paste0(outputDir, f, "/GMP_CAR+_Lineage_Statistics_", f, ".xlsx"),
+                  sheetName = "Odds_Ratio",
+                  append = TRUE)
+      write.xlsx2(p_mat,
+                  file = paste0(outputDir, f, "/GMP_CAR+_Lineage_Statistics_", f, ".xlsx"),
+                  sheetName = "P-value",
+                  append = TRUE)
     }
   }
-  
-  
-  
-  
-  
-  
   
 }
