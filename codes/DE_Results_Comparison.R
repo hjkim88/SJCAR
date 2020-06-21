@@ -15,12 +15,12 @@
 #   Example
 #               > source("The_directory_of_DE_Results_Comparison.R/DE_Results_Comparison.R")
 #               > de_results_comparison(de_result1_path="./results/PROTO/DEEP/DE_Results/ALL_Patients_DE_Genes_DESeq2.xlsx",
-#                                       de_result2_path="./results/PROTO/DEEP/DE_Results/JCC212_Aggreg21Feb_GMP_CARPOS__Markers.txt",
+#                                       de_result2_path="./results/PROTO/DEEP/DE_Results/JCC212_Aggreg21Feb_GMP_CARPOS_RespVSNonMarkers.tsv",
 #                                       outputDir="./results/PROTO/DEEP/DE_Results/")
 ###
 
 de_results_comparison <- function(de_result1_path="./results/PROTO/DEEP/DE_Results/ALL_Patients_DE_Genes_DESeq2.xlsx",
-                                  de_result2_path="./results/PROTO/DEEP/DE_Results/JCC212_Aggreg21Feb_GMP_CARPOS__Markers.txt",
+                                  de_result2_path="./results/PROTO/DEEP/DE_Results/JCC212_Aggreg21Feb_GMP_CARPOS_RespVSNonMarkers.tsv",
                                   outputDir="./results/PROTO/DEEP/DE_Results/") {
   
   ### load libraries
