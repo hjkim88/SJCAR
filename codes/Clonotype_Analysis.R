@@ -1086,7 +1086,69 @@ clonotype_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
       ggsave(file = paste0(outputDir, px, "/Car+_Clonal_Tracing_", px, ".png"), width = 20, height = 10, dpi = 300)
     }
     
+    ### NOW IT'S NOT CAR+ ONLY BUT WITH ALL THE TCR CELLS!
+    ### load the file
+    target_file <- read.xlsx2(file = paste0(outputDir, px, "/clonotype_frequency_over_time_", px, ".xlsx"),
+                              sheetIndex = 1, stringsAsFactors = FALSE, check.names = FALSE,
+                              row.names = 1)
+    
+    ### numerize the table
+    for(i in 1:ncol(target_file)) {
+      target_file[,i] <- as.numeric(target_file[,i])
+    }
+    
+    ### remove all zero time points
+    time_points <- colnames(target_file)[which(apply(target_file, 2, sum) != 0)]
+    
+    ### get time points except the Total
+    time_points <- setdiff(time_points, c("Total", "PreTrans", "Wk-1", "Wk0"))
+    
+    if(length(time_points) > 1) {
+      ###  get lineages
+      lineage_table <- target_file[which(apply(target_file[,time_points], 1, function(x) {
+        return(length(which(x > 0)) > 1)  
+      })),time_points]
+      
+      ### get an input data frame for the alluvial plot
+      total_rows <- length(which(lineage_table[,time_points] > 0))
+      plot_df <- data.frame(Time=rep("", total_rows),
+                            Clone_Size=rep(0, total_rows),
+                            Clone=rep("", total_rows),
+                            CDR3=rep("", total_rows))
+      cnt <- 1
+      for(i in 1:nrow(lineage_table)) {
+        for(tp in time_points) {
+          if(lineage_table[i,tp] > 0) {
+            plot_df[cnt,] <- c(tp,
+                               lineage_table[i,tp],
+                               rownames(lineage_table)[i],
+                               "CDR3")
+            cnt <- cnt + 1
+          }
+        }
+      }
+      plot_df$Time <- factor(plot_df$Time, levels = time_points)
+      
+      ### numerize the clone_size column
+      plot_df$Clone_Size <- as.numeric(plot_df$Clone_Size)
+      
+      ### draw the alluvial plot
+      ggplot(plot_df,
+             aes(x = Time, stratum = Clone, alluvium = Clone,
+                 y = Clone_Size,
+                 fill = Clone, label = Clone)) +
+        ggtitle(paste("Clonal Tracing with the TCR of", px)) +
+        geom_flow() +
+        geom_stratum(alpha = 1) +
+        rotate_x_text(90) +
+        theme_pubr(legend = "none") +
+        theme(axis.title.x = element_blank()) +
+        theme_cleveland2() +
+        scale_fill_viridis(discrete = T) +
+        scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+      ggsave(file = paste0(outputDir, px, "/Clonal_Tracing_", px, ".png"), width = 20, height = 10, dpi = 300)
+    }
+    
   }
-  
   
 }
