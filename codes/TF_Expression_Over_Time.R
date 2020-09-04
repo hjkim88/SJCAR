@@ -50,7 +50,37 @@ tf_expression <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regres
   print(identical(names(Idents(object = Seurat_Obj)), rownames(Seurat_Obj@meta.data)))
   
   
-  ###
+  ### set Idents of the object before performing DE analysis
+  Seurat_Obj <- SetIdent(object = Seurat_Obj,
+                         cells = rownames(Seurat_Obj@meta.data),
+                         value = Seurat_Obj@meta.data$Time)
+  
+  ### I tried to run FindAllMarkers() but the sample size is too large,
+  ### so I divide the samples for each time point then randomly chose from the others to compare
+  
+  ### for each time point run DE analysis vs the rest
+  tp_of_interest <- setdiff(levels(Seurat_Obj@meta.data$TimeF), c("PreTrans", "Wk-1", "Wk0"))
+  for(tp in tp_of_interest) {
+    
+    ### choose random samples from the rest
+    set.seed(1234)
+    ctrl_grp_idx <- sample(which(Seurat_Obj@meta.data$Time != tp),
+                           length(which(Seurat_Obj@meta.data$Time == tp)))
+    
+    ###
+    de_result <- FindMarkers()
+    
+    
+  }
+  
+  
+  
+  
+  ### run DE analysis based on all the time points
+  all_de_result <- FindAllMarkers(object = Seurat_Obj, test.use = "DESeq2",
+                                  logfc.threshold = 0, min.pct = 0.1)
+  
+  
   
   
   
