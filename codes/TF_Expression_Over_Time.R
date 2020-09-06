@@ -86,7 +86,7 @@ tf_expression <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regres
     de_list[[tp]] <- FindMarkers(object = Seurat_Obj,
                                  ident.1 = "EXP",
                                  ident.2 = "CTRL",
-                                 test.use = "DESeq2",
+                                 test.use = "wilcox",
                                  logfc.threshold = 0,
                                  min.pct = 0.1)
     
