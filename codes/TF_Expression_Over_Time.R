@@ -31,6 +31,18 @@ tf_expression <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regres
     install.packages("xlsx")
     require(xlsx, quietly = TRUE)
   }
+  if(!require(metaseqR, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("metaseqR")
+    require(metaseqR, quietly = TRUE)
+  }
+  if(!require(slingshot, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("slingshot")
+    require(slingshot, quietly = TRUE)
+  }
   
   ### load the Seurat object and save the object name
   tmp_env <- new.env()
@@ -94,11 +106,24 @@ tf_expression <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regres
   
   ### get all the genes from the list
   all_genes <- Reduce(function(x, y) {
-    return(union(rownames(x), rownames(y)))
-  }, de_list)
+    return(union(x, y))
+  }, sapply(de_list, rownames))
   
+  ### make a data frame for the result
+  all_genes_fdr <- data.frame(Gene_Symbol=all_genes,
+                              Combined_FDR=NA,
+                              stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(all_genes_fdr) <- all_genes
   
   ### Combine the DE genes using Fisher's method
+  for(gene in all_genes) {
+    all_genes_fdr[gene, "Combined_FDR"] <- fisher.method(pvals,
+                                                         p.corr = "BH", na.rm = TRUE, mc.cores = 4)
+  }
+  
+  
+  
+  
   
   ### slingshot trajectory associated genes?
   
