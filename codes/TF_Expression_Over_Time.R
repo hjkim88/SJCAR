@@ -92,6 +92,12 @@ tf_expression <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regres
     
   }
   
+  ### get all the genes from the list
+  all_genes <- Reduce(function(x, y) {
+    return(union(rownames(x), rownames(y)))
+  }, de_list)
+  
+  
   ### Combine the DE genes using Fisher's method
   
   ### slingshot trajectory associated genes?
