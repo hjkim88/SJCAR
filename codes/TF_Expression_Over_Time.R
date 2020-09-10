@@ -31,6 +31,12 @@ tf_expression <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regres
     install.packages("xlsx")
     require(xlsx, quietly = TRUE)
   }
+  if(!require(MAST, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("MAST")
+    require(MAST, quietly = TRUE)
+  }
   if(!require(metaseqR, quietly = TRUE)) {
     if (!requireNamespace("BiocManager", quietly = TRUE))
       install.packages("BiocManager")
@@ -62,6 +68,10 @@ tf_expression <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regres
   ### check whether the orders are the same
   print(identical(names(Idents(object = Seurat_Obj)), rownames(Seurat_Obj@meta.data)))
   
+  ### TF of interest (based on Stephen's suggestion)
+  tf_list <- c("LEF1", "TCF1", "TBX21", "EOMES", "TOX", "TOX2", "NR4A1", "NUR77", "NR4A2", "NURR1", "NR4A3",
+               "NOR1", "BACH2", "FOXP3", "MYB", "FOXM1", "BATF", "STAT5A", "STAT5B", "JUN", "FOS", "MYC")
+
   ### I tried to run FindAllMarkers() but the sample size is too large,
   ### so I divide the samples for each time point then randomly chose from the others for the comparison
   
@@ -111,21 +121,40 @@ tf_expression <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regres
   
   ### make a data frame for the result
   all_genes_fdr <- data.frame(Gene_Symbol=all_genes,
+                              TP_Num=NA,
                               Combined_FDR=NA,
                               stringsAsFactors = FALSE, check.names = FALSE)
   rownames(all_genes_fdr) <- all_genes
   
-  ### Combine the DE genes using Fisher's method
+  ### collect p-values from different time points
+  pvals <- NULL
   for(gene in all_genes) {
-    all_genes_fdr[gene, "Combined_FDR"] <- fisher.method(pvals,
-                                                         p.corr = "BH", na.rm = TRUE, mc.cores = 4)
+    currentPvs <- sapply(de_list, function(x) {
+      return(x[gene,"p_val_adj"])
+    })
+    
+    if(is.null(pvals)) {
+      pvals <- currentPvs
+    } else {
+      pvals <- rbind(pvals, currentPvs)
+    }
   }
+  rownames(pvals) <- all_genes
   
+  ### Combine the DE genes using Fisher's method
+  fisher_result <- fisher.method(pvals, p.corr = "bonferroni", na.rm = TRUE)
+  all_genes_fdr$TP_Num <- fisher_result[rownames(all_genes_fdr),"num.p"]
+  all_genes_fdr$Combined_FDR <- fisher_result[rownames(all_genes_fdr),"p.adj"]
   
+  ### order the result based on the combined FDR
+  all_genes_fdr <- all_genes_fdr[order(all_genes_fdr$Combined_FDR,
+                                       -all_genes_fdr$TP_Num,
+                                       all_genes_fdr$Gene_Symbol),]
   
+  ### get the result of the TFs
+  tf_fdr <- all_genes_fdr[tf_list,]
   
-  
-  ### slingshot trajectory associated genes?
+  ### draw a gene expression heatmap of the TFs
   
   
   
