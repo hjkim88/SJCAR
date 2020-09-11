@@ -71,7 +71,7 @@ tf_expression <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regres
   ### I tried to run FindAllMarkers() but the sample size is too large,
   ### so I divide the samples for each time point then randomly chose from the others for the comparison
   
-  ### there are too many cells so selet the fixed number of cells for the comparison
+  ### there are too many cells so select the fixed number of cells for the comparison
   sample_num <- 1000
   
   ### for each time point run DE analysis vs the rest
@@ -666,9 +666,9 @@ tf_expression <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regres
   set.seed(4321)
   for(tp in levels(Seurat_Obj@meta.data$TimeF)) {
     if(is.null(heatmap_mat2)) {
-      heatmap_mat2 <- heatmap_mat[,sample(rownames(Seurat_Obj@meta.data)[which(Seurat_Obj@meta.data$Time == tp)], 100)]
+      heatmap_mat2 <- heatmap_mat[,sample(rownames(Seurat_Obj@meta.data)[which(Seurat_Obj@meta.data$Time == tp)], selectNum)]
     } else {
-      heatmap_mat2 <- cbind(heatmap_mat2, heatmap_mat[,sample(rownames(Seurat_Obj@meta.data)[which(Seurat_Obj@meta.data$Time == tp)], 100)]) 
+      heatmap_mat2 <- cbind(heatmap_mat2, heatmap_mat[,sample(rownames(Seurat_Obj@meta.data)[which(Seurat_Obj@meta.data$Time == tp)], selectNum)]) 
     }
     
     time_vec <- c(time_vec, rep(tp, selectNum))
