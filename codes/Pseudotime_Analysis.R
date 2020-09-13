@@ -39,6 +39,10 @@ pseudotime_analysis_sjcar <- function(Seurat_RObj_path="./data/JCC212_21Feb2020A
     install.packages("ggplot2")
     require(ggplot2, quietly = TRUE)
   }
+  if(!require(xlsx, quietly = TRUE)) {
+    install.packages("xlsx")
+    require(xlsx, quietly = TRUE)
+  }
   
   ### load the Seurat object and save the object name
   tmp_env <- new.env()
@@ -932,6 +936,27 @@ pseudotime_analysis_sjcar <- function(Seurat_RObj_path="./data/JCC212_21Feb2020A
   ### since I think PC1 is associated with the time,
   ### I want to look more into the genes that are highly contributed to the PC1
   
+  ### find feature contributions of the PC1 
+  pca_cos2 <- Seurat_Obj@reductions$pca@feature.loadings * Seurat_Obj@reductions$pca@feature.loadings
+  pca_contb <- pca_cos2
+  for(i in 1:ncol(pca_contb)) {
+    s <- sum(pca_cos2[,i])
+    for(j in 1:nrow(pca_contb)) {
+      pca_contb[j,i] <- pca_cos2[j,i] * 100 / s
+    }
+  }
+  pca_contb <- pca_contb[order(-pca_contb[,"PC_1"]),]
+  
+  ### write out the PCA gene contribution result
+  write.xlsx2(data.frame(Gene_Symbol=rownames(pca_contb), pca_contb,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "PC_Gene_Contributions.xlsx"),
+              sheetName = "PC_Gene_Contributions", row.names = FALSE)
+  
+  
+  ### get genes that contributed to the PC1 the most
+  contb_threshold <- 0.1
+  important_genes <- rownames(pca_contb)[which(pca_contb[,"PC_1"] > contb_threshold)]
   
   
   
