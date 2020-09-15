@@ -27,6 +27,12 @@ master_regulator_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020A
     install.packages("Seurat")
     require(Seurat, quietly = TRUE)
   }
+  if(!require(SingleCellExperiment, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("SingleCellExperiment")
+    require(SingleCellExperiment, quietly = TRUE)
+  }
   if(!require(GENIE3, quietly = TRUE)) {
     if (!requireNamespace("BiocManager", quietly = TRUE))
       install.packages("BiocManager")
@@ -54,6 +60,9 @@ master_regulator_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020A
     require(SCENIC, quietly = TRUE)
   }
   
+  ### SCENIC parameter setting
+  scenicOptions <- initializeScenic(org="hgnc", dbDir="data", nCores=10)
+  
   ### load the Seurat object and save the object name
   tmp_env <- new.env()
   load(Seurat_RObj_path, tmp_env)
@@ -72,21 +81,59 @@ master_regulator_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020A
   ### check whether the orders are the same
   print(identical(names(Idents(object = Seurat_Obj)), rownames(Seurat_Obj@meta.data)))
   
-  ### human-specific (hg19) databases for RcisTarget (the motif rankings)
-  dbFiles <- c("https://resources.aertslab.org/cistarget/databases/homo_sapiens/hg19/refseq_r45/mc9nr/gene_based/hg19-500bp-upstream-7species.mc9nr.feather",
-               "https://resources.aertslab.org/cistarget/databases/homo_sapiens/hg19/refseq_r45/mc9nr/gene_based/hg19-tss-centered-10kb-7species.mc9nr.feather")
+  # ### human-specific (hg19) databases for RcisTarget (the motif rankings)
+  # dbFiles <- c("https://resources.aertslab.org/cistarget/databases/homo_sapiens/hg19/refseq_r45/mc9nr/gene_based/hg19-500bp-upstream-7species.mc9nr.feather",
+  #              "https://resources.aertslab.org/cistarget/databases/homo_sapiens/hg19/refseq_r45/mc9nr/gene_based/hg19-tss-centered-10kb-7species.mc9nr.feather")
   # ### mouse-specific (mm9) databases for RcisTarget (the motif rankings)
   # dbFiles <- c("https://resources.aertslab.org/cistarget/databases/mus_musculus/mm9/refseq_r45/mc9nr/gene_based/mm9-500bp-upstream-7species.mc9nr.feather",
   #              "https://resources.aertslab.org/cistarget/databases/mus_musculus/mm9/refseq_r45/mc9nr/gene_based/mm9-tss-centered-10kb-7species.mc9nr.feather")
   
-  for(featherURL in dbFiles) {
-    download.file(featherURL,
-                  paste0("./data/", destfile=basename(featherURL)))
-  }
+  # for(featherURL in dbFiles) {
+  #   download.file(featherURL,
+  #                 paste0("./data/", destfile=basename(featherURL)))
+  # }
+  
+  ### set the ident of the object with the Cell type
+  Seurat_Obj <- SetIdent(object = Seurat_Obj,
+                         cells = rownames(Seurat_Obj@meta.data),
+                         value = Seurat_Obj@meta.data$Time)
+  
+  ### check whether the orders are the same
+  print(identical(names(Idents(object = Seurat_Obj)), rownames(Seurat_Obj@meta.data)))
   
   ### run SCENIC for each time point
   time_points <- levels(Seurat_Obj@meta.data$TimeF)
+  sampleNum <- 1000
   for(tp in time_points) {
+    
+    ### subset the Seurat object by time
+    subset_Seurat_Obj <- subset(Seurat_Obj, idents=tp)
+    
+    ### filter the cells (a cell should have at least 5 genes expressed larger than 0)
+    ### randomly select one and then check if that satisfies the threshold
+    umi_thresh <- 5
+    set.seed(1234)
+    sample_list <- NULL
+    pool <- 1:ncol(subset_Seurat_Obj@assays$RNA@counts)
+    while(length(sample_list) < sampleNum) {
+      random_idx <- sample(pool, 1)
+      if(length(which(subset_Seurat_Obj@assays$RNA@counts[,random_idx] > 0)) > umi_thresh) {
+        sample_list <- c(sample_list, random_idx)
+        pool <- setdiff(pool, sample_list)
+      }
+    }
+    
+    ### prepare input data for SCENIC
+    exprMat <- as.matrix(subset_Seurat_Obj@assays$RNA@counts[,sample_list])
+    cellInfo <- data.frame(seuratCluster=Idents(subset_Seurat_Obj),
+                           stringsAsFactors = FALSE, check.names = FALSE)[sample_list,,drop=FALSE]
+    
+    ### Co-expression network
+    genesKept <- geneFiltering(exprMat, scenicOptions)
+    exprMat_filtered <- exprMat[genesKept, ]
+    runCorrelation(exprMat_filtered, scenicOptions)
+    exprMat_filtered_log <- log2(exprMat_filtered+1) 
+    runGenie3(exprMat_filtered_log, scenicOptions)
     
     
     
