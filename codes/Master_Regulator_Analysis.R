@@ -59,6 +59,10 @@ master_regulator_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020A
     install_github("aertslab/SCENIC")
     require(SCENIC, quietly = TRUE)
   }
+  if(!require(doRNG, quietly = TRUE)) {
+    install.packages("doRNG")
+    require(doRNG, quietly = TRUE)
+  }
   
   ### SCENIC parameter setting
   scenicOptions <- initializeScenic(org="hgnc", dbDir="data", nCores=10)
@@ -103,7 +107,8 @@ master_regulator_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020A
   
   ### run SCENIC for each time point
   time_points <- levels(Seurat_Obj@meta.data$TimeF)
-  sampleNum <- 1000
+  sampleNum <- 200
+  umi_thresh <- 100
   for(tp in time_points) {
     
     ### subset the Seurat object by time
@@ -111,7 +116,6 @@ master_regulator_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020A
     
     ### filter the cells (a cell should have at least 5 genes expressed larger than 0)
     ### randomly select one and then check if that satisfies the threshold
-    umi_thresh <- 5
     set.seed(1234)
     sample_list <- NULL
     pool <- 1:ncol(subset_Seurat_Obj@assays$RNA@counts)
@@ -135,7 +139,12 @@ master_regulator_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020A
     exprMat_filtered_log <- log2(exprMat_filtered+1) 
     runGenie3(exprMat_filtered_log, scenicOptions)
     
-    
+    ### Build and score the GRN
+    exprMat_log <- log2(exprMat+1)
+    scenicOptions@settings$dbs <- scenicOptions@settings$dbs["10kb"] # Toy run settings
+    runSCENIC_1_coexNetwork2modules(scenicOptions)
+    runSCENIC_2_createRegulons(scenicOptions, coexMethod=c("top5perTarget")) # Toy run settings
+    runSCENIC_3_scoreCells(scenicOptions, exprMat_log)
     
     
     
