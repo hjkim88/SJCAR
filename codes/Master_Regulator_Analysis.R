@@ -39,17 +39,17 @@ master_regulator_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020A
     BiocManager::install("GENIE3")
     require(GENIE3, quietly = TRUE)
   }
-  if(!require(RcisTarget, quietly = TRUE)) {
-    if (!requireNamespace("BiocManager", quietly = TRUE))
-      install.packages("BiocManager")
-    BiocManager::install("RcisTarget")
-    require(RcisTarget, quietly = TRUE)
-  }
   if(!require(AUCell, quietly = TRUE)) {
     if (!requireNamespace("BiocManager", quietly = TRUE))
       install.packages("BiocManager")
     BiocManager::install("AUCell")
     require(AUCell, quietly = TRUE)
+  }
+  if(!require(RcisTarget, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("RcisTarget")
+    require(RcisTarget, quietly = TRUE)
   }
   if(!require(devtools, quietly = TRUE)) {
     install.packages("devtools")
@@ -63,9 +63,14 @@ master_regulator_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020A
     install.packages("doRNG")
     require(doRNG, quietly = TRUE)
   }
+  if(!require(R2HTML, quietly = TRUE)) {
+    install.packages("R2HTML")
+    require(R2HTML, quietly = TRUE)
+  }
   
   ### SCENIC parameter setting
-  scenicOptions <- initializeScenic(org="hgnc", dbDir="data", nCores=10)
+  scenicOptions <- initializeScenic(org="hgnc", dbDir="data", nCores=4)
+  scenicOptions@settings$seed <- 1234
   
   ### load the Seurat object and save the object name
   tmp_env <- new.env()
@@ -141,9 +146,9 @@ master_regulator_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020A
     
     ### Build and score the GRN
     exprMat_log <- log2(exprMat+1)
-    scenicOptions@settings$dbs <- scenicOptions@settings$dbs["10kb"] # Toy run settings
+    # scenicOptions@settings$dbs <- scenicOptions@settings$dbs["10kb"]
     runSCENIC_1_coexNetwork2modules(scenicOptions)
-    runSCENIC_2_createRegulons(scenicOptions, coexMethod=c("top5perTarget")) # Toy run settings
+    runSCENIC_2_createRegulons(scenicOptions, coexMethod=c("top5perTarget"))
     runSCENIC_3_scoreCells(scenicOptions, exprMat_log)
     
     
