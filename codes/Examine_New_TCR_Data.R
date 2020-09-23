@@ -91,14 +91,17 @@ examine_new_tcr_data <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg
     ### remove redundant rows
     tcr_data <- tcr_data[!duplicated(tcr_data[c("barcode", "cdr3")]),]
     
+    ### remove non-productive rows
+    tcr_data <- tcr_data[which(tcr_data$productive == "True"),]
+    
     ### order by "chain" so that TRA rows come first than TRB rows
     ### and secondly, order by "CDR3 Nucleotide" sequence
-    tcr_data <- tcr_data[order(as.character(tcr_data$chain), as.character(tcr_data$cdr3_nt)),]
+    tcr_data <- tcr_data[order(as.character(tcr_data$chain), as.character(tcr_data$cdr3)),]
     
     ### annotate TRA & TRB info to the cdr3 sequences
     tcr_data$cdr3 <- paste0(tcr_data$chain, ":", tcr_data$cdr3)
     tcr_data$cdr3_nt <- paste0(tcr_data$chain, ":", tcr_data$cdr3_nt)
-  
+    
     ### now merge different TRA & TRB info to one row
     dups <- which(duplicated(tcr_data$barcode))
     if(length(dups) > 0) {
@@ -238,25 +241,17 @@ examine_new_tcr_data <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg
     px_idx <- which(tcr$px == px)
     
     ### give the strict version of global clonotypes using all alpha & beta chains
-    ### since the variables in each of the "cdr3_nt" are ordered,
-    ### if the "cdr3_nt" are exactly the same, they are the same clonotype
-    
-    ### the unique "cdr3_nt" sequences
-    unique_seqs <- unique(tcr$cdr3_nt[px_idx])
-    
-    ### remove NA, "NA", and ""
-    unique_seqs <- unique_seqs[intersect(intersect(which(!is.na(unique_seqs)),
-                                                   which(unique_seqs != "NA")),
-                                         which(unique_seqs != ""))]
+    ### since the variables in each of the "cdr3_aa" are ordered,
+    ### if the "cdr3_aa" are exactly the same, they are the same clonotype
     
     ### get unique and duplicated indicies
-    unique_idx <- which(!duplicated(tcr$cdr3_nt[px_idx]))
-    dup_idx <- which(duplicated(tcr$cdr3_nt[px_idx])) 
+    unique_idx <- which(!duplicated(tcr$cdr3_aa[px_idx]))
+    dup_idx <- which(duplicated(tcr$cdr3_aa[px_idx]))
     
     ### give clone ids
     tcr$clone_id[px_idx[unique_idx]] <- paste0("clone", 1:length(unique_idx))
     for(i in px_idx[dup_idx]) {
-      target_idx <- which(tcr$cdr3_nt == tcr$cdr3_nt[i])
+      target_idx <- which(tcr$cdr3_aa == tcr$cdr3_aa[i])
       tcr$clone_id[i] <- tcr$clone_id[target_idx[1]]
     }
     
@@ -333,11 +328,22 @@ examine_new_tcr_data <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg
     plot_df <- plot_df[-which(sums == 0),]
     
     ### write out the result
-    write.xlsx2(data.frame(Time=rownames(plot_df),plot_df),
-                file = paste0(outputDir, "Px3_7_TCR_GMP-redo_Summary.xlsx"),
-                sheetName = px,
-                row.names = FALSE,
-                append = TRUE)
+    if(px == unique(tcr$px)[1]) {
+      write.xlsx2(data.frame(Time=rownames(plot_df),plot_df),
+                  file = paste0(outputDir, "Px3_7_TCR_GMP-redo_Summary.xlsx"),
+                  sheetName = px,
+                  row.names = FALSE,
+                  append = FALSE)
+    } else {
+      write.xlsx2(data.frame(Time=rownames(plot_df),plot_df),
+                  file = paste0(outputDir, "Px3_7_TCR_GMP-redo_Summary.xlsx"),
+                  sheetName = px,
+                  row.names = FALSE,
+                  append = TRUE)
+    }
+    
+    ### make a bar plot
+    
     
   }
   
