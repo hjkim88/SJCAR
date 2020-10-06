@@ -14,10 +14,12 @@
 #               > source("The_directory_of_Shared_TCRs_Across_Libraries.R/Shared_TCRs_Across_Libraries.R")
 #               > shared_tcrs(new_TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRredo/",
 #                             Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_TCR_clonotyped_PROTO2.Robj",
+#                             barcode_dir="C:/Users/hkim8/SJ/SJCAR19/GEXbarcodes_5Oct2020/",
 #                             outputDir="./results/TCR/")
 ###
 
 shared_tcrs <- function(new_TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRredo/",
+                        barcode_dir="C:/Users/hkim8/SJ/SJCAR19/GEXbarcodes_5Oct2020/",
                         Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_TCR_clonotyped_PROTO2.Robj",
                         outputDir="./results/TCR/") {
   
@@ -954,5 +956,158 @@ shared_tcrs <- function(new_TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRredo/",
   dev.off()
   
   
+  #
+  ### get real barcodes
+  #
+  
+  ### get new TCR info file paths
+  barcode_file_paths <- list.files(path = barcode_dir, pattern = "barcodes.tsv.gz$",
+                                   full.names = TRUE, recursive = TRUE)
+  
+  ### load and combine the TCR data
+  real_barcodes <- vector("list", length = length(barcode_file_paths))
+  names(real_barcodes) <- sapply(basename(barcode_file_paths), function(x) {
+    return(substr(x, 1, nchar(x)-31))
+  }, USE.NAMES = FALSE)
+  for(i in 1:length(barcode_file_paths)) {
+    ### load barcode data
+    real_barcodes[[i]] <- read.table(file = gzfile(barcode_file_paths[i]),
+                                     header = FALSE,
+                                     stringsAsFactors = FALSE, check.names = FALSE)
+    
+    ### remove the -* at the end of each barcode.
+    real_barcodes[[i]]$V1 <- sapply(strsplit(real_barcodes[[i]]$V1, split = "-", fixed = TRUE), function(x) x[1])
+  }
+  
+  ### get real tcr names
+  real_tcr_names <- sapply(names(tcr), function(x) {
+    return(substring(x, 9))
+  }, USE.NAMES = FALSE)
+  
+  ### match real_tcr_names to the names(real_barcodes)
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-02_Wk1")] <- "JCC212_SJCAR19-02_PB_Wk1"
+  real_tcr_names[which(real_tcr_names == "JCC212_GMPdonor30")] <- "JCC212_SJCAR19_GMPdonor30"
+  real_tcr_names[which(real_tcr_names == "JCC212_GMPdonor32")] <- "JCC212_SJCAR19_GMPdonor32"
+  real_tcr_names[which(real_tcr_names == "JCC212_GMPdonor33")] <- "JCC212_SJCAR19_GMPdonor33"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-04_Wk-1")] <- "JCC212_SJCAR19-04_PB_Wk-1"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-04_Wk2")] <- "JCC212_SJCAR19_04_Wk2"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-04_GMP19003")] <- "JCC212_SJCAR19_04_GMP19003"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_PB_Wk-1")] <- "JCC212_SJCAR19_05_PB_Wk-1"
+  real_tcr_names[which(real_tcr_names == "JCC212_HealthyDonor32_PreTrans")[1]] <- "JCC212_SJCAR19_Donor32_PreTrans"
+  real_tcr_names[which(real_tcr_names == "JCC212_HealthyDonor33_PreTrans")[1]] <- "JCC212_SJCAR19_Donor33_PreTrans"
+  real_tcr_names[which(real_tcr_names == "JCC212_HealthyDonor32_PreTrans")] <- "JCC212_SJCAR19_Donor32_PreTransB"
+  real_tcr_names[which(real_tcr_names == "JCC212_HealthyDonor33_PreTrans")] <- "JCC212_SJCAR19_Donor33_PreTransB"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-04_Wk8")] <- "JCC212_SJCAR19_04_Wk8"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_Wk2")] <- "JCC212_SJCAR19_05_Wk2"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_Wk3")] <- "JCC212_SJCAR19_05_Wk3"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_PB_Wk4")] <- "JCC212_SJCAR19_05_PB_Wk4"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_BM_Wk4")] <- "JCC212_SJCAR19_05_BM_Wk4"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-03_PreTrans")] <- "JCC212_SJCAR19_03_PreTransB"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-04_PreTrans")] <- "JCC212_SJCAR19_04_PreTransB"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-00_PreTrans")] <- "JCC212_SJCAR19_00_PreTransB"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_PreTrans")] <- "JCC212_SJCAR19_05_PreTransB"
+  real_tcr_names[which(real_tcr_names == "JCC212_HealthyDonor30_PreTrans")] <- "JCC212_SJCAR19_Donor30_PreTransB"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-06_Wk-1_PB")] <- "JCC212_SJCAR19-06_Wk-1"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR-06_GMP19028")] <- "JCC212_SJCAR19-06_GMP19028"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_3mo_PB")] <- "JCC212_SJCAR19-05_PB_3mo"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_3mo_BM")] <- "JCC212_SJCAR19-05_BM_3mo"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-06_PreTrans")] <- "JCC212_SJCAR19-6_PreTrans"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-06_3_mo_BM")] <- "JCC212_SJCAR19-06_3mo_BM"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-08_GMP")] <- "JCC212_SJCAR19-08_GMP19064"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-13_Wk-1")] <- "JCC212_SJCAR19-13_Wk-1_PB"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_Wk0")] <- "JCC212_SJCAR19_05_PB_Wk0"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_Wk1")] <- "JCC212_SJCAR19_05_Wk1"
+  
+  ### shared barcodes
+  shared_barcode_mat <- matrix(NA, length(tcr), length(tcr))
+  rownames(shared_barcode_mat) <- sapply(names(tcr), function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+    return(paste0(temp[-2], collapse = "_"))
+  }, USE.NAMES = FALSE)
+  colnames(shared_barcode_mat) <- rownames(shared_barcode_mat)
+  shared_barcode_pct <- matrix(NA, length(tcr), length(tcr))
+  rownames(shared_barcode_pct) <- sapply(names(tcr), function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+    return(paste0(temp[-2], collapse = "_"))
+  }, USE.NAMES = FALSE)
+  colnames(shared_barcode_pct) <- rownames(shared_barcode_pct)
+  
+  for(i in 1:length(tcr)) {
+    for(j in i:length(tcr)) {
+      shared_barcode_mat[i,j] <- length(intersect(rownames(tcr[[i]]), real_barcodes[[real_tcr_names[j]]]$V1))
+      shared_barcode_pct[i,j] <- 100* shared_barcode_mat[i,j] / nrow(real_barcodes[[real_tcr_names[j]]])
+    }
+  }
+  
+  ### make full matrices
+  shared_barcode_mat[lower.tri(shared_barcode_mat)] <- t(shared_barcode_mat)[lower.tri(shared_barcode_mat)]
+  shared_barcode_pct[lower.tri(shared_barcode_pct)] <- t(shared_barcode_pct)[lower.tri(shared_barcode_pct)]
+  
+  ### write out the result
+  write.xlsx2(data.frame(shared_barcode_mat, stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "Shared_Barcodes_Across_All_Libraries.xlsx"),
+              sheetName = "Shared_Barcodes_Numbers", append = FALSE)
+  write.xlsx2(data.frame(shared_barcode_pct, stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "Shared_Barcodes_Across_All_Libraries.xlsx"),
+              sheetName = "Shared_Barcodes_Percentages", append = TRUE)
+  
+  ### diagonal <- NA
+  diag(shared_barcode_pct) <- max(shared_barcode_pct[lower.tri(shared_barcode_mat)])
+  
+  
+  ### get patient number
+  px <- sapply(rownames(shared_barcode_pct), function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]][2]
+    if(grepl("onor", temp)) {
+      return(substring(temp, nchar(temp)-1, nchar(temp)))
+    } else {
+      return(substr(temp, 9, 10))
+    }
+  })
+  px["1779067_SJCAR-06_GMP19028"] <- "06"
+  pxf <- factor(px, levels = unique(px[order(as.numeric(px))]))
+  
+  ### get GMP samples
+  gmps <- sapply(rownames(shared_barcode_pct), function(x) {
+    if(grepl("GMP", x) || grepl("DMP", x)) {
+      if(grepl("redo", x)) {
+        return("GMP-REDO")
+      } else {
+        return("GMP")
+      }
+    } else {
+      return("NON-GMP")
+    }
+  })
+  
+  ### set side colors1 - px
+  uniqueV <- levels(pxf)
+  colors1 <- colorRampPalette(brewer.pal(9,"Reds"))(length(uniqueV))
+  names(colors1) <- uniqueV
+  
+  ### set side colors2 - GMP & GMP-redo
+  uniqueV <- c("NON-GMP", "GMP", "GMP-REDO")
+  colors2 <- c("deeppink", "deepskyblue", "deepskyblue4")
+  names(colors2) <- uniqueV
+  
+  ### heatmap
+  png(paste0(outputDir, "Shared_Barcodes_Across_All_Libraries.png"), width = 3000, height = 2800, res = 220)
+  par(oma=c(15,0,0,15))
+  heatmap.3(as.matrix(shared_barcode_pct),
+            main = paste0("Shared_Barcodes_Across_All_Libraries"),
+            xlab = "", ylab = "", col=rich.colors(200, "blues"),
+            scale="none", key=TRUE, keysize=0.8, density.info="density",
+            dendrogram = "none", trace = "none",
+            labRow = rownames(shared_barcode_pct), labCol = colnames(shared_barcode_pct),
+            Rowv = TRUE, Colv = TRUE,
+            distfun=dist.spear, hclustfun=hclust.ave,
+            ColSideColors = cbind(colors1[as.character(px[colnames(shared_barcode_pct)])],
+                                  colors2[as.character(gmps[colnames(shared_barcode_pct)])]),
+            RowSideColors = t(cbind(colors2[as.character(gmps[rownames(shared_barcode_pct)])],
+                                    colors1[as.character(px[rownames(shared_barcode_pct)])])),
+            cexRow = 0.5, cexCol = 0.5, na.rm = TRUE)
+  legend("left", inset = 0, xpd = TRUE, title = "Patient", legend = names(colors1), fill = colors1, cex = 1, box.lty = 0)
+  legend("bottomleft", inset = -0.01, xpd = TRUE, title = "GMP", legend = names(colors2), fill = colors2, cex = 0.8, box.lty = 0)
+  dev.off()
   
 }
