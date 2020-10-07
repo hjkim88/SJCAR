@@ -583,6 +583,45 @@ shared_tcrs <- function(new_TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRredo/",
   # grep("DMP", names(tcr), fixed = TRUE)
   names(tcr)[9] <- "1662792_JCC212_GMPdonor33"
   
+  ### get real tcr names
+  real_tcr_names <- sapply(names(tcr), function(x) {
+    return(substring(x, 9))
+  }, USE.NAMES = FALSE)
+  
+  ### match real_tcr_names to the names(real_barcodes)
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-02_Wk1")] <- "JCC212_SJCAR19-02_PB_Wk1"
+  real_tcr_names[which(real_tcr_names == "JCC212_GMPdonor30")] <- "JCC212_SJCAR19_GMPdonor30"
+  real_tcr_names[which(real_tcr_names == "JCC212_GMPdonor32")] <- "JCC212_SJCAR19_GMPdonor32"
+  real_tcr_names[which(real_tcr_names == "JCC212_GMPdonor33")] <- "JCC212_SJCAR19_GMPdonor33"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-04_Wk-1")] <- "JCC212_SJCAR19-04_PB_Wk-1"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-04_Wk2")] <- "JCC212_SJCAR19_04_Wk2"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-04_GMP19003")] <- "JCC212_SJCAR19_04_GMP19003"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_PB_Wk-1")] <- "JCC212_SJCAR19_05_PB_Wk-1"
+  real_tcr_names[which(real_tcr_names == "JCC212_HealthyDonor32_PreTrans")[1]] <- "JCC212_SJCAR19_Donor32_PreTrans"
+  real_tcr_names[which(real_tcr_names == "JCC212_HealthyDonor33_PreTrans")[1]] <- "JCC212_SJCAR19_Donor33_PreTrans"
+  real_tcr_names[which(real_tcr_names == "JCC212_HealthyDonor32_PreTrans")] <- "JCC212_SJCAR19_Donor32_PreTransB"
+  real_tcr_names[which(real_tcr_names == "JCC212_HealthyDonor33_PreTrans")] <- "JCC212_SJCAR19_Donor33_PreTransB"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-04_Wk8")] <- "JCC212_SJCAR19_04_Wk8"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_Wk2")] <- "JCC212_SJCAR19_05_Wk2"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_Wk3")] <- "JCC212_SJCAR19_05_Wk3"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_PB_Wk4")] <- "JCC212_SJCAR19_05_PB_Wk4"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_BM_Wk4")] <- "JCC212_SJCAR19_05_BM_Wk4"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-03_PreTrans")] <- "JCC212_SJCAR19_03_PreTransB"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-04_PreTrans")] <- "JCC212_SJCAR19_04_PreTransB"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-00_PreTrans")] <- "JCC212_SJCAR19_00_PreTransB"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_PreTrans")] <- "JCC212_SJCAR19_05_PreTransB"
+  real_tcr_names[which(real_tcr_names == "JCC212_HealthyDonor30_PreTrans")] <- "JCC212_SJCAR19_Donor30_PreTransB"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-06_Wk-1_PB")] <- "JCC212_SJCAR19-06_Wk-1"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR-06_GMP19028")] <- "JCC212_SJCAR19-06_GMP19028"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_3mo_PB")] <- "JCC212_SJCAR19-05_PB_3mo"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_3mo_BM")] <- "JCC212_SJCAR19-05_BM_3mo"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-06_PreTrans")] <- "JCC212_SJCAR19-6_PreTrans"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-06_3_mo_BM")] <- "JCC212_SJCAR19-06_3mo_BM"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-08_GMP")] <- "JCC212_SJCAR19-08_GMP19064"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-13_Wk-1")] <- "JCC212_SJCAR19-13_Wk-1_PB"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_Wk0")] <- "JCC212_SJCAR19_05_PB_Wk0"
+  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_Wk1")] <- "JCC212_SJCAR19_05_Wk1"
+  
   ### shared TCRs
   shared_tcr_mat <- matrix(NA, length(tcr), length(tcr))
   rownames(shared_tcr_mat) <- sapply(names(tcr), function(x) {
@@ -600,13 +639,19 @@ shared_tcrs <- function(new_TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRredo/",
   for(i in 1:length(tcr)) {
     for(j in i:length(tcr)) {
       shared_tcr_mat[i,j] <- length(intersect(tcr[[i]]$cdr3_aa, tcr[[j]]$cdr3_aa))
-      shared_tcr_pct[i,j] <- shared_tcr_mat[i,j] / length(union(tcr[[i]]$cdr3_aa, tcr[[j]]$cdr3_aa))
+      shared_tcr_pct[i,j] <- 100 * shared_tcr_mat[i,j] / length(unique(tcr[[j]]$cdr3_aa))
     }
   }
   
   ### make full matrices
   shared_tcr_mat[lower.tri(shared_tcr_mat)] <- t(shared_tcr_mat)[lower.tri(shared_tcr_mat)]
   shared_tcr_pct[lower.tri(shared_tcr_pct)] <- t(shared_tcr_pct)[lower.tri(shared_tcr_pct)]
+  
+  ### because of Jeremy's request to keep the original sample name
+  rownames(shared_tcr_mat) <- names(tcr)
+  colnames(shared_tcr_mat) <- names(tcr)
+  rownames(shared_tcr_pct) <- names(tcr)
+  rownames(shared_tcr_pct) <- names(tcr)
   
   ### write out the result
   write.xlsx2(data.frame(shared_tcr_mat, stringsAsFactors = FALSE, check.names = FALSE),
@@ -616,8 +661,20 @@ shared_tcrs <- function(new_TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRredo/",
               file = paste0(outputDir, "Shared_TCRs_Across_All_Libraries.xlsx"),
               sheetName = "Shared_TCR_Percentages", append = TRUE)
   
-  ### diagonal <- NA
-  diag(shared_tcr_pct) <- max(shared_tcr_pct[lower.tri(shared_tcr_mat)])
+  ### set diagonal value as max
+  # diag(shared_tcr_pct) <- max(shared_tcr_pct[lower.tri(shared_tcr_mat)])
+  
+  ### reset the row & col names
+  rownames(shared_tcr_mat) <- sapply(names(tcr), function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+    return(paste0(temp[-2], collapse = "_"))
+  }, USE.NAMES = FALSE)
+  colnames(shared_tcr_mat) <- rownames(shared_tcr_mat)
+  rownames(shared_tcr_pct) <- sapply(names(tcr), function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+    return(paste0(temp[-2], collapse = "_"))
+  }, USE.NAMES = FALSE)
+  colnames(shared_tcr_pct) <- rownames(shared_tcr_pct)
   
   ### hierarchical clustering functions
   dist.spear <- function(x) as.dist(1-cor(t(x), method = "spearman"))
@@ -659,301 +716,301 @@ shared_tcrs <- function(new_TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRredo/",
   names(colors2) <- uniqueV
   
   ### heatmap
-  png(paste0(outputDir, "Shared_TCRs_Across_All_Libraries.png"), width = 2000, height = 1600, res = 130)
-  par(oma=c(0,0,0,15))
+  png(paste0(outputDir, "Shared_TCRs_Across_All_Libraries.png"), width = 3200, height = 3000, res = 250)
+  par(oma=c(15,0,0,15))
   heatmap.3(as.matrix(shared_tcr_pct),
             main = paste0("Shared_TCRs_Across_All_Libraries"),
             xlab = "", ylab = "", col=rich.colors(200, "blues"),
             scale="none", key=TRUE, keysize=0.8, density.info="density",
             dendrogram = "none", trace = "none",
-            labRow = rownames(shared_tcr_pct), labCol = FALSE,
+            labRow = names(tcr), labCol = names(tcr),
             Rowv = TRUE, Colv = TRUE,
             distfun=dist.spear, hclustfun=hclust.ave,
             ColSideColors = cbind(colors1[as.character(px[colnames(shared_tcr_pct)])],
                                   colors2[as.character(gmps[colnames(shared_tcr_pct)])]),
             RowSideColors = t(cbind(colors2[as.character(gmps[rownames(shared_tcr_pct)])],
                                     colors1[as.character(px[rownames(shared_tcr_pct)])])),
-            cexRow = 1, cexCol = 1, na.rm = TRUE)
-  legend("left", inset = 0, xpd = TRUE, title = "Patient", legend = names(colors1), fill = colors1, cex = 2, box.lty = 0)
-  legend("bottomleft", inset = -0.01, xpd = TRUE, title = "GMP", legend = names(colors2), fill = colors2, cex = 1, box.lty = 0)
+            cexRow = 0.5, cexCol = 0.5, na.rm = TRUE)
+  legend("left", inset = 0, xpd = TRUE, title = "Patient", legend = names(colors1), fill = colors1, cex = 1.1, box.lty = 0)
+  legend("bottomleft", inset = -0.01, xpd = TRUE, title = "GMP", legend = names(colors2), fill = colors2, cex = 0.7, box.lty = 0)
   dev.off()
   
-  ### GMP-specific percentages
-  gmp_idx <- union(which(gmps == "GMP"), which(gmps == "GMP-REDO"))
-  non_gmp_idx <- setdiff(1:nrow(shared_tcr_mat), gmp_idx)
-  gmp_shared_tcr_mat <- shared_tcr_mat[gmp_idx, non_gmp_idx]
-  gmp_shared_tcr_pct <- shared_tcr_pct[gmp_idx, non_gmp_idx]
-  
-  ### write out the result
-  write.xlsx2(data.frame(gmp_shared_tcr_mat, stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir, "GMP_Shared_TCRs_Across_All_Libraries.xlsx"),
-              sheetName = "Shared_TCR_Numbers", append = FALSE)
-  write.xlsx2(data.frame(gmp_shared_tcr_pct, stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir, "GMP_Shared_TCRs_Across_All_Libraries.xlsx"),
-              sheetName = "Shared_TCR_Percentages", append = TRUE)
-  
-  ### heatmap
-  png(paste0(outputDir, "GMP_Shared_TCRs_Across_All_Libraries.png"), width = 2100, height = 1600, res = 130)
-  par(oma=c(0,0,0,25))
-  heatmap.3(as.matrix(gmp_shared_tcr_pct),
-            main = paste0("Shared_TCRs_Across_All_Libraries"),
-            xlab = "", ylab = "", col=rich.colors(200, "blues"),
-            scale="none", key=TRUE, keysize=0.8, density.info="density",
-            dendrogram = "none", trace = "none",
-            labRow = rownames(gmp_shared_tcr_pct), labCol = FALSE,
-            Rowv = TRUE, Colv = TRUE,
-            distfun=dist.spear, hclustfun=hclust.ave,
-            ColSideColors = cbind(colors1[as.character(px[colnames(gmp_shared_tcr_pct)])],
-                                  colors2[as.character(gmps[colnames(gmp_shared_tcr_pct)])]),
-            RowSideColors = t(cbind(colors2[as.character(gmps[rownames(gmp_shared_tcr_pct)])],
-                                    colors1[as.character(px[rownames(gmp_shared_tcr_pct)])])),
-            cexRow = 2, cexCol = 1, na.rm = TRUE)
-  legend("left", inset = -0.01, xpd = TRUE, title = "Patient", legend = names(colors1), fill = colors1, cex = 2, box.lty = 0)
-  legend("bottomleft", inset = -0.02, xpd = TRUE, title = "GMP", legend = names(colors2), fill = colors2, cex = 1, box.lty = 0)
-  dev.off()
-  
-  ### Shared TCRs - GMP-REDO vs GMP
-  old_gmp_idx <- which(gmps == "GMP")
-  new_gmp_idx <- which(gmps == "GMP-REDO")
-  gmp_shared_tcr_mat2 <- shared_tcr_mat[old_gmp_idx, new_gmp_idx]
-  gmp_shared_tcr_pct2 <- shared_tcr_pct[old_gmp_idx, new_gmp_idx]
-  
-  ### write out the result
-  write.xlsx2(data.frame(gmp_shared_tcr_mat2, stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir, "GMP-REDO_vs_GMP_Shared_TCRs.xlsx"),
-              sheetName = "Shared_TCR_Numbers", append = FALSE)
-  write.xlsx2(data.frame(gmp_shared_tcr_pct2, stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir, "GMP-REDO_vs_GMP_Shared_TCRs.xlsx"),
-              sheetName = "Shared_TCR_Percentages", append = TRUE)
-  
-  ### heatmap
-  png(paste0(outputDir, "GMP-REDO_vs_GMP_Shared_TCRs.png"), width = 2100, height = 2000, res = 130)
-  par(oma=c(25,0,0,25))
-  heatmap.3(as.matrix(gmp_shared_tcr_pct2),
-            main = paste0("GMP-REDO_vs_GMP_Shared_TCRs"),
-            xlab = "", ylab = "", col=rich.colors(200, "blues"),
-            scale="none", key=TRUE, keysize=0.8, density.info="density",
-            dendrogram = "none", trace = "none",
-            labRow = rownames(gmp_shared_tcr_pct2), labCol = colnames(gmp_shared_tcr_pct2),
-            Rowv = FALSE, Colv = FALSE,
-            distfun=dist.spear, hclustfun=hclust.ave,
-            ColSideColors = cbind(colors1[as.character(px[colnames(gmp_shared_tcr_pct2)])],
-                                  colors2[as.character(gmps[colnames(gmp_shared_tcr_pct2)])]),
-            RowSideColors = t(cbind(colors2[as.character(gmps[rownames(gmp_shared_tcr_pct2)])],
-                                    colors1[as.character(px[rownames(gmp_shared_tcr_pct2)])])),
-            cexRow = 2, cexCol = 2, na.rm = TRUE)
-  legend("left", inset = -0.01, xpd = TRUE, title = "Patient", legend = names(colors1), fill = colors1, cex = 2, box.lty = 0)
-  legend("bottomleft", inset = -0.02, xpd = TRUE, title = "GMP", legend = names(colors2), fill = colors2, cex = 1, box.lty = 0)
-  dev.off()
+  # ### GMP-specific percentages
+  # gmp_idx <- union(which(gmps == "GMP"), which(gmps == "GMP-REDO"))
+  # non_gmp_idx <- setdiff(1:nrow(shared_tcr_mat), gmp_idx)
+  # gmp_shared_tcr_mat <- shared_tcr_mat[gmp_idx, non_gmp_idx]
+  # gmp_shared_tcr_pct <- shared_tcr_pct[gmp_idx, non_gmp_idx]
+  # 
+  # ### write out the result
+  # write.xlsx2(data.frame(gmp_shared_tcr_mat, stringsAsFactors = FALSE, check.names = FALSE),
+  #             file = paste0(outputDir, "GMP_Shared_TCRs_Across_All_Libraries.xlsx"),
+  #             sheetName = "Shared_TCR_Numbers", append = FALSE)
+  # write.xlsx2(data.frame(gmp_shared_tcr_pct, stringsAsFactors = FALSE, check.names = FALSE),
+  #             file = paste0(outputDir, "GMP_Shared_TCRs_Across_All_Libraries.xlsx"),
+  #             sheetName = "Shared_TCR_Percentages", append = TRUE)
+  # 
+  # ### heatmap
+  # png(paste0(outputDir, "GMP_Shared_TCRs_Across_All_Libraries.png"), width = 2100, height = 1600, res = 130)
+  # par(oma=c(0,0,0,25))
+  # heatmap.3(as.matrix(gmp_shared_tcr_pct),
+  #           main = paste0("Shared_TCRs_Across_All_Libraries"),
+  #           xlab = "", ylab = "", col=rich.colors(200, "blues"),
+  #           scale="none", key=TRUE, keysize=0.8, density.info="density",
+  #           dendrogram = "none", trace = "none",
+  #           labRow = rownames(gmp_shared_tcr_pct), labCol = FALSE,
+  #           Rowv = TRUE, Colv = TRUE,
+  #           distfun=dist.spear, hclustfun=hclust.ave,
+  #           ColSideColors = cbind(colors1[as.character(px[colnames(gmp_shared_tcr_pct)])],
+  #                                 colors2[as.character(gmps[colnames(gmp_shared_tcr_pct)])]),
+  #           RowSideColors = t(cbind(colors2[as.character(gmps[rownames(gmp_shared_tcr_pct)])],
+  #                                   colors1[as.character(px[rownames(gmp_shared_tcr_pct)])])),
+  #           cexRow = 2, cexCol = 1, na.rm = TRUE)
+  # legend("left", inset = -0.01, xpd = TRUE, title = "Patient", legend = names(colors1), fill = colors1, cex = 2, box.lty = 0)
+  # legend("bottomleft", inset = -0.02, xpd = TRUE, title = "GMP", legend = names(colors2), fill = colors2, cex = 1, box.lty = 0)
+  # dev.off()
+  # 
+  # ### Shared TCRs - GMP-REDO vs GMP
+  # old_gmp_idx <- which(gmps == "GMP")
+  # new_gmp_idx <- which(gmps == "GMP-REDO")
+  # gmp_shared_tcr_mat2 <- shared_tcr_mat[old_gmp_idx, new_gmp_idx]
+  # gmp_shared_tcr_pct2 <- shared_tcr_pct[old_gmp_idx, new_gmp_idx]
+  # 
+  # ### write out the result
+  # write.xlsx2(data.frame(gmp_shared_tcr_mat2, stringsAsFactors = FALSE, check.names = FALSE),
+  #             file = paste0(outputDir, "GMP-REDO_vs_GMP_Shared_TCRs.xlsx"),
+  #             sheetName = "Shared_TCR_Numbers", append = FALSE)
+  # write.xlsx2(data.frame(gmp_shared_tcr_pct2, stringsAsFactors = FALSE, check.names = FALSE),
+  #             file = paste0(outputDir, "GMP-REDO_vs_GMP_Shared_TCRs.xlsx"),
+  #             sheetName = "Shared_TCR_Percentages", append = TRUE)
+  # 
+  # ### heatmap
+  # png(paste0(outputDir, "GMP-REDO_vs_GMP_Shared_TCRs.png"), width = 2100, height = 2000, res = 130)
+  # par(oma=c(25,0,0,25))
+  # heatmap.3(as.matrix(gmp_shared_tcr_pct2),
+  #           main = paste0("GMP-REDO_vs_GMP_Shared_TCRs"),
+  #           xlab = "", ylab = "", col=rich.colors(200, "blues"),
+  #           scale="none", key=TRUE, keysize=0.8, density.info="density",
+  #           dendrogram = "none", trace = "none",
+  #           labRow = rownames(gmp_shared_tcr_pct2), labCol = colnames(gmp_shared_tcr_pct2),
+  #           Rowv = FALSE, Colv = FALSE,
+  #           distfun=dist.spear, hclustfun=hclust.ave,
+  #           ColSideColors = cbind(colors1[as.character(px[colnames(gmp_shared_tcr_pct2)])],
+  #                                 colors2[as.character(gmps[colnames(gmp_shared_tcr_pct2)])]),
+  #           RowSideColors = t(cbind(colors2[as.character(gmps[rownames(gmp_shared_tcr_pct2)])],
+  #                                   colors1[as.character(px[rownames(gmp_shared_tcr_pct2)])])),
+  #           cexRow = 2, cexCol = 2, na.rm = TRUE)
+  # legend("left", inset = -0.01, xpd = TRUE, title = "Patient", legend = names(colors1), fill = colors1, cex = 2, box.lty = 0)
+  # legend("bottomleft", inset = -0.02, xpd = TRUE, title = "GMP", legend = names(colors2), fill = colors2, cex = 1, box.lty = 0)
+  # dev.off()
   
   
   #
   ### Barcode matching with GEX
   #
   
-  ### load the Seurat object and save the object name
-  tmp_env <- new.env()
-  load(Seurat_RObj_path, tmp_env)
-  obj_name <- ls(tmp_env)
-  assign("Seurat_Obj", get(obj_name, envir = tmp_env))
-  rm(tmp_env)
-  gc()
-  
-  ### only retain the needed data and remove the rest
-  metadata <- Seurat_Obj@meta.data
-  rm(Seurat_Obj)
-  gc()
-  
-  ### get patient, time, and PB/BM info from the TCRs
-  px <- sapply(rownames(shared_tcr_pct), function(x) {
-    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]][2]
-    if(grepl("onor", temp)) {
-      return(substring(temp, nchar(temp)-1, nchar(temp)))
-    } else {
-      return(substr(temp, 9, 10))
-    }
-  })
-  px["1779067_SJCAR-06_GMP19028"] <- "06"
-  
-  time <- sapply(rownames(shared_tcr_pct), function(x) {
-    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
-    if(length(grep("Wk", temp)) == 1) {
-      return(temp[grep("Wk", temp)])
-    } else if(length(grep("GMP", temp)) == 1) {
-      return("GMP")
-    } else if(length(grep("mo", temp)) == 1) {
-      return(temp[grep("mo", temp)])
-    } else if(length(grep("PreTrans", temp)) == 1) {
-      return(temp[grep("PreTrans", temp)])
-    } else {
-      return("ERROR")
-    }
-  })
-  time["1977283_SJCAR19-05relapse-2ndInfusionWk1_PB"] <- "Wk1"
-  time["1977284_SJCAR19-05relapse-2ndInfusionWk2_PB"] <- "Wk2"
-  
-  type <- sapply(rownames(shared_tcr_pct), function(x) {
-    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
-    if(length(grep("PB", temp)) == 1) {
-      return("PB")
-    } else if(length(grep("BM", temp)) == 1) {
-      return("BM")
-    } else if(length(grep("GMP", temp)) == 1) {
-      return("GMP")
-    } else if(length(grep("PreTrans", temp)) == 1) {
-      return("PB")
-    } else {
-      return("PB")
-    }
-  })
-  
-  ### combine the info to library
-  library <- sapply(1:nrow(shared_tcr_pct), function(x) {
-    if(time[x] == "GMP") {
-      paste0("JCC212_SJCAR19-", px[x], "_", time[x])
-    } else if(time[x] == "PreTrans" || time[x] == "PreTransB") {
-      paste0("JCC212_SJCAR19-", px[x], "_", time[x])
-    } else {
-      paste0("JCC212_SJCAR19-", px[x], "_", time[x], "_", type[x])
-    }
-  })
-  library[which(library == "JCC212_SJCAR19-03_PreTrans")] <- "JCC212_SJCAR19-03_PreTransB"
-  library[which(library == "JCC212_SJCAR19-04_PreTrans")] <- "JCC212_SJCAR19-04_PreTransB"
-  library[which(library == "JCC212_SJCAR19-05_PreTrans")] <- "JCC212_SJCAR19-05_PreTransB"
-  
-  ### shared barcodes
-  shared_barcode_mat <- matrix(NA, length(tcr), length(tcr))
-  rownames(shared_barcode_mat) <- sapply(names(tcr), function(x) {
-    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
-    return(paste0(temp[-2], collapse = "_"))
-  }, USE.NAMES = FALSE)
-  colnames(shared_barcode_mat) <- rownames(shared_barcode_mat)
-  shared_barcode_pct <- matrix(NA, length(tcr), length(tcr))
-  rownames(shared_barcode_pct) <- sapply(names(tcr), function(x) {
-    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
-    return(paste0(temp[-2], collapse = "_"))
-  }, USE.NAMES = FALSE)
-  colnames(shared_barcode_pct) <- rownames(shared_barcode_pct)
-  
-  for(i in 1:length(tcr)) {
-    for(j in i:length(tcr)) {
-      shared_barcode_mat[i,j] <- length(intersect(rownames(tcr[[i]]), metadata$GexCellShort[which(metadata$Library == library[j])]))
-      shared_barcode_pct[i,j] <- shared_barcode_mat[i,j] / length(union(rownames(tcr[[i]]), metadata$GexCellShort[which(metadata$Library == library[j])]))
-    }
-  }
-  
-  ### remove some all zero rows & cols
-  colsum <- apply(shared_barcode_mat, 2, function(x) {
-    sum(x, na.rm = TRUE)
-  })
-  rIdx <- which(colsum == 0)
-  shared_barcode_mat <- shared_barcode_mat[-rIdx, -rIdx]
-  shared_barcode_pct <- shared_barcode_pct[-rIdx, -rIdx]
-  
-  ### make full matrices
-  shared_barcode_mat[lower.tri(shared_barcode_mat)] <- t(shared_barcode_mat)[lower.tri(shared_barcode_mat)]
-  shared_barcode_pct[lower.tri(shared_barcode_pct)] <- t(shared_barcode_pct)[lower.tri(shared_barcode_pct)]
-  
-  ### write out the result
-  write.xlsx2(data.frame(shared_barcode_mat, stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir, "Shared_Barcodes_Across_All_Libraries.xlsx"),
-              sheetName = "Shared_Barcodes_Numbers", append = FALSE)
-  write.xlsx2(data.frame(shared_barcode_pct, stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir, "Shared_Barcodes_Across_All_Libraries.xlsx"),
-              sheetName = "Shared_Barcodes_Percentages", append = TRUE)
-  
-  ### diagonal <- NA
-  diag(shared_barcode_pct) <- max(shared_barcode_pct[lower.tri(shared_barcode_mat)])
-  
-  
-  ### get patient number
-  px <- sapply(rownames(shared_barcode_pct), function(x) {
-    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]][2]
-    if(grepl("onor", temp)) {
-      return(substring(temp, nchar(temp)-1, nchar(temp)))
-    } else {
-      return(substr(temp, 9, 10))
-    }
-  })
-  px["1779067_SJCAR-06_GMP19028"] <- "06"
-  pxf <- factor(px, levels = unique(px[order(as.numeric(px))]))
-  
-  ### get GMP samples
-  gmps <- sapply(rownames(shared_barcode_pct), function(x) {
-    if(grepl("GMP", x) || grepl("DMP", x)) {
-      if(grepl("redo", x)) {
-        return("GMP-REDO")
-      } else {
-        return("GMP")
-      }
-    } else {
-      return("NON-GMP")
-    }
-  })
-  
-  ### set side colors1 - px
-  uniqueV <- levels(pxf)
-  colors1 <- colorRampPalette(brewer.pal(9,"Reds"))(length(uniqueV))
-  names(colors1) <- uniqueV
-  
-  ### set side colors2 - GMP & GMP-redo
-  uniqueV <- c("NON-GMP", "GMP", "GMP-REDO")
-  colors2 <- c("deeppink", "deepskyblue", "deepskyblue4")
-  names(colors2) <- uniqueV
-  
-  ### heatmap
-  png(paste0(outputDir, "Shared_Barcodes_Across_All_Libraries.png"), width = 2000, height = 1600, res = 130)
-  par(oma=c(0,0,0,15))
-  heatmap.3(as.matrix(shared_barcode_pct),
-            main = paste0("Shared_Barcodes_Across_All_Libraries"),
-            xlab = "", ylab = "", col=rich.colors(200, "blues"),
-            scale="none", key=TRUE, keysize=0.8, density.info="density",
-            dendrogram = "none", trace = "none",
-            labRow = rownames(shared_barcode_pct), labCol = FALSE,
-            Rowv = TRUE, Colv = TRUE,
-            distfun=dist.spear, hclustfun=hclust.ave,
-            ColSideColors = cbind(colors1[as.character(px[colnames(shared_barcode_pct)])],
-                                  colors2[as.character(gmps[colnames(shared_barcode_pct)])]),
-            RowSideColors = t(cbind(colors2[as.character(gmps[rownames(shared_barcode_pct)])],
-                                    colors1[as.character(px[rownames(shared_barcode_pct)])])),
-            cexRow = 1, cexCol = 1, na.rm = TRUE)
-  legend("left", inset = 0, xpd = TRUE, title = "Patient", legend = names(colors1), fill = colors1, cex = 2, box.lty = 0)
-  legend("bottomleft", inset = -0.01, xpd = TRUE, title = "GMP", legend = names(colors2), fill = colors2, cex = 1, box.lty = 0)
-  dev.off()
-  
-  ### GMP-specific percentages
-  gmp_idx <- union(which(gmps == "GMP"), which(gmps == "GMP-REDO"))
-  non_gmp_idx <- setdiff(1:nrow(shared_barcode_mat), gmp_idx)
-  gmp_shared_barcode_mat <- shared_barcode_mat[gmp_idx, non_gmp_idx]
-  gmp_shared_barcode_pct <- shared_barcode_pct[gmp_idx, non_gmp_idx]
-  
-  ### write out the result
-  write.xlsx2(data.frame(gmp_shared_barcode_mat, stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir, "GMP_Shared_Barcodes_Across_All_Libraries.xlsx"),
-              sheetName = "Shared_Barcode_Numbers", append = FALSE)
-  write.xlsx2(data.frame(gmp_shared_barcode_pct, stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir, "GMP_Shared_Barcodes_Across_All_Libraries.xlsx"),
-              sheetName = "Shared_Barcode_Percentages", append = TRUE)
-  
-  ### heatmap
-  png(paste0(outputDir, "GMP_Shared_Barcodes_Across_All_Libraries.png"), width = 2100, height = 1600, res = 130)
-  par(oma=c(0,0,0,25))
-  heatmap.3(as.matrix(gmp_shared_barcode_pct),
-            main = paste0("Shared_Barcodes_Across_All_Libraries"),
-            xlab = "", ylab = "", col=rich.colors(200, "blues"),
-            scale="none", key=TRUE, keysize=0.8, density.info="density",
-            dendrogram = "none", trace = "none",
-            labRow = rownames(gmp_shared_barcode_pct), labCol = FALSE,
-            Rowv = TRUE, Colv = TRUE,
-            distfun=dist.spear, hclustfun=hclust.ave,
-            ColSideColors = cbind(colors1[as.character(px[colnames(gmp_shared_barcode_pct)])],
-                                  colors2[as.character(gmps[colnames(gmp_shared_barcode_pct)])]),
-            RowSideColors = t(cbind(colors2[as.character(gmps[rownames(gmp_shared_barcode_pct)])],
-                                    colors1[as.character(px[rownames(gmp_shared_barcode_pct)])])),
-            cexRow = 2, cexCol = 1, na.rm = TRUE)
-  legend("left", inset = -0.01, xpd = TRUE, title = "Patient", legend = names(colors1), fill = colors1, cex = 2, box.lty = 0)
-  legend("bottomleft", inset = -0.02, xpd = TRUE, title = "GMP", legend = names(colors2), fill = colors2, cex = 1, box.lty = 0)
-  dev.off()
+  # ### load the Seurat object and save the object name
+  # tmp_env <- new.env()
+  # load(Seurat_RObj_path, tmp_env)
+  # obj_name <- ls(tmp_env)
+  # assign("Seurat_Obj", get(obj_name, envir = tmp_env))
+  # rm(tmp_env)
+  # gc()
+  # 
+  # ### only retain the needed data and remove the rest
+  # metadata <- Seurat_Obj@meta.data
+  # rm(Seurat_Obj)
+  # gc()
+  # 
+  # ### get patient, time, and PB/BM info from the TCRs
+  # px <- sapply(rownames(shared_tcr_pct), function(x) {
+  #   temp <- strsplit(x, split = "_", fixed = TRUE)[[1]][2]
+  #   if(grepl("onor", temp)) {
+  #     return(substring(temp, nchar(temp)-1, nchar(temp)))
+  #   } else {
+  #     return(substr(temp, 9, 10))
+  #   }
+  # })
+  # px["1779067_SJCAR-06_GMP19028"] <- "06"
+  # 
+  # time <- sapply(rownames(shared_tcr_pct), function(x) {
+  #   temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+  #   if(length(grep("Wk", temp)) == 1) {
+  #     return(temp[grep("Wk", temp)])
+  #   } else if(length(grep("GMP", temp)) == 1) {
+  #     return("GMP")
+  #   } else if(length(grep("mo", temp)) == 1) {
+  #     return(temp[grep("mo", temp)])
+  #   } else if(length(grep("PreTrans", temp)) == 1) {
+  #     return(temp[grep("PreTrans", temp)])
+  #   } else {
+  #     return("ERROR")
+  #   }
+  # })
+  # time["1977283_SJCAR19-05relapse-2ndInfusionWk1_PB"] <- "Wk1"
+  # time["1977284_SJCAR19-05relapse-2ndInfusionWk2_PB"] <- "Wk2"
+  # 
+  # type <- sapply(rownames(shared_tcr_pct), function(x) {
+  #   temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+  #   if(length(grep("PB", temp)) == 1) {
+  #     return("PB")
+  #   } else if(length(grep("BM", temp)) == 1) {
+  #     return("BM")
+  #   } else if(length(grep("GMP", temp)) == 1) {
+  #     return("GMP")
+  #   } else if(length(grep("PreTrans", temp)) == 1) {
+  #     return("PB")
+  #   } else {
+  #     return("PB")
+  #   }
+  # })
+  # 
+  # ### combine the info to library
+  # library <- sapply(1:nrow(shared_tcr_pct), function(x) {
+  #   if(time[x] == "GMP") {
+  #     paste0("JCC212_SJCAR19-", px[x], "_", time[x])
+  #   } else if(time[x] == "PreTrans" || time[x] == "PreTransB") {
+  #     paste0("JCC212_SJCAR19-", px[x], "_", time[x])
+  #   } else {
+  #     paste0("JCC212_SJCAR19-", px[x], "_", time[x], "_", type[x])
+  #   }
+  # })
+  # library[which(library == "JCC212_SJCAR19-03_PreTrans")] <- "JCC212_SJCAR19-03_PreTransB"
+  # library[which(library == "JCC212_SJCAR19-04_PreTrans")] <- "JCC212_SJCAR19-04_PreTransB"
+  # library[which(library == "JCC212_SJCAR19-05_PreTrans")] <- "JCC212_SJCAR19-05_PreTransB"
+  # 
+  # ### shared barcodes
+  # shared_barcode_mat <- matrix(NA, length(tcr), length(tcr))
+  # rownames(shared_barcode_mat) <- sapply(names(tcr), function(x) {
+  #   temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+  #   return(paste0(temp[-2], collapse = "_"))
+  # }, USE.NAMES = FALSE)
+  # colnames(shared_barcode_mat) <- rownames(shared_barcode_mat)
+  # shared_barcode_pct <- matrix(NA, length(tcr), length(tcr))
+  # rownames(shared_barcode_pct) <- sapply(names(tcr), function(x) {
+  #   temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+  #   return(paste0(temp[-2], collapse = "_"))
+  # }, USE.NAMES = FALSE)
+  # colnames(shared_barcode_pct) <- rownames(shared_barcode_pct)
+  # 
+  # for(i in 1:length(tcr)) {
+  #   for(j in i:length(tcr)) {
+  #     shared_barcode_mat[i,j] <- length(intersect(rownames(tcr[[i]]), metadata$GexCellShort[which(metadata$Library == library[j])]))
+  #     shared_barcode_pct[i,j] <- shared_barcode_mat[i,j] / length(union(rownames(tcr[[i]]), metadata$GexCellShort[which(metadata$Library == library[j])]))
+  #   }
+  # }
+  # 
+  # ### remove some all zero rows & cols
+  # colsum <- apply(shared_barcode_mat, 2, function(x) {
+  #   sum(x, na.rm = TRUE)
+  # })
+  # rIdx <- which(colsum == 0)
+  # shared_barcode_mat <- shared_barcode_mat[-rIdx, -rIdx]
+  # shared_barcode_pct <- shared_barcode_pct[-rIdx, -rIdx]
+  # 
+  # ### make full matrices
+  # shared_barcode_mat[lower.tri(shared_barcode_mat)] <- t(shared_barcode_mat)[lower.tri(shared_barcode_mat)]
+  # shared_barcode_pct[lower.tri(shared_barcode_pct)] <- t(shared_barcode_pct)[lower.tri(shared_barcode_pct)]
+  # 
+  # ### write out the result
+  # write.xlsx2(data.frame(shared_barcode_mat, stringsAsFactors = FALSE, check.names = FALSE),
+  #             file = paste0(outputDir, "Shared_Barcodes_Across_All_Libraries.xlsx"),
+  #             sheetName = "Shared_Barcodes_Numbers", append = FALSE)
+  # write.xlsx2(data.frame(shared_barcode_pct, stringsAsFactors = FALSE, check.names = FALSE),
+  #             file = paste0(outputDir, "Shared_Barcodes_Across_All_Libraries.xlsx"),
+  #             sheetName = "Shared_Barcodes_Percentages", append = TRUE)
+  # 
+  # ### diagonal <- set diagonal value as max
+  # diag(shared_barcode_pct) <- max(shared_barcode_pct[lower.tri(shared_barcode_mat)])
+  # 
+  # 
+  # ### get patient number
+  # px <- sapply(rownames(shared_barcode_pct), function(x) {
+  #   temp <- strsplit(x, split = "_", fixed = TRUE)[[1]][2]
+  #   if(grepl("onor", temp)) {
+  #     return(substring(temp, nchar(temp)-1, nchar(temp)))
+  #   } else {
+  #     return(substr(temp, 9, 10))
+  #   }
+  # })
+  # px["1779067_SJCAR-06_GMP19028"] <- "06"
+  # pxf <- factor(px, levels = unique(px[order(as.numeric(px))]))
+  # 
+  # ### get GMP samples
+  # gmps <- sapply(rownames(shared_barcode_pct), function(x) {
+  #   if(grepl("GMP", x) || grepl("DMP", x)) {
+  #     if(grepl("redo", x)) {
+  #       return("GMP-REDO")
+  #     } else {
+  #       return("GMP")
+  #     }
+  #   } else {
+  #     return("NON-GMP")
+  #   }
+  # })
+  # 
+  # ### set side colors1 - px
+  # uniqueV <- levels(pxf)
+  # colors1 <- colorRampPalette(brewer.pal(9,"Reds"))(length(uniqueV))
+  # names(colors1) <- uniqueV
+  # 
+  # ### set side colors2 - GMP & GMP-redo
+  # uniqueV <- c("NON-GMP", "GMP", "GMP-REDO")
+  # colors2 <- c("deeppink", "deepskyblue", "deepskyblue4")
+  # names(colors2) <- uniqueV
+  # 
+  # ### heatmap
+  # png(paste0(outputDir, "Shared_Barcodes_Across_All_Libraries.png"), width = 2000, height = 1600, res = 130)
+  # par(oma=c(0,0,0,15))
+  # heatmap.3(as.matrix(shared_barcode_pct),
+  #           main = paste0("Shared_Barcodes_Across_All_Libraries"),
+  #           xlab = "", ylab = "", col=rich.colors(200, "blues"),
+  #           scale="none", key=TRUE, keysize=0.8, density.info="density",
+  #           dendrogram = "none", trace = "none",
+  #           labRow = rownames(shared_barcode_pct), labCol = FALSE,
+  #           Rowv = TRUE, Colv = TRUE,
+  #           distfun=dist.spear, hclustfun=hclust.ave,
+  #           ColSideColors = cbind(colors1[as.character(px[colnames(shared_barcode_pct)])],
+  #                                 colors2[as.character(gmps[colnames(shared_barcode_pct)])]),
+  #           RowSideColors = t(cbind(colors2[as.character(gmps[rownames(shared_barcode_pct)])],
+  #                                   colors1[as.character(px[rownames(shared_barcode_pct)])])),
+  #           cexRow = 1, cexCol = 1, na.rm = TRUE)
+  # legend("left", inset = 0, xpd = TRUE, title = "Patient", legend = names(colors1), fill = colors1, cex = 2, box.lty = 0)
+  # legend("bottomleft", inset = -0.01, xpd = TRUE, title = "GMP", legend = names(colors2), fill = colors2, cex = 1, box.lty = 0)
+  # dev.off()
+  # 
+  # ### GMP-specific percentages
+  # gmp_idx <- union(which(gmps == "GMP"), which(gmps == "GMP-REDO"))
+  # non_gmp_idx <- setdiff(1:nrow(shared_barcode_mat), gmp_idx)
+  # gmp_shared_barcode_mat <- shared_barcode_mat[gmp_idx, non_gmp_idx]
+  # gmp_shared_barcode_pct <- shared_barcode_pct[gmp_idx, non_gmp_idx]
+  # 
+  # ### write out the result
+  # write.xlsx2(data.frame(gmp_shared_barcode_mat, stringsAsFactors = FALSE, check.names = FALSE),
+  #             file = paste0(outputDir, "GMP_Shared_Barcodes_Across_All_Libraries.xlsx"),
+  #             sheetName = "Shared_Barcode_Numbers", append = FALSE)
+  # write.xlsx2(data.frame(gmp_shared_barcode_pct, stringsAsFactors = FALSE, check.names = FALSE),
+  #             file = paste0(outputDir, "GMP_Shared_Barcodes_Across_All_Libraries.xlsx"),
+  #             sheetName = "Shared_Barcode_Percentages", append = TRUE)
+  # 
+  # ### heatmap
+  # png(paste0(outputDir, "GMP_Shared_Barcodes_Across_All_Libraries.png"), width = 2100, height = 1600, res = 130)
+  # par(oma=c(0,0,0,25))
+  # heatmap.3(as.matrix(gmp_shared_barcode_pct),
+  #           main = paste0("Shared_Barcodes_Across_All_Libraries"),
+  #           xlab = "", ylab = "", col=rich.colors(200, "blues"),
+  #           scale="none", key=TRUE, keysize=0.8, density.info="density",
+  #           dendrogram = "none", trace = "none",
+  #           labRow = rownames(gmp_shared_barcode_pct), labCol = FALSE,
+  #           Rowv = TRUE, Colv = TRUE,
+  #           distfun=dist.spear, hclustfun=hclust.ave,
+  #           ColSideColors = cbind(colors1[as.character(px[colnames(gmp_shared_barcode_pct)])],
+  #                                 colors2[as.character(gmps[colnames(gmp_shared_barcode_pct)])]),
+  #           RowSideColors = t(cbind(colors2[as.character(gmps[rownames(gmp_shared_barcode_pct)])],
+  #                                   colors1[as.character(px[rownames(gmp_shared_barcode_pct)])])),
+  #           cexRow = 2, cexCol = 1, na.rm = TRUE)
+  # legend("left", inset = -0.01, xpd = TRUE, title = "Patient", legend = names(colors1), fill = colors1, cex = 2, box.lty = 0)
+  # legend("bottomleft", inset = -0.02, xpd = TRUE, title = "GMP", legend = names(colors2), fill = colors2, cex = 1, box.lty = 0)
+  # dev.off()
   
   
   #
@@ -978,45 +1035,6 @@ shared_tcrs <- function(new_TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRredo/",
     ### remove the -* at the end of each barcode.
     real_barcodes[[i]]$V1 <- sapply(strsplit(real_barcodes[[i]]$V1, split = "-", fixed = TRUE), function(x) x[1])
   }
-  
-  ### get real tcr names
-  real_tcr_names <- sapply(names(tcr), function(x) {
-    return(substring(x, 9))
-  }, USE.NAMES = FALSE)
-  
-  ### match real_tcr_names to the names(real_barcodes)
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-02_Wk1")] <- "JCC212_SJCAR19-02_PB_Wk1"
-  real_tcr_names[which(real_tcr_names == "JCC212_GMPdonor30")] <- "JCC212_SJCAR19_GMPdonor30"
-  real_tcr_names[which(real_tcr_names == "JCC212_GMPdonor32")] <- "JCC212_SJCAR19_GMPdonor32"
-  real_tcr_names[which(real_tcr_names == "JCC212_GMPdonor33")] <- "JCC212_SJCAR19_GMPdonor33"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-04_Wk-1")] <- "JCC212_SJCAR19-04_PB_Wk-1"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-04_Wk2")] <- "JCC212_SJCAR19_04_Wk2"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-04_GMP19003")] <- "JCC212_SJCAR19_04_GMP19003"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_PB_Wk-1")] <- "JCC212_SJCAR19_05_PB_Wk-1"
-  real_tcr_names[which(real_tcr_names == "JCC212_HealthyDonor32_PreTrans")[1]] <- "JCC212_SJCAR19_Donor32_PreTrans"
-  real_tcr_names[which(real_tcr_names == "JCC212_HealthyDonor33_PreTrans")[1]] <- "JCC212_SJCAR19_Donor33_PreTrans"
-  real_tcr_names[which(real_tcr_names == "JCC212_HealthyDonor32_PreTrans")] <- "JCC212_SJCAR19_Donor32_PreTransB"
-  real_tcr_names[which(real_tcr_names == "JCC212_HealthyDonor33_PreTrans")] <- "JCC212_SJCAR19_Donor33_PreTransB"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-04_Wk8")] <- "JCC212_SJCAR19_04_Wk8"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_Wk2")] <- "JCC212_SJCAR19_05_Wk2"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_Wk3")] <- "JCC212_SJCAR19_05_Wk3"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_PB_Wk4")] <- "JCC212_SJCAR19_05_PB_Wk4"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_BM_Wk4")] <- "JCC212_SJCAR19_05_BM_Wk4"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-03_PreTrans")] <- "JCC212_SJCAR19_03_PreTransB"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-04_PreTrans")] <- "JCC212_SJCAR19_04_PreTransB"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-00_PreTrans")] <- "JCC212_SJCAR19_00_PreTransB"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_PreTrans")] <- "JCC212_SJCAR19_05_PreTransB"
-  real_tcr_names[which(real_tcr_names == "JCC212_HealthyDonor30_PreTrans")] <- "JCC212_SJCAR19_Donor30_PreTransB"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-06_Wk-1_PB")] <- "JCC212_SJCAR19-06_Wk-1"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR-06_GMP19028")] <- "JCC212_SJCAR19-06_GMP19028"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_3mo_PB")] <- "JCC212_SJCAR19-05_PB_3mo"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_3mo_BM")] <- "JCC212_SJCAR19-05_BM_3mo"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-06_PreTrans")] <- "JCC212_SJCAR19-6_PreTrans"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-06_3_mo_BM")] <- "JCC212_SJCAR19-06_3mo_BM"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-08_GMP")] <- "JCC212_SJCAR19-08_GMP19064"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-13_Wk-1")] <- "JCC212_SJCAR19-13_Wk-1_PB"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_Wk0")] <- "JCC212_SJCAR19_05_PB_Wk0"
-  real_tcr_names[which(real_tcr_names == "JCC212_SJCAR19-05_Wk1")] <- "JCC212_SJCAR19_05_Wk1"
   
   ### shared barcodes
   shared_barcode_mat <- matrix(NA, length(tcr), length(tcr))
@@ -1043,17 +1061,34 @@ shared_tcrs <- function(new_TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRredo/",
   shared_barcode_mat[lower.tri(shared_barcode_mat)] <- t(shared_barcode_mat)[lower.tri(shared_barcode_mat)]
   shared_barcode_pct[lower.tri(shared_barcode_pct)] <- t(shared_barcode_pct)[lower.tri(shared_barcode_pct)]
   
+  ### because of Jeremy's request to keep the original sample name
+  rownames(shared_barcode_mat) <- names(tcr)
+  colnames(shared_barcode_mat) <- real_tcr_names
+  rownames(shared_barcode_pct) <- names(tcr)
+  rownames(shared_barcode_pct) <- real_tcr_names
+  
   ### write out the result
   write.xlsx2(data.frame(shared_barcode_mat, stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir, "Shared_Barcodes_Across_All_Libraries.xlsx"),
+              file = paste0(outputDir, "Shared_Barcodes_TCR-GEX_Across_All_Libraries.xlsx"),
               sheetName = "Shared_Barcodes_Numbers", append = FALSE)
   write.xlsx2(data.frame(shared_barcode_pct, stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir, "Shared_Barcodes_Across_All_Libraries.xlsx"),
+              file = paste0(outputDir, "Shared_Barcodes_TCR-GEX_Across_All_Libraries.xlsx"),
               sheetName = "Shared_Barcodes_Percentages", append = TRUE)
   
-  ### diagonal <- NA
-  diag(shared_barcode_pct) <- max(shared_barcode_pct[lower.tri(shared_barcode_mat)])
+  ### diagonal <- set diagonal value as max
+  # diag(shared_barcode_pct) <- max(shared_barcode_pct[lower.tri(shared_barcode_mat)])
   
+  ### reset the row & col names
+  rownames(shared_barcode_mat) <- sapply(names(tcr), function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+    return(paste0(temp[-2], collapse = "_"))
+  }, USE.NAMES = FALSE)
+  colnames(shared_barcode_mat) <- rownames(shared_barcode_mat)
+  rownames(shared_barcode_pct) <- sapply(names(tcr), function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+    return(paste0(temp[-2], collapse = "_"))
+  }, USE.NAMES = FALSE)
+  colnames(shared_barcode_pct) <- rownames(shared_barcode_pct)
   
   ### get patient number
   px <- sapply(rownames(shared_barcode_pct), function(x) {
@@ -1091,14 +1126,166 @@ shared_tcrs <- function(new_TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRredo/",
   names(colors2) <- uniqueV
   
   ### heatmap
-  png(paste0(outputDir, "Shared_Barcodes_Across_All_Libraries.png"), width = 3000, height = 2800, res = 220)
+  png(paste0(outputDir, "Shared_Barcodes_TCR-GEX_Across_All_Libraries.png"), width = 3000, height = 2800, res = 220)
   par(oma=c(15,0,0,15))
   heatmap.3(as.matrix(shared_barcode_pct),
             main = paste0("Shared_Barcodes_Across_All_Libraries"),
             xlab = "", ylab = "", col=rich.colors(200, "blues"),
             scale="none", key=TRUE, keysize=0.8, density.info="density",
             dendrogram = "none", trace = "none",
-            labRow = rownames(shared_barcode_pct), labCol = colnames(shared_barcode_pct),
+            labRow = names(tcr), labCol = real_tcr_names,
+            Rowv = TRUE, Colv = TRUE,
+            distfun=dist.spear, hclustfun=hclust.ave,
+            ColSideColors = cbind(colors1[as.character(px[colnames(shared_barcode_pct)])],
+                                  colors2[as.character(gmps[colnames(shared_barcode_pct)])]),
+            RowSideColors = t(cbind(colors2[as.character(gmps[rownames(shared_barcode_pct)])],
+                                    colors1[as.character(px[rownames(shared_barcode_pct)])])),
+            cexRow = 0.5, cexCol = 0.5, na.rm = TRUE)
+  legend("left", inset = 0, xpd = TRUE, title = "Patient", legend = names(colors1), fill = colors1, cex = 1, box.lty = 0)
+  legend("bottomleft", inset = -0.01, xpd = TRUE, title = "GMP", legend = names(colors2), fill = colors2, cex = 0.8, box.lty = 0)
+  dev.off()
+  
+  #
+  ### barcodes matching TCR-TCR
+  #
+  
+  ### shared barcodes
+  shared_barcode_mat <- matrix(NA, length(tcr), length(tcr))
+  rownames(shared_barcode_mat) <- sapply(names(tcr), function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+    return(paste0(temp[-2], collapse = "_"))
+  }, USE.NAMES = FALSE)
+  colnames(shared_barcode_mat) <- rownames(shared_barcode_mat)
+  shared_barcode_pct <- matrix(NA, length(tcr), length(tcr))
+  rownames(shared_barcode_pct) <- sapply(names(tcr), function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+    return(paste0(temp[-2], collapse = "_"))
+  }, USE.NAMES = FALSE)
+  colnames(shared_barcode_pct) <- rownames(shared_barcode_pct)
+  
+  for(i in 1:length(tcr)) {
+    for(j in i:length(tcr)) {
+      shared_barcode_mat[i,j] <- length(intersect(rownames(tcr[[i]]), rownames(tcr[[j]])))
+      shared_barcode_pct[i,j] <- 100* shared_barcode_mat[i,j] / nrow(tcr[[j]])
+    }
+  }
+  
+  ### make full matrices
+  shared_barcode_mat[lower.tri(shared_barcode_mat)] <- t(shared_barcode_mat)[lower.tri(shared_barcode_mat)]
+  shared_barcode_pct[lower.tri(shared_barcode_pct)] <- t(shared_barcode_pct)[lower.tri(shared_barcode_pct)]
+  
+  ### because of Jeremy's request to keep the original sample name
+  rownames(shared_barcode_mat) <- names(tcr)
+  colnames(shared_barcode_mat) <- names(tcr)
+  rownames(shared_barcode_pct) <- names(tcr)
+  rownames(shared_barcode_pct) <- names(tcr)
+  
+  ### write out the result
+  write.xlsx2(data.frame(shared_barcode_mat, stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "Shared_Barcodes_TCR-TCR_Across_All_Libraries.xlsx"),
+              sheetName = "Shared_Barcodes_Numbers", append = FALSE)
+  write.xlsx2(data.frame(shared_barcode_pct, stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "Shared_Barcodes_TCR-TCR_Across_All_Libraries.xlsx"),
+              sheetName = "Shared_Barcodes_Percentages", append = TRUE)
+  
+  ### reset the row & col names
+  rownames(shared_barcode_mat) <- sapply(names(tcr), function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+    return(paste0(temp[-2], collapse = "_"))
+  }, USE.NAMES = FALSE)
+  colnames(shared_barcode_mat) <- rownames(shared_barcode_mat)
+  shared_barcode_pct <- matrix(NA, length(tcr), length(tcr))
+  rownames(shared_barcode_pct) <- sapply(names(tcr), function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+    return(paste0(temp[-2], collapse = "_"))
+  }, USE.NAMES = FALSE)
+  colnames(shared_barcode_pct) <- rownames(shared_barcode_pct)
+  
+  ### heatmap
+  png(paste0(outputDir, "Shared_Barcodes_TCR-TCR_Across_All_Libraries.png"), width = 3000, height = 2800, res = 220)
+  par(oma=c(15,0,0,15))
+  heatmap.3(as.matrix(shared_barcode_pct),
+            main = paste0("Shared_Barcodes_Across_All_Libraries"),
+            xlab = "", ylab = "", col=rich.colors(200, "blues"),
+            scale="none", key=TRUE, keysize=0.8, density.info="density",
+            dendrogram = "none", trace = "none",
+            labRow = names(tcr), labCol = names(tcr),
+            Rowv = TRUE, Colv = TRUE,
+            distfun=dist.spear, hclustfun=hclust.ave,
+            ColSideColors = cbind(colors1[as.character(px[colnames(shared_barcode_pct)])],
+                                  colors2[as.character(gmps[colnames(shared_barcode_pct)])]),
+            RowSideColors = t(cbind(colors2[as.character(gmps[rownames(shared_barcode_pct)])],
+                                    colors1[as.character(px[rownames(shared_barcode_pct)])])),
+            cexRow = 0.5, cexCol = 0.5, na.rm = TRUE)
+  legend("left", inset = 0, xpd = TRUE, title = "Patient", legend = names(colors1), fill = colors1, cex = 1, box.lty = 0)
+  legend("bottomleft", inset = -0.01, xpd = TRUE, title = "GMP", legend = names(colors2), fill = colors2, cex = 0.8, box.lty = 0)
+  dev.off()
+  
+  
+  #
+  ### barcodes matching GEX-GEX
+  #
+  
+  ### shared barcodes
+  shared_barcode_mat <- matrix(NA, length(tcr), length(tcr))
+  rownames(shared_barcode_mat) <- sapply(names(tcr), function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+    return(paste0(temp[-2], collapse = "_"))
+  }, USE.NAMES = FALSE)
+  colnames(shared_barcode_mat) <- rownames(shared_barcode_mat)
+  shared_barcode_pct <- matrix(NA, length(tcr), length(tcr))
+  rownames(shared_barcode_pct) <- sapply(names(tcr), function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+    return(paste0(temp[-2], collapse = "_"))
+  }, USE.NAMES = FALSE)
+  colnames(shared_barcode_pct) <- rownames(shared_barcode_pct)
+  
+  for(i in 1:length(tcr)) {
+    for(j in i:length(tcr)) {
+      shared_barcode_mat[i,j] <- length(intersect(real_barcodes[[real_tcr_names[i]]]$V1, real_barcodes[[real_tcr_names[j]]]$V1))
+      shared_barcode_pct[i,j] <- 100* shared_barcode_mat[i,j] / nrow(real_barcodes[[real_tcr_names[j]]])
+    }
+  }
+  
+  ### make full matrices
+  shared_barcode_mat[lower.tri(shared_barcode_mat)] <- t(shared_barcode_mat)[lower.tri(shared_barcode_mat)]
+  shared_barcode_pct[lower.tri(shared_barcode_pct)] <- t(shared_barcode_pct)[lower.tri(shared_barcode_pct)]
+  
+  ### because of Jeremy's request to keep the original sample name
+  rownames(shared_barcode_mat) <- real_tcr_names
+  colnames(shared_barcode_mat) <- real_tcr_names
+  rownames(shared_barcode_pct) <- real_tcr_names
+  rownames(shared_barcode_pct) <- real_tcr_names
+  
+  ### write out the result
+  write.xlsx2(data.frame(shared_barcode_mat, stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "Shared_Barcodes_GEX-GEX_Across_All_Libraries.xlsx"),
+              sheetName = "Shared_Barcodes_Numbers", append = FALSE)
+  write.xlsx2(data.frame(shared_barcode_pct, stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "Shared_Barcodes_GEX-GEX_Across_All_Libraries.xlsx"),
+              sheetName = "Shared_Barcodes_Percentages", append = TRUE)
+  
+  ### reset the row & col names
+  rownames(shared_barcode_mat) <- sapply(names(tcr), function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+    return(paste0(temp[-2], collapse = "_"))
+  }, USE.NAMES = FALSE)
+  colnames(shared_barcode_mat) <- rownames(shared_barcode_mat)
+  rownames(shared_barcode_pct) <- sapply(names(tcr), function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
+    return(paste0(temp[-2], collapse = "_"))
+  }, USE.NAMES = FALSE)
+  colnames(shared_barcode_pct) <- rownames(shared_barcode_pct)
+  
+  ### heatmap
+  png(paste0(outputDir, "Shared_Barcodes_GEX-GEX_Across_All_Libraries.png"), width = 3000, height = 2800, res = 220)
+  par(oma=c(15,0,0,15))
+  heatmap.3(as.matrix(shared_barcode_pct),
+            main = paste0("Shared_Barcodes_Across_All_Libraries"),
+            xlab = "", ylab = "", col=rich.colors(200, "blues"),
+            scale="none", key=TRUE, keysize=0.8, density.info="density",
+            dendrogram = "none", trace = "none",
+            labRow = real_tcr_names, labCol = real_tcr_names,
             Rowv = TRUE, Colv = TRUE,
             distfun=dist.spear, hclustfun=hclust.ave,
             ColSideColors = cbind(colors1[as.character(px[colnames(shared_barcode_pct)])],
