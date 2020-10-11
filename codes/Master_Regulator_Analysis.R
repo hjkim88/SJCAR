@@ -67,10 +67,14 @@ master_regulator_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020A
     install.packages("R2HTML")
     require(R2HTML, quietly = TRUE)
   }
+  if(!require(doMC, quietly = TRUE)) {
+    install.packages("doMC")
+    require(doMC, quietly = TRUE)
+  }
   
   ### SCENIC parameter setting
-  scenicOptions <- initializeScenic(org="hgnc", dbDir="data", nCores=4)
-  scenicOptions@settings$seed <- 1234
+  scenicOptions <- initializeScenic(org="hgnc", dbDir="data", nCores=10)
+  saveRDS(scenicOptions, file="./int/scenicOptions.Rds")
   
   ### load the Seurat object and save the object name
   tmp_env <- new.env()
@@ -119,7 +123,7 @@ master_regulator_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020A
     ### subset the Seurat object by time
     subset_Seurat_Obj <- subset(Seurat_Obj, idents=tp)
     
-    ### filter the cells (a cell should have at least 5 genes expressed larger than 0)
+    ### filter the cells (a cell should have at least 100 genes expressed larger than 0)
     ### randomly select one and then check if that satisfies the threshold
     set.seed(1234)
     sample_list <- NULL
@@ -146,8 +150,11 @@ master_regulator_analysis <- function(Seurat_RObj_path="./data/JCC212_21Feb2020A
     
     ### Build and score the GRN
     exprMat_log <- log2(exprMat+1)
-    # scenicOptions@settings$dbs <- scenicOptions@settings$dbs["10kb"]
     runSCENIC_1_coexNetwork2modules(scenicOptions)
+    
+    scenicOptions@settings$nCores <- 4
+    scenicOptions@settings$seed <- 1234
+    scenicOptions@settings$dbs <- scenicOptions@settings$dbs["10kb"]
     runSCENIC_2_createRegulons(scenicOptions, coexMethod=c("top5perTarget"))
     runSCENIC_3_scoreCells(scenicOptions, exprMat_log)
     
