@@ -18,10 +18,10 @@
 #                             outputDir="./results/TCR/")
 ###
 
-shared_tcrs <- function(new_TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRredo/",
-                        barcode_dir="C:/Users/hkim8/SJ/SJCAR19/GEXbarcodes_5Oct2020/",
+shared_tcrs <- function(new_TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRs_15Oct2020/",
+                        barcode_dir="C:/Users/hkim8/SJ/SJCAR19/GEXbarcodes_15Oct2020/",
                         Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_regress_TCR_clonotyped_PROTO2.Robj",
-                        outputDir="./results/TCR/") {
+                        outputDir="./results/TCR_1015/") {
   
   ### load libraries
   if(!require(xlsx, quietly = TRUE)) {
@@ -585,7 +585,11 @@ shared_tcrs <- function(new_TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRredo/",
   
   ### get real tcr names
   real_tcr_names <- sapply(names(tcr), function(x) {
-    return(substring(x, 9))
+    if(startsWith(x, "X_")) {
+      return(substring(x, 3))
+    } else {
+      return(substring(x, 9))
+    }
   }, USE.NAMES = FALSE)
   
   ### match real_tcr_names to the names(real_barcodes)
