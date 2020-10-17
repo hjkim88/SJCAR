@@ -1198,7 +1198,6 @@ shared_tcrs <- function(new_TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRs_15Oct2020/",
     return(paste0(temp[-2], collapse = "_"))
   }, USE.NAMES = FALSE)
   colnames(shared_barcode_mat) <- rownames(shared_barcode_mat)
-  shared_barcode_pct <- matrix(NA, length(tcr), length(tcr))
   rownames(shared_barcode_pct) <- sapply(names(tcr), function(x) {
     temp <- strsplit(x, split = "_", fixed = TRUE)[[1]]
     return(paste0(temp[-2], collapse = "_"))
