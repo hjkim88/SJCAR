@@ -1021,7 +1021,7 @@ shared_tcrs <- function(new_TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRs_15Oct2020/",
   ### get real barcodes
   #
   
-  ### get new TCR info file paths
+  ### get new barcode info file paths
   barcode_file_paths <- list.files(path = barcode_dir, pattern = "barcodes.tsv.gz$",
                                    full.names = TRUE, recursive = TRUE)
   
