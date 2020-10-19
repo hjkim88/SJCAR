@@ -8,18 +8,17 @@
 #
 #   Instruction
 #               1. Source("Read10xOutputsToSeurat.R")
-#               2. Run the function "shared_tcrs" - specify the input directory and the output directory
-#               3. The results will be generated under the output directory
+#               2. Run the function "read10x_and_make_seuratobj" - specify the input directory and the output path
+#               3. The results will be generated under the output path
 #
 #   Example
 #               > source("The_directory_of_Read10xOutputsToSeurat.R/Read10xOutputsToSeurat.R")
-#               > shared_tcrs(ten_x_dir="C:/Users/hkim8/SJ/SJCAR19/JCC212_SJCAR19_C1AggregOct2020ns/filtered_feature_bc_matrix/",
-#                             outputDir="./data/")
+#               > read10x_and_make_seuratobj(ten_x_dir="C:/Users/hkim8/SJ/SJCAR19/JCC212_SJCAR19_C1AggregOct2020ns/filtered_feature_bc_matrix/",
+#                                            outputPath="./data/")
 ###
 
 read10x_and_make_seuratobj <- function(ten_x_dir="C:/Users/hkim8/SJ/SJCAR19/JCC212_SJCAR19_C1AggregOct2020ns/filtered_feature_bc_matrix/",
-                                       outputDir="./data/") {
-  ### SJCAR19_Seurat_Obj_Oct2020.RDATA
+                                       outputPath="./data/SJCAR19_Seurat_Obj_Oct2020.RDS") {
   
   ### load libraries
   if(!require(dplyr, quietly = TRUE)) {
@@ -46,11 +45,32 @@ read10x_and_make_seuratobj <- function(ten_x_dir="C:/Users/hkim8/SJ/SJCAR19/JCC2
                                                    min.cells = 3,
                                                    min.features = 200)
   
+  ### MT percentage
+  SJCAR19_Oct2020_Seurat_Obj[["percent.mt"]] <- PercentageFeatureSet(SJCAR19_Oct2020_Seurat_Obj, pattern = "^MT-")
   
+  ### normalization
+  SJCAR19_Oct2020_Seurat_Obj <- NormalizeData(SJCAR19_Oct2020_Seurat_Obj,
+                                              normalization.method = "LogNormalize", scale.factor = 10000)
   
+  ### find variable genes
+  SJCAR19_Oct2020_Seurat_Obj <- FindVariableFeatures(SJCAR19_Oct2020_Seurat_Obj,
+                                                     selection.method = "vst", nfeatures = 2000)
   
+  ### scaling
+  SJCAR19_Oct2020_Seurat_Obj <- ScaleData(SJCAR19_Oct2020_Seurat_Obj)
   
+  ### PCA
+  SJCAR19_Oct2020_Seurat_Obj <- RunPCA(SJCAR19_Oct2020_Seurat_Obj,
+                                       features = VariableFeatures(object = SJCAR19_Oct2020_Seurat_Obj))
   
+  ### UMAP
+  SJCAR19_Oct2020_Seurat_Obj <- RunUMAP(SJCAR19_Oct2020_Seurat_Obj, dims = 1:15)
   
+  ### clustering
+  SJCAR19_Oct2020_Seurat_Obj <- FindNeighbors(SJCAR19_Oct2020_Seurat_Obj, dims = 1:10)
+  SJCAR19_Oct2020_Seurat_Obj <- FindClusters(SJCAR19_Oct2020_Seurat_Obj, resolution = 0.5)
+  
+  ### save the Seurat object as RDS file
+  saveRDS(SJCAR19_Oct2020_Seurat_Obj, file = outputPath)
   
 }
