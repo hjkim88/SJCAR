@@ -36,6 +36,22 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
     install.packages("xlsx")
     require(xlsx, quietly = TRUE)
   }
+  if(!require(ggalluvial, quietly = TRUE)) {
+    install.packages("ggalluvial")
+    require(ggalluvial, quietly = TRUE)
+  }
+  if(!require(ggpubr, quietly = TRUE)) {
+    install.packages("ggpubr")
+    require(ggpubr, quietly = TRUE)
+  }
+  if(!require(viridis, quietly = TRUE)) {
+    install.packages("viridis")
+    require(viridis, quietly = TRUE)
+  }
+  if(!require(gridExtra, quietly = TRUE)) {
+    install.packages("gridExtra")
+    require(gridExtra, quietly = TRUE)
+  }
   
   ### create outputDir
   dir.create(outputDir, showWarnings = FALSE, recursive = TRUE)
@@ -52,6 +68,10 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
   
   ### check whether the orders are the same
   print(identical(names(Idents(object = Seurat_Obj)), rownames(Seurat_Obj@meta.data)))
+  
+  ### set time points
+  total_time_points <- c("PreTrans", "PreTransB", "Wk-1", "Wk-1Run1", "Wk-1Run2", "Wk0", "GMP", "GMP-redo",
+                   "Wk1", "Wk1b", "Wk2", "Wk3", "Wk4", "Wk6", "Wk8", "3mo", "6mo", "9mo")
   
   ### assign CAR+ cells
   Seurat_Obj@meta.data$CAR <- sapply(Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",rownames(Seurat_Obj@meta.data)],
@@ -456,12 +476,6 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
     }
   }
   
-  
-  
-  
-  
-  
-  
   ### examine the proportion of CAR+ cells in each patient - barplot 
   plot_df <- data.frame(LIB=rep(unique(Seurat_Obj@meta.data$library), 2),
                         CAR=rep(c("CARpos", "CARneg"), length(unique(Seurat_Obj@meta.data$library))),
@@ -482,6 +496,552 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
           axis.title = element_blank(),
           axis.ticks = element_blank())
   ggsave(file = paste0(outputDir, "/", "CAR_Distribution_In_Each_Library.png"), width = 20, height = 10, dpi = 300)
+  
+  
+  ### Alluvial plot - visualization of the lineage tracing
+  
+  ### theme that draws dotted lines for each y-axis ticks
+  ### this function is from "immunarch" package
+  theme_cleveland2 <- function(rotate = TRUE) {
+    if (rotate) {
+      theme(
+        panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank(),
+        panel.grid.major.y = element_line(
+          colour = "grey70",
+          linetype = "dashed"
+        )
+      )
+    }
+    else {
+      theme(
+        panel.grid.major.x = element_line(
+          colour = "grey70",
+          linetype = "dashed"
+        ), panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank()
+      )
+    }
+  }
+  
+  ### for each patient, make a statistics table
+  for(patient in unique(Seurat_Obj@meta.data$px)) {
+    
+    ### print progress
+    writeLines(paste(patient))
+    
+    ### indicies that assign to the given patient
+    px_idx <- which(Seurat_Obj@meta.data$px == patient)
+    
+    ### remove NA, "NA", and ""
+    px_idx <- intersect(px_idx, intersect(intersect(which(!is.na(Seurat_Obj@meta.data$cdr3_aa)),
+                                                    which(Seurat_Obj@meta.data$cdr3_aa != "NA")),
+                                          which(Seurat_Obj@meta.data$cdr3_aa != "")))
+    
+    if(length(px_idx) > 0) {
+      
+      ### output directory for each patient
+      outputDir2 <- paste0(outputDir, "/", patient, "/")
+      dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+      
+      ### set target indicies
+      target_idx <- intersect(px_idx, which(!is.na(Seurat_Obj@meta.data$clonotype_id_by_patient)))
+      
+      ### get unique clonotypes
+      dups <- Seurat_Obj@meta.data$clonotype_id_by_patient[target_idx][which(duplicated(Seurat_Obj@meta.data$clonotype_id_by_patient[target_idx]))]
+      unique_clonotypes <- unique(dups)
+      unique_clonotypes <- unique_clonotypes[intersect(intersect(which(!is.na(unique_clonotypes)),
+                                                                 which(unique_clonotypes != "NA")),
+                                                       which(unique_clonotypes != ""))]
+      
+      ### get unique time points
+      unique_time_points <- unique(intersect(total_time_points, Seurat_Obj@meta.data$time[target_idx]))
+      
+      ### empty frequency table
+      frequency_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
+      rownames(frequency_over_time) <- unique_clonotypes
+      colnames(frequency_over_time) <- unique_time_points
+      
+      ### empty CAR+ frequency table
+      car_frequency_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
+      rownames(car_frequency_over_time) <- unique_clonotypes
+      colnames(car_frequency_over_time) <- unique_time_points
+      
+      ### empty frequency proportion table
+      proportion_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
+      rownames(proportion_over_time) <- unique_clonotypes
+      colnames(proportion_over_time) <- unique_time_points
+      
+      ### empty CAR+ frequency proportion table
+      car_proportion_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
+      rownames(car_proportion_over_time) <- unique_clonotypes
+      colnames(car_proportion_over_time) <- unique_time_points
+      
+      ### start time
+      start_time <- Sys.time()
+      
+      ### set progress bar
+      pb <- txtProgressBar(min = 0, max = length(unique_clonotypes)*length(unique_time_points), style = 3)
+      
+      ### fill out the frequency tables
+      cnt <- 0
+      for(time in unique_time_points) {
+        for(clonotype in unique_clonotypes) {
+          ### indicies for the specific patient, time, and clonotype
+          target_idx <- intersect(intersect(px_idx,
+                                            which(Seurat_Obj@meta.data$time == time)),
+                                  which(Seurat_Obj@meta.data$clonotype_id_by_patient == clonotype))
+          
+          frequency_over_time[clonotype,time] <- length(target_idx)
+          car_frequency_over_time[clonotype,time] <- length(intersect(target_idx,
+                                                                      which(Seurat_Obj@meta.data$CAR == "CARpos")))
+          
+          ### update the progress bar
+          cnt <- cnt + 1
+          setTxtProgressBar(pb, cnt)
+        }
+        
+        ### fill out the proportion tables
+        cells_time_num <- length(intersect(px_idx,
+                                           which(Seurat_Obj@meta.data$time == time)))
+        car_cells_time_num <- length(intersect(intersect(px_idx,
+                                                         which(Seurat_Obj@meta.data$time == time)),
+                                               which(Seurat_Obj@meta.data$CAR == "CARpos")))
+        if(car_cells_time_num > 0) {
+          proportion_over_time[,time] <- signif(100*frequency_over_time[,time]/cells_time_num, digits = 4)
+          car_proportion_over_time[,time] <- signif(100*car_frequency_over_time[,time]/car_cells_time_num, digits = 4)
+        } else if(cells_time_num > 0) {
+          proportion_over_time[,time] <- signif(100*frequency_over_time[,time]/cells_time_num, digits = 4)
+        } else {
+          proportion_over_time[,time] <- 0
+          car_proportion_over_time[,time] <- 0
+        }
+      }
+      close(pb)
+      
+      ### end time
+      end_time <- Sys.time()
+      
+      ### print out the running time
+      cat(paste("Running Time:",
+                signif(as.numeric(difftime(end_time, start_time, units = "mins")), digits = 3),
+                "mins"))
+      
+      ### add total column
+      frequency_over_time <- data.frame(Clonotype=unique_clonotypes,
+                                        frequency_over_time,
+                                        Total=apply(frequency_over_time, 1, sum),
+                                        stringsAsFactors = FALSE, check.names = FALSE)
+      car_frequency_over_time <- data.frame(Clonotype=unique_clonotypes,
+                                            car_frequency_over_time,
+                                            Total=apply(car_frequency_over_time, 1, sum),
+                                            stringsAsFactors = FALSE, check.names = FALSE)
+      proportion_over_time <- data.frame(Clonotype=unique_clonotypes,
+                                         proportion_over_time,
+                                         Total=apply(proportion_over_time, 1, sum),
+                                         stringsAsFactors = FALSE, check.names = FALSE)
+      car_proportion_over_time <- data.frame(Clonotype=unique_clonotypes,
+                                             car_proportion_over_time,
+                                             Total=apply(car_proportion_over_time, 1, sum),
+                                             stringsAsFactors = FALSE, check.names = FALSE)
+      
+      ### order the data frames by the Total column
+      frequency_over_time <- frequency_over_time[order(-frequency_over_time[,"Total"]),]
+      proportion_over_time <- proportion_over_time[order(-proportion_over_time[,"Total"]),]
+      car_frequency_over_time <- car_frequency_over_time[order(-car_frequency_over_time[,"Total"]),]
+      car_proportion_over_time <- car_proportion_over_time[order(-car_proportion_over_time[,"Total"]),]
+      
+      ### trim the car tables
+      car_proportion_over_time <- car_proportion_over_time[which(car_frequency_over_time[,"Total"] > 1),]
+      car_frequency_over_time <- car_frequency_over_time[which(car_frequency_over_time[,"Total"] > 1),]
+      
+      ### save the tables in Excel format
+      write.xlsx2(frequency_over_time, file = paste0(outputDir2, "clonotype_frequency_over_time_", patient, ".xlsx"),
+                  sheetName = "Clonotype_Frequency", row.names = FALSE)
+      gc()
+      write.xlsx2(proportion_over_time, file = paste0(outputDir2, "clonotype_proportion_over_time_", patient, ".xlsx"),
+                  sheetName = "Clonotype_Proportion", row.names = FALSE)
+      gc()
+      write.xlsx2(car_frequency_over_time, file = paste0(outputDir2, "car_clonotype_frequency_over_time_", patient, ".xlsx"),
+                  sheetName = "CARpos_Clonotype_Frequency", row.names = FALSE)
+      gc()
+      write.xlsx2(car_proportion_over_time, file = paste0(outputDir2, "car_clonotype_proportion_over_time_", patient, ".xlsx"),
+                  sheetName = "CARpos_Clonotype_Proportion", row.names = FALSE)
+      gc()
+      
+    }
+    
+  }
+  
+  ### draw an alluvial plot for each patient
+  for(patient in unique(Seurat_Obj@meta.data$px)) {
+    
+    ### print progress
+    writeLines(paste(patient))
+    
+    ### load the file
+    target_file <- read.xlsx2(file = paste0(outputDir, patient, "/car_clonotype_frequency_over_time_", patient, ".xlsx"),
+                              sheetIndex = 1, stringsAsFactors = FALSE, check.names = FALSE,
+                              row.names = 1)
+    
+    ### numerize the table
+    for(i in 1:ncol(target_file)) {
+      target_file[,i] <- as.numeric(target_file[,i])
+    }
+    
+    ### remove all zero time points
+    time_points <- colnames(target_file)[which(apply(target_file, 2, sum) != 0)]
+    
+    ### get time points except the Total
+    time_points <- setdiff(time_points, c("Total"))
+    
+    if(length(time_points) > 1) {
+      ###  get lineages
+      lineage_table <- target_file[which(apply(target_file[,time_points], 1, function(x) {
+        return(length(which(x > 0)) > 1)  
+      })),time_points]
+      
+      ### get an input data frame for the alluvial plot
+      total_rows <- length(which(lineage_table[,time_points] > 0))
+      plot_df <- data.frame(Time=rep("", total_rows),
+                            Clone_Size=rep(0, total_rows),
+                            Clone=rep("", total_rows),
+                            CDR3=rep("", total_rows))
+      cnt <- 1
+      for(i in 1:nrow(lineage_table)) {
+        for(tp in time_points) {
+          if(lineage_table[i,tp] > 0) {
+            plot_df[cnt,] <- c(tp,
+                               lineage_table[i,tp],
+                               rownames(lineage_table)[i],
+                               "CDR3")
+            cnt <- cnt + 1
+          }
+        }
+      }
+      plot_df$Time <- factor(plot_df$Time, levels = time_points)
+      
+      ### numerize the clone_size column
+      plot_df$Clone_Size <- as.numeric(plot_df$Clone_Size)
+      
+      ### draw the alluvial plot (GMP - GMP-redo)
+      ggplot(plot_df,
+             aes(x = Time, stratum = Clone, alluvium = Clone,
+                 y = Clone_Size,
+                 fill = Clone, label = Clone)) +
+        ggtitle(paste("Clonal Tracing in the CAR+ cells of", patient)) +
+        geom_flow() +
+        geom_stratum(alpha = 1) +
+        geom_text(stat = "stratum", size = 2) +
+        rotate_x_text(90) +
+        theme_pubr(legend = "none") +
+        theme(axis.title.x = element_blank()) +
+        theme_cleveland2() +
+        scale_fill_viridis(discrete = T) +
+        scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+      ggsave(file = paste0(outputDir, patient, "/Car+_Clonal_Tracing_", patient, ".png"), width = 20, height = 10, dpi = 300)
+      
+      ### 1-on-1 alluvial plot with GMP
+      if(length(grep("^GMP$", time_points)) == 1) {
+        p <- vector("list", length = length(time_points)-1)
+        names(p) <- time_points[-grep("^GMP$", time_points)]
+        for(tp in names(p)) {
+          p[[tp]] <- ggplot(plot_df[union(which(plot_df$Time == "GMP"),
+                                          which(plot_df$Time == tp)),],
+                            aes(x = Time, stratum = Clone, alluvium = Clone,
+                                y = Clone_Size,
+                                fill = Clone, label = Clone)) +
+            geom_flow() +
+            geom_stratum(alpha = 1) +
+            geom_text(stat = "stratum", size = 2) +
+            rotate_x_text(90) +
+            theme_pubr(legend = "none") +
+            theme(axis.title.x = element_blank()) +
+            theme_cleveland2() +
+            scale_fill_viridis(discrete = T) +
+            scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+        }
+        
+        ### arrange the plots and save
+        fName <- paste0("Car+_Clonal_Tracing_", patient, "_1-on-1")
+        if(length(p) == 1) {
+          rowNum <- 1
+          colNum <- 1
+        } else if(length(p) == 2) {
+          rowNum <- 1
+          colNum <- 2
+        } else if(length(p) < 5) {
+          rowNum <- 2
+          colNum <- 2
+        } else if(length(p) < 7) {
+          rowNum <- 3
+          colNum <- 2
+        } else {
+          rowNum <- ceiling(sqrt(length(p)))
+          colNum <- ceiling(sqrt(length(p)))
+        }
+        g <- arrangeGrob(grobs = p,
+                         nrow = rowNum,
+                         ncol = colNum,
+                         top = fName)
+        ggsave(file = paste0(outputDir, patient, "/", fName, ".png"), g, width = 20, height = 12, dpi = 300)
+      }
+      
+      ### 1-on-1 alluvial plot with GMP-redo
+      if(length(grep("^GMP-redo$", time_points)) == 1) {
+        p <- vector("list", length = length(time_points)-1)
+        names(p) <- time_points[-grep("^GMP-redo$", time_points)]
+        for(tp in names(p)) {
+          p[[tp]] <- ggplot(plot_df[union(which(plot_df$Time == "GMP-redo"),
+                                          which(plot_df$Time == tp)),],
+                            aes(x = Time, stratum = Clone, alluvium = Clone,
+                                y = Clone_Size,
+                                fill = Clone, label = Clone)) +
+            geom_flow() +
+            geom_stratum(alpha = 1) +
+            geom_text(stat = "stratum", size = 2) +
+            rotate_x_text(90) +
+            theme_pubr(legend = "none") +
+            theme(axis.title.x = element_blank()) +
+            theme_cleveland2() +
+            scale_fill_viridis(discrete = T) +
+            scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+        }
+        
+        ### arrange the plots and save
+        fName <- paste0("Car+_Clonal_Tracing_", patient, "_1-on-1(2)")
+        if(length(p) == 1) {
+          rowNum <- 1
+          colNum <- 1
+        } else if(length(p) == 2) {
+          rowNum <- 1
+          colNum <- 2
+        } else if(length(p) < 5) {
+          rowNum <- 2
+          colNum <- 2
+        } else if(length(p) < 7) {
+          rowNum <- 3
+          colNum <- 2
+        } else {
+          rowNum <- ceiling(sqrt(length(p)))
+          colNum <- ceiling(sqrt(length(p)))
+        }
+        g <- arrangeGrob(grobs = p,
+                         nrow = rowNum,
+                         ncol = colNum,
+                         top = fName)
+        ggsave(file = paste0(outputDir, patient, "/", fName, ".png"), g, width = 20, height = 12, dpi = 300)
+      }
+      
+      ### draw the alluvial plot (GMP-redo - GMP)
+      if(length(grep("GMP", time_points)) == 2) {
+        gmp_idx <- which(time_points == "GMP")
+        gmp_redo_idx <- which(time_points == "GMP-redo")
+        time_points[gmp_idx] <- "GMP-redo"
+        time_points[gmp_redo_idx] <- "GMP"
+        plot_df$Time <- factor(plot_df$Time, levels = time_points)
+        ggplot(plot_df,
+               aes(x = Time, stratum = Clone, alluvium = Clone,
+                   y = Clone_Size,
+                   fill = Clone, label = Clone)) +
+          ggtitle(paste("Clonal Tracing in the CAR+ cells of", patient)) +
+          geom_flow() +
+          geom_stratum(alpha = 1) +
+          geom_text(stat = "stratum", size = 2) +
+          rotate_x_text(90) +
+          theme_pubr(legend = "none") +
+          theme(axis.title.x = element_blank()) +
+          theme_cleveland2() +
+          scale_fill_viridis(discrete = T) +
+          scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+        ggsave(file = paste0(outputDir, patient, "/Car+_Clonal_Tracing_", patient, "(2).png"), width = 20, height = 10, dpi = 300)
+      }
+    }
+    
+    gc()
+    
+    ### NOW IT'S NOT CAR+ ONLY BUT WITH ALL THE TCR CELLS!
+    ### load the file
+    target_file <- read.xlsx2(file = paste0(outputDir, patient, "/clonotype_frequency_over_time_", patient, ".xlsx"),
+                              sheetIndex = 1, stringsAsFactors = FALSE, check.names = FALSE,
+                              row.names = 1)
+    
+    ### numerize the table
+    for(i in 1:ncol(target_file)) {
+      target_file[,i] <- as.numeric(target_file[,i])
+    }
+    
+    ### remove all zero time points
+    time_points <- colnames(target_file)[which(apply(target_file, 2, sum) != 0)]
+    
+    ### get time points except the Total
+    time_points <- setdiff(time_points, c("Total"))
+    
+    if(length(time_points) > 1) {
+      ###  get lineages
+      lineage_table <- target_file[which(apply(target_file[,time_points], 1, function(x) {
+        return(length(which(x > 0)) > 1)  
+      })),time_points]
+      
+      ### get an input data frame for the alluvial plot
+      total_rows <- length(which(lineage_table[,time_points] > 0))
+      plot_df <- data.frame(Time=rep("", total_rows),
+                            Clone_Size=rep(0, total_rows),
+                            Clone=rep("", total_rows),
+                            CDR3=rep("", total_rows))
+      cnt <- 1
+      for(i in 1:nrow(lineage_table)) {
+        for(tp in time_points) {
+          if(lineage_table[i,tp] > 0) {
+            plot_df[cnt,] <- c(tp,
+                               lineage_table[i,tp],
+                               rownames(lineage_table)[i],
+                               "CDR3")
+            cnt <- cnt + 1
+          }
+        }
+      }
+      plot_df$Time <- factor(plot_df$Time, levels = time_points)
+      
+      ### numerize the clone_size column
+      plot_df$Clone_Size <- as.numeric(plot_df$Clone_Size)
+      
+      ### draw the alluvial plot
+      ggplot(plot_df,
+             aes(x = Time, stratum = Clone, alluvium = Clone,
+                 y = Clone_Size,
+                 fill = Clone, label = Clone)) +
+        ggtitle(paste("Clonal Tracing with the TCR of", patient)) +
+        geom_flow() +
+        geom_stratum(alpha = 1) +
+        rotate_x_text(90) +
+        theme_pubr(legend = "none") +
+        theme(axis.title.x = element_blank()) +
+        theme_cleveland2() +
+        scale_fill_viridis(discrete = T) +
+        scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+      ggsave(file = paste0(outputDir, patient, "/Clonal_Tracing_", patient, ".png"), width = 20, height = 10, dpi = 300)
+      
+      ### 1-on-1 alluvial plot with GMP
+      if(length(grep("^GMP$", time_points)) == 1) {
+        p <- vector("list", length = length(time_points)-1)
+        names(p) <- time_points[-grep("^GMP$", time_points)]
+        for(tp in names(p)) {
+          p[[tp]] <- ggplot(plot_df[union(which(plot_df$Time == "GMP"),
+                                          which(plot_df$Time == tp)),],
+                            aes(x = Time, stratum = Clone, alluvium = Clone,
+                                y = Clone_Size,
+                                fill = Clone, label = Clone)) +
+            geom_flow() +
+            geom_stratum(alpha = 1) +
+            geom_text(stat = "stratum", size = 2) +
+            rotate_x_text(90) +
+            theme_pubr(legend = "none") +
+            theme(axis.title.x = element_blank()) +
+            theme_cleveland2() +
+            scale_fill_viridis(discrete = T) +
+            scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+        }
+        
+        ### arrange the plots and save
+        fName <- paste0("Clonal_Tracing_", patient, "_1-on-1")
+        if(length(p) == 1) {
+          rowNum <- 1
+          colNum <- 1
+        } else if(length(p) == 2) {
+          rowNum <- 1
+          colNum <- 2
+        } else if(length(p) < 5) {
+          rowNum <- 2
+          colNum <- 2
+        } else if(length(p) < 7) {
+          rowNum <- 3
+          colNum <- 2
+        } else {
+          rowNum <- ceiling(sqrt(length(p)))
+          colNum <- ceiling(sqrt(length(p)))
+        }
+        g <- arrangeGrob(grobs = p,
+                         nrow = rowNum,
+                         ncol = colNum,
+                         top = fName)
+        ggsave(file = paste0(outputDir, patient, "/", fName, ".png"), g, width = 20, height = 12, dpi = 300)
+      }
+      
+      ### 1-on-1 alluvial plot with GMP-redo
+      if(length(grep("^GMP-redo$", time_points)) == 1) {
+        p <- vector("list", length = length(time_points)-1)
+        names(p) <- time_points[-grep("^GMP-redo$", time_points)]
+        for(tp in names(p)) {
+          p[[tp]] <- ggplot(plot_df[union(which(plot_df$Time == "GMP-redo"),
+                                          which(plot_df$Time == tp)),],
+                            aes(x = Time, stratum = Clone, alluvium = Clone,
+                                y = Clone_Size,
+                                fill = Clone, label = Clone)) +
+            geom_flow() +
+            geom_stratum(alpha = 1) +
+            geom_text(stat = "stratum", size = 2) +
+            rotate_x_text(90) +
+            theme_pubr(legend = "none") +
+            theme(axis.title.x = element_blank()) +
+            theme_cleveland2() +
+            scale_fill_viridis(discrete = T) +
+            scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+        }
+        
+        ### arrange the plots and save
+        fName <- paste0("Clonal_Tracing_", patient, "_1-on-1(2)")
+        if(length(p) == 1) {
+          rowNum <- 1
+          colNum <- 1
+        } else if(length(p) == 2) {
+          rowNum <- 1
+          colNum <- 2
+        } else if(length(p) < 5) {
+          rowNum <- 2
+          colNum <- 2
+        } else if(length(p) < 7) {
+          rowNum <- 3
+          colNum <- 2
+        } else {
+          rowNum <- ceiling(sqrt(length(p)))
+          colNum <- ceiling(sqrt(length(p)))
+        }
+        g <- arrangeGrob(grobs = p,
+                         nrow = rowNum,
+                         ncol = colNum,
+                         top = fName)
+        ggsave(file = paste0(outputDir, patient, "/", fName, ".png"), g, width = 20, height = 12, dpi = 300)
+      }
+      
+      ### draw the alluvial plot (GMP-redo - GMP)
+      if(length(grep("GMP", time_points)) == 2) {
+        gmp_idx <- which(time_points == "GMP")
+        gmp_redo_idx <- which(time_points == "GMP-redo")
+        time_points[gmp_idx] <- "GMP-redo"
+        time_points[gmp_redo_idx] <- "GMP"
+        plot_df$Time <- factor(plot_df$Time, levels = time_points)
+        ggplot(plot_df,
+               aes(x = Time, stratum = Clone, alluvium = Clone,
+                   y = Clone_Size,
+                   fill = Clone, label = Clone)) +
+          ggtitle(paste("Clonal Tracing with the TCR of", patient)) +
+          geom_flow() +
+          geom_stratum(alpha = 1) +
+          rotate_x_text(90) +
+          theme_pubr(legend = "none") +
+          theme(axis.title.x = element_blank()) +
+          theme_cleveland2() +
+          scale_fill_viridis(discrete = T) +
+          scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+        ggsave(file = paste0(outputDir, patient, "/Clonal_Tracing_", patient, "(2).png"), width = 20, height = 10, dpi = 300)
+      }
+    }
+    
+    gc()
+    
+  }
+  
+  
   
   
   
