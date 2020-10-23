@@ -15,12 +15,14 @@
 #               > analyses_with_new_data(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seurat_Obj2.RDS",
 #                                        barcode_dir="C:/Users/hkim8/SJ/SJCAR19/GEXbarcodes_15Oct2020/",
 #                                        TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRs_15Oct2020/",
+#                                        clonotype_lineage_info_path="./data/SJCAR19_Clonotype_Lineages.RDS",
 #                                        outputDir="./results/New/")
 ###
 
 analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seurat_Obj2.RDS",
                                    barcode_dir="C:/Users/hkim8/SJ/SJCAR19/GEXbarcodes_15Oct2020/",
                                    TCR_dir="C:/Users/hkim8/SJ/SJCAR19/TCRs_15Oct2020/",
+                                   clonotype_lineage_info_path="./data/SJCAR19_Clonotype_Lineages.RDS",
                                    outputDir="./results/New/") {
   
   ### load libraries
@@ -475,6 +477,26 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
       writeLines(paste(i, "/", length(dup_idx)))
     }
   }
+  
+  
+  ### UMAP by patients
+  p <- DimPlot(Seurat_Obj, reduction = "umap", group.by = "time", split.by = "px", pt.size = 1, ncol = 3) +
+    ggtitle("UMAP of SJCAR19 Data") +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 10))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir, "/", "UMAP_Plot.png"), plot = p, width = 20, height = 12, dpi = 300)
+  
+  
+  ###
+  ### temporarily exclude Px5 - Wk1 cells for all the analyses
+  ### since we noticed there are weirdly many CAR+ cells in there
+  ###
+  # Seurat_Obj <- SetIdent(object = Seurat_Obj,
+  #                        cells = rownames(Seurat_Obj@meta.data),
+  #                        value = Seurat_Obj@meta.data$library)
+  # Seurat_Obj <- subset(Seurat_Obj, idents = unique(Seurat_Obj@meta.data$library)[-which(Seurat_Obj@meta.data$library == "SJCAR19-05_Wk1_PB")])
+  # print(identical(rownames(Seurat_Obj@meta.data), colnames(Seurat_Obj@assays$RNA@counts)))
+  
   
   ### examine the proportion of CAR+ cells in each patient - barplot 
   plot_df <- data.frame(LIB=rep(unique(Seurat_Obj@meta.data$library), 2),
@@ -1042,8 +1064,91 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
   }
   
   
+  ### because we think there are too many CAR+ cells in patient 5 - Wk1,
+  ### we want to see how the CAR counts of the cells are
+  print(identical(rownames(Seurat_Obj@meta.data), colnames(Seurat_Obj@assays$RNA@counts)))
+  target_idx <- intersect(intersect(which(Seurat_Obj@meta.data$px == "SJCAR19-05"),
+                                    which(Seurat_Obj@meta.data$time == "Wk1")),
+                          which(Seurat_Obj@meta.data$CAR == "CARpos"))
+  
+  ### density plot
+  ggplot(data.frame(CARcount=Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short", target_idx]),
+         aes(x = CARcount)) +
+    geom_histogram(binwidth = 1) +
+    ggtitle(paste("CAR counts of the Px5 Wk1 CAR+ Cells")) +
+    theme_classic(base_size = 16)
+  ggsave(file = paste0(outputDir, "/CAR_Counts_Px5_Wk1.png"), width = 8, height = 6, dpi = 300)
   
   
+  ### draw an alluvial plot for each patient
+  SJCAR19_Clonotype_Frequency <- vector("list", length = 2)
+  names(SJCAR19_Clonotype_Frequency) <- c("ALL", "CARPOSONLY")
+  SJCAR19_Clonotype_Frequency[[1]] <- vector("list", length = length(unique(Seurat_Obj@meta.data$px)))
+  names(SJCAR19_Clonotype_Frequency[[1]]) <- unique(Seurat_Obj@meta.data$px)
+  SJCAR19_Clonotype_Frequency[[2]] <- vector("list", length = length(unique(Seurat_Obj@meta.data$px)))
+  names(SJCAR19_Clonotype_Frequency[[2]]) <- unique(Seurat_Obj@meta.data$px)
+  for(patient in unique(Seurat_Obj@meta.data$px)) {
+    ### print progress
+    writeLines(paste(patient))
+    
+    ### load the file
+    SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[patient]] <- read.xlsx2(file = paste0(outputDir, patient, "/car_clonotype_frequency_over_time_", patient, ".xlsx"),
+                                                                         sheetIndex = 1, stringsAsFactors = FALSE, check.names = FALSE,
+                                                                         row.names = 1)
+    
+    ### numerize the table
+    for(i in 1:ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[patient]])) {
+      SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[patient]][,i] <- as.numeric(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[patient]][,i])
+    }
+    
+    ### NOW IT'S NOT CAR+ ONLY BUT WITH ALL THE TCR CELLS!
+    ### load the file
+    SJCAR19_Clonotype_Frequency[["ALL"]][[patient]] <- read.xlsx2(file = paste0(outputDir, patient, "/clonotype_frequency_over_time_", patient, ".xlsx"),
+                                                                  sheetIndex = 1, stringsAsFactors = FALSE, check.names = FALSE,
+                                                                  row.names = 1)
+    
+    ### numerize the table
+    for(i in 1:ncol(SJCAR19_Clonotype_Frequency[["ALL"]][[patient]])) {
+      SJCAR19_Clonotype_Frequency[["ALL"]][[patient]][,i] <- as.numeric(SJCAR19_Clonotype_Frequency[["ALL"]][[patient]][,i])
+    }
+  }
+  
+  ### Save the clonotype lineage info
+  saveRDS(SJCAR19_Clonotype_Frequency, file = paste0(dirname(Seurat_RObj_path), "/SJCAR19_Clonotype_Lineages.RDS" ))
+  
+  
+  ### persisters vs non-persisters
+  ### DE + pathway analysis
+  ### With all the patients
+  #
+  # load clonotype lineages info
+  SJCAR19_Clonotype_Frequency <- readRDS(clonotype_lineage_info_path)
+  
+  ### GMP CAR+ persistent clones
+  pClones <- NULL
+  for(i in 1:length(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]])) {
+    gmp_idx <- which(colnames(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) == "GMP")
+    gmp_redo_idx <- which(colnames(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) == "GMP-redo")
+    last_gmp_idx <- max(gmp_idx, gmp_redo_idx)
+    if((last_gmp_idx != -Inf) && (ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) - last_gmp_idx > 1)) {
+      
+    }
+    
+    
+  }
+  
+  ### GMP CAR+ persistent cells
+  pIdx <- intersect(which(),
+                    which())
+  
+  
+  ### check whether the orders are the same
+  print(identical(names(Idents(object = Seurat_Obj)), rownames(Seurat_Obj@meta.data)))
+  
+  ### split the Seurat obj based on donor info
+  Seurat_Obj <- SetIdent(object = Seurat_Obj,
+                         cells = rownames(Seurat_Obj@meta.data),
+                         value = Seurat_Obj@meta.data$Donor)
   
   
 }
