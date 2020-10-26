@@ -15,7 +15,7 @@
 #               > analyses_with_new_data(Seurat_RObj_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/SJCAR19_Oct2020_Seurat_Obj2.RDS",
 #                                        barcode_dir="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/JCC/JCC212_SJCAR19/GEXbarcodes_15Oct2020/",
 #                                        TCR_dir="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/JCC/JCC212_SJCAR19/TCRs_15Oct2020/",
-#                                        clonotype_lineage_info_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/SJCAR19_Clonotype_Lineages.RDS",
+#                                        clonotype_lineage_info_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/SJCAR19_Clonotype_Lineages.RDS",
 #                                        outputDir="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/new_results/")
 ###
 
@@ -69,6 +69,18 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
       install.packages("BiocManager")
     BiocManager::install("slingshot")
     require(slingshot, quietly = TRUE)
+  }
+  if(!require(caret, quietly = TRUE)) {
+    install.packages("caret")
+    require(caret, quietly = TRUE)
+  }
+  if(!require(e1071, quietly = TRUE)) {
+    install.packages("e1071")
+    require(e1071, quietly = TRUE)
+  }
+  if(!require(pROC, quietly = TRUE)) {
+    install.packages("pROC")
+    require(pROC, quietly = TRUE)
   }
   
   ### create outputDir
@@ -2247,7 +2259,174 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
     
   }
   
+  #
+  ### build a classifier of predicting GMP CAR+ persisters among GMP CAR+ cells
+  #
+  # load clonotype lineages info
+  SJCAR19_Clonotype_Frequency <- readRDS(clonotype_lineage_info_path)
   
+  ### GMP CAR+ persistent clones
+  pClones <- NULL
+  for(i in 1:length(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]])) {
+    gmp_idx <- which(colnames(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) == "GMP")
+    gmp_redo_idx <- which(colnames(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) == "GMP-redo")
+    last_gmp_idx <- max(gmp_idx, gmp_redo_idx)
+    
+    ### if at least GMP or GMP-redo exist and there are at least one afterward-time point
+    if((last_gmp_idx != -Inf) && (ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) - last_gmp_idx > 1)) {
+      ### collect persistent clones that appeared in GMP and persist afterwards
+      if(nrow(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) > 0) {
+        for(j in 1:nrow(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])) {
+          for(k in last_gmp_idx:(ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])-1)) {
+            if((SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,"GMP"] > 0 ||
+                SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,"GMP-redo"] > 0) &&
+               SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,k] > 0) {
+              pClones <- c(pClones, rownames(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])[j])
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
   
+  ### GMP CAR+ persistent cells
+  pIdx <- intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% pClones),
+                    intersect(union(which(Seurat_Obj@meta.data$time == "GMP"),
+                                    which(Seurat_Obj@meta.data$time == "GMP-redo")),
+                              which(Seurat_Obj@meta.data$CAR == "CARpos")))
+  
+  ### GMP CAR+ non-persistent cells
+  npIdx <- setdiff(intersect(union(which(Seurat_Obj@meta.data$time == "GMP"),
+                                   which(Seurat_Obj@meta.data$time == "GMP-redo")),
+                             which(Seurat_Obj@meta.data$CAR == "CARpos")),
+                   which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% pClones))
+  
+  ### check whether the orders are the same
+  print(identical(names(Idents(object = Seurat_Obj)), rownames(Seurat_Obj@meta.data)))
+  
+  ### annotate GMP CAR+ persisters
+  Seurat_Obj@meta.data$GMP_CARpos_Persister <- NA
+  Seurat_Obj@meta.data$GMP_CARpos_Persister[pIdx] <- "YES"
+  Seurat_Obj@meta.data$GMP_CARpos_Persister[npIdx] <- "NO"
+  
+  ### because there are too many cells in non-persisters
+  ### randomly select some from those and perform DE analysis
+  set.seed(1234)
+  Seurat_Obj@meta.data$GMP_CARpos_Persister[sample(npIdx, length(npIdx) - length(pIdx))] <- NA
+  
+  #'******************************************************************************
+  #' A function to transform RNA-Seq data with VST in DESeq2 package
+  #' readCount: RNA-Seq rawcounts in a matrix or in a data frame form
+  #'            Rows are genes and columns are samples
+  #' filter_thresh: The function filters out genes that have at least one sample
+  #'                with counts larger than the 'filter_thresh' value
+  #'                e.g., if the 'filter_thresh' = 1, then it removes genes
+  #'                that have counts <= 1 across all the samples
+  #'                if 0, then there will be no filtering
+  #'******************************************************************************
+  normalizeRNASEQwithVST <- function(readCount, filter_thresh=1) {
+    
+    ### load library
+    if(!require(DESeq2, quietly = TRUE)) {
+      if(!requireNamespace("BiocManager", quietly = TRUE))
+        install.packages("BiocManager")
+      BiocManager::install("DESeq2")
+      require(DESeq2, quietly = TRUE)
+    }
+    
+    ### make a design matrix for DESeq2 data
+    condition <- data.frame(factor(rep("OneClass", ncol(readCount))))
+    
+    ### Data preparation for DESeq2 format
+    deSeqData <- DESeqDataSetFromMatrix(countData=readCount, colData=condition, design= ~0)
+    
+    if(filter_thresh > 0) {
+      ### Remove rubbish rows - this will decrease the number of rows
+      keep = apply(counts(deSeqData), 1, function(r){
+        return(sum(r > filter_thresh) > 0)
+      })
+      deSeqData <- deSeqData[keep,]
+    }
+    
+    ### VST
+    vsd <- varianceStabilizingTransformation(deSeqData)
+    transCnt <- data.frame(assay(vsd), check.names = FALSE)
+    
+    return (transCnt)
+    
+  }
+  
+  ### a function to select genes based on variance
+  selectTopV <- function(x, selectNum) {
+    v <- apply(x, 1, var)
+    x <- x[order(-v),]
+    x <- x[1:selectNum,]
+    
+    return (x)
+  }
+  
+  ### parameter setting for a classifier
+  iteration <- 10
+  set.seed(2990)
+  featureSelectionNum <- 200
+  sampleNum <- 100
+  methodTypes <- c("svmLinear", "svmRadial", "gbm", "rf", "LogitBoost", "knn")
+  methodNames <- c("SVMLinear", "SVMRadial", "GBM", "RandomForest", "LogitBoost", "K-NN")
+  train_control <- trainControl(method="LOOCV", classProbs = TRUE, savePredictions = TRUE, verboseIter = FALSE)
+  
+  ### rownames in the meta.data should be in the same order as colnames in the counts
+  print(identical(rownames(Seurat_Obj@meta.data), colnames(Seurat_Obj@assays$RNA@counts)))
+  
+  ### iteratively build a classifier
+  for(i in 1:iteration) {
+    
+    ### normalize the read counts
+    ### before the normalization, only keep the samples that will be used in the classifier
+    input_data <- normalizeRNASEQwithVST(readCount = data.frame(Seurat_Obj@assays$RNA@counts[,c(sample(which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES"), sampleNum),
+                                                                                                sample(which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "NO"), sampleNum))],
+                                                                stringsAsFactors = FALSE, check.names = FALSE))
+    
+    ### reduce the gene size based on variance
+    ### only select high variance genes
+    input_data <- selectTopV(input_data, featureSelectionNum)
+    
+    ### annotate class for the input data
+    input_data <- data.frame(t(input_data), stringsAsFactors = FALSE, check.names = FALSE)
+    input_data$Class <- factor(c(rep("GMP_Last", sampleNum),
+                                 rep("GMP_Not_Last", sampleNum)),
+                               levels = c("GMP_Last", "GMP_Not_Last"))
+    
+    ### build classifier and test
+    ### LOOCV
+    p <- list()
+    acc <- NULL
+    for(j in 1:length(methodTypes)) {
+      writeLines(paste(methodTypes[j]))
+      model <- train(Class~., data=input_data, trControl=train_control, method=methodTypes[j])
+      roc <- roc(model$pred$obs, model$pred$GMP_Last)
+      acc <- c(acc, round(mean(model$results$Accuracy), 3))
+      p[[j]] <- plot.roc(roc, main = paste(methodNames[j], "Using Gene Expressions\n",
+                                           "Accuracy =", acc[j]),
+                         legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+                         xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+      gc()
+    }
+    
+    ### draw ROC curves
+    png(paste0(outputDir, "Classifier_GMP_Last_vs_Not_Last_", featureSelectionNum, "_NEW_(", i, ").png"),
+        width = 2000, height = 2000, res = 350)
+    par(mfrow=c(3, 2))
+    for(j in 1:length(methodTypes)) {
+      plot.roc(p[[j]], main = paste(methodNames[j], "Using Gene Expressions\n",
+                                    "Accuracy =", acc[j]),
+               legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+               xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+    }
+    dev.off()
+    
+    gc()
+    
+  }
   
 }
