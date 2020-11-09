@@ -13,8 +13,8 @@
 #
 #   Example
 #               > source("The_directory_of_Read10xOutputsToSeurat.R/Read10xOutputsToSeurat.R")
-#               > read10x_and_make_seuratobj(ten_x_dir="C:/Users/hkim8/SJ/SJCAR19/JCC212_SJCAR19_C1AggregOct2020ns/filtered_feature_bc_matrix/",
-#                                            outputPath="./data/")
+#               > read10x_and_make_seuratobj(ten_x_dir="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/JCC/JCC212_SJCAR19/JCC212_SJCAR19_C1AggregOct2020ns/filtered_feature_bc_matrix/",
+#                                            outputPath="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/SJCAR19_Seurat_Obj_Oct2020.RDS")
 ###
 
 read10x_and_make_seuratobj <- function(ten_x_dir="C:/Users/hkim8/SJ/SJCAR19/JCC212_SJCAR19_C1AggregOct2020ns/filtered_feature_bc_matrix/",
