@@ -67,24 +67,20 @@ cd4_cd8_investigation <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seura
   total_time_points <- c("PreTrans", "PreTransB", "Wk-1", "Wk-1Run1", "Wk-1Run2", "Wk0", "GMP", "GMP-redo",
                          "Wk1", "Wk1b", "Wk2", "Wk3", "Wk4", "Wk6", "Wk8", "3mo", "6mo", "9mo")
   
-  
+  ### download the hematopoietic cell population data
   NHD <- NovershternHematopoieticData()    
   
+  ### get gene expressions from the Seurat object
+  target_mat <- as.SingleCellExperiment(Seurat_Obj, assay = "RNA")
   
-  
-  C1_GMP_sub_SSE <- as.SingleCellExperiment(C1_GMP_sub, assay = "RNA")
-  
-  
-  
-  C1_GMP_sub_NHD.main <- SingleR(test = C1_GMP_sub_SSE, ref = list(NHD), labels = list(NHD$label.main ))
-  table(C1_GMP_sub_NHD.main$labels)
-  #save(C1_GMP_sub_NHD.main,file = "C1_GMP_sub_NHD.main.Robj")
+  ###
+  NHD.main <- SingleR(test = target_mat, ref = list(NHD), labels = list(NHD$label.main ))
+  table(NHD.main$labels)
   
   
   
-  C1_GMP_sub_NHD.fine <- SingleR(test = C1_GMP_sub_SSE, ref = list(NHD), labels = list(NHD$label.fine ))
+  C1_GMP_sub_NHD.fine <- SingleR(test = target_mat, ref = list(NHD), labels = list(NHD$label.fine ))
   table(C1_GMP_sub_NHD.fine$labels)
-  #save(C1_GMP_sub_NHD.fine,file = "C1_GMP_sub_NHD.fine.Robj")
   
   
   
