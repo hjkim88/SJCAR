@@ -14,11 +14,11 @@
 #   Example
 #               > source("The_directory_of_Read10xOutputsToSeurat.R/Read10xOutputsToSeurat.R")
 #               > read10x_and_make_seuratobj(ten_x_dir="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/JCC/JCC212_SJCAR19/JCC212_SJCAR19_C1AggregOct2020ns/filtered_feature_bc_matrix/",
-#                                            outputPath="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/SJCAR19_Seurat_Obj_Oct2020.RDS")
+#                                            outputPath="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/SJCAR19_Oct2020_Seurat_Obj5.RDS")
 ###
 
 read10x_and_make_seuratobj <- function(ten_x_dir="C:/Users/hkim8/SJ/SJCAR19/JCC212_SJCAR19_C1AggregOct2020ns/filtered_feature_bc_matrix/",
-                                       outputPath="./data/SJCAR19_Seurat_Obj_Oct2020.RDS") {
+                                       outputPath="./data/SJCAR19_Oct2020_Seurat_Obj5.RDS") {
   
   ### load libraries
   if(!require(dplyr, quietly = TRUE)) {
@@ -48,6 +48,19 @@ read10x_and_make_seuratobj <- function(ten_x_dir="C:/Users/hkim8/SJ/SJCAR19/JCC2
   ### MT percentage
   SJCAR19_Oct2020_Seurat_Obj[["percent.mt"]] <- PercentageFeatureSet(SJCAR19_Oct2020_Seurat_Obj, pattern = "^MT-")
   
+  ### Visualize QC metrics as a violin plot
+  VlnPlot(SJCAR19_Oct2020_Seurat_Obj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+  plot(density(SJCAR19_Oct2020_Seurat_Obj@meta.data$nFeature_RNA))
+  plot(density(SJCAR19_Oct2020_Seurat_Obj@meta.data$percent.mt))
+  
+  ### Filter cells that have unique feature counts over 5000 or less than 300
+  ### Filter cells that have > 10% mitochondrial counts
+  SJCAR19_Oct2020_Seurat_Obj <- subset(SJCAR19_Oct2020_Seurat_Obj, subset = nFeature_RNA > 300 & nFeature_RNA < 5000 & percent.mt < 10)
+  
+  ### Cell cycle score (will be used later for regression out)
+  SJCAR19_Oct2020_Seurat_Obj <- CellCycleScoring(object = SJCAR19_Oct2020_Seurat_Obj,
+                                                 g2m.features = cc.genes$g2m.genes,
+                                                 s.features = cc.genes$s.genes)
   ### normalization
   SJCAR19_Oct2020_Seurat_Obj <- NormalizeData(SJCAR19_Oct2020_Seurat_Obj,
                                               normalization.method = "LogNormalize", scale.factor = 10000)
@@ -57,7 +70,8 @@ read10x_and_make_seuratobj <- function(ten_x_dir="C:/Users/hkim8/SJ/SJCAR19/JCC2
                                                      selection.method = "vst", nfeatures = 2000)
   
   ### scaling
-  SJCAR19_Oct2020_Seurat_Obj <- ScaleData(SJCAR19_Oct2020_Seurat_Obj)
+  SJCAR19_Oct2020_Seurat_Obj <- ScaleData(SJCAR19_Oct2020_Seurat_Obj,
+                                          vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
   
   ### PCA
   SJCAR19_Oct2020_Seurat_Obj <- RunPCA(SJCAR19_Oct2020_Seurat_Obj,
