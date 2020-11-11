@@ -70,8 +70,13 @@ cd4_cd8_investigation <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seura
   ### download the hematopoietic cell population data
   NHD <- NovershternHematopoieticData()    
   
+  Seurat_Obj <- SetIdent(object = Seurat_Obj,
+                         cells = rownames(Seurat_Obj@meta.data),
+                         value = Seurat_Obj@meta.data$library)
+  subset_Seurat_Obj <- subset(Seurat_Obj, idents = "SJCAR19-05_GMP_GMP")
+  
   ### get gene expressions from the Seurat object
-  target_mat <- as.SingleCellExperiment(Seurat_Obj, assay = "RNA")
+  target_mat <- as.SingleCellExperiment(subset_Seurat_Obj, assay = "RNA")
   
   ###
   NHD.main <- SingleR(test = target_mat, ref = list(NHD), labels = list(NHD$label.main ))
@@ -79,7 +84,7 @@ cd4_cd8_investigation <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seura
   
   
   
-  C1_GMP_sub_NHD.fine <- SingleR(test = target_mat, ref = list(NHD), labels = list(NHD$label.fine ))
+  NHD.fine <- SingleR(test = target_mat, ref = list(NHD), labels = list(NHD$label.fine ))
   table(C1_GMP_sub_NHD.fine$labels)
   
   
