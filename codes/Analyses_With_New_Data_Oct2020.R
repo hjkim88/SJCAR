@@ -2210,50 +2210,52 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
     ### patient index
     px_idx <- which(Seurat_Obj@meta.data$px == patient)
     
-    ### pca with the given patient only
-    sub_pca_map <- pca_map[px_idx,]
-    
-    ### patient specific colors
-    cell_colors_px <- cell_colors_clust[which(names(cell_colors_clust) %in% unique(Seurat_Obj@meta.data$time[px_idx]))]
-    
-    ### get slingshot object
-    slingshot_obj <- slingshot(sub_pca_map,
-                               clusterLabels = factor(Seurat_Obj@meta.data$time[px_idx],
-                                                      levels = names(cell_colors_px)), 
-                               reducedDim = "PCA")
-    
-    ### Trajectory inference
-    png(paste0(outputDir, "/", patient, "/Trajectory_Inference_PCA_", patient, ".png"), width = 2500, height = 1500, res = 200)
-    plot(sub_pca_map,
-         main = paste(patient, "Trajectory Inference Based On Time Points (PCA)"),
-         col = cell_colors_clust[as.character(Seurat_Obj@meta.data$time[px_idx])],
-         pch = 19, cex = 1.5)
-    lines(slingshot_obj, lwd = 2, type = "lineages", col = "black",
-          show.constraints = TRUE, constraints.col = cell_colors_px)
-    legend("bottomleft", legend = names(cell_colors_px), col = cell_colors_px,
-           pch = 19)
-    dev.off()
-    
-    ### Trajectory inference on multi dimentional PCA
-    png(paste0(outputDir, "/", patient, "/Trajectory_Inference_Multi-PCA_", patient, ".png"), width = 2500, height = 1500, res = 200)
-    pairs(slingshot_obj, type="lineages", col = apply(slingshot_obj@clusterLabels, 1, function(x) cell_colors_clust[names(x)[which(x == 1)]]),
-          show.constraints = TRUE, constraints.col = cell_colors_px, cex = 0.8,
-          horInd = 1:5, verInd = 1:5, main = paste(patient, "Trajectory Inference Based On Time Points (PCA)"))
-    par(xpd = TRUE)
-    legend("bottomleft", legend = names(cell_colors_px), col = cell_colors_px,
-           pch = 19, title = "Time")
-    dev.off()
-    
-    # ### 3D Slingshot
-    # slingshot_3d_lineages(slingshot_obj = slingshot_obj,
-    #                       color = cell_colors_px,
-    #                       title = paste("Trajectory_Inference_3D-PCA_", patient),
-    #                       print = TRUE,
-    #                       outputDir = paste0(outputDir, "/", patient, "/"),
-    #                       width = 1200,
-    #                       height = 800)
-    # rgl.close()
-    
+    ### run pseudotime analysis only if there are two groups
+    if(length(unique(Seurat_Obj@meta.data$time[px_idx])) > 1) {
+      ### pca with the given patient only
+      sub_pca_map <- pca_map[px_idx,]
+      
+      ### patient specific colors
+      cell_colors_px <- cell_colors_clust[which(names(cell_colors_clust) %in% unique(Seurat_Obj@meta.data$time[px_idx]))]
+      
+      ### get slingshot object
+      slingshot_obj <- slingshot(sub_pca_map,
+                                 clusterLabels = factor(Seurat_Obj@meta.data$time[px_idx],
+                                                        levels = names(cell_colors_px)), 
+                                 reducedDim = "PCA")
+      
+      ### Trajectory inference
+      png(paste0(outputDir, "/", patient, "/Trajectory_Inference_PCA_", patient, ".png"), width = 2500, height = 1500, res = 200)
+      plot(sub_pca_map,
+           main = paste(patient, "Trajectory Inference Based On Time Points (PCA)"),
+           col = cell_colors_clust[as.character(Seurat_Obj@meta.data$time[px_idx])],
+           pch = 19, cex = 1.5)
+      lines(slingshot_obj, lwd = 2, type = "lineages", col = "black",
+            show.constraints = TRUE, constraints.col = cell_colors_px)
+      legend("bottomleft", legend = names(cell_colors_px), col = cell_colors_px,
+             pch = 19)
+      dev.off()
+      
+      ### Trajectory inference on multi dimentional PCA
+      png(paste0(outputDir, "/", patient, "/Trajectory_Inference_Multi-PCA_", patient, ".png"), width = 2500, height = 1500, res = 200)
+      pairs(slingshot_obj, type="lineages", col = apply(slingshot_obj@clusterLabels, 1, function(x) cell_colors_clust[names(x)[which(x == 1)]]),
+            show.constraints = TRUE, constraints.col = cell_colors_px, cex = 0.8,
+            horInd = 1:5, verInd = 1:5, main = paste(patient, "Trajectory Inference Based On Time Points (PCA)"))
+      par(xpd = TRUE)
+      legend("bottomleft", legend = names(cell_colors_px), col = cell_colors_px,
+             pch = 19, title = "Time")
+      dev.off()
+      
+      # ### 3D Slingshot
+      # slingshot_3d_lineages(slingshot_obj = slingshot_obj,
+      #                       color = cell_colors_px,
+      #                       title = paste("Trajectory_Inference_3D-PCA_", patient),
+      #                       print = TRUE,
+      #                       outputDir = paste0(outputDir, "/", patient, "/"),
+      #                       width = 1200,
+      #                       height = 800)
+      # rgl.close()
+    }
     
     gc()
     
