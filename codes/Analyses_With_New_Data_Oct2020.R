@@ -1225,7 +1225,7 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
                 ggtitle(paste0("KEGG ", title)) +
                 theme(axis.text = element_text(size = 25))
               
-              png(paste0(dir, "kegg_", title, "_CB.png"), width = 2000, height = 1000)
+              png(paste0(dir, "kegg_", title, ".png"), width = 2000, height = 1000)
               print(p[[1]])
               dev.off()
             } else {
@@ -1269,7 +1269,7 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
                 ggtitle(paste0("GO ", title)) +
                 theme(axis.text = element_text(size = 25))
               
-              png(paste0(dir, "go_", title, "_CB.png"), width = 2000, height = 1000)
+              png(paste0(dir, "go_", title, ".png"), width = 2000, height = 1000)
               print(p[[2]])
               dev.off()
             } else {
@@ -2244,15 +2244,15 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
            pch = 19, title = "Time")
     dev.off()
     
-    ### 3D Slingshot
-    slingshot_3d_lineages(slingshot_obj = slingshot_obj,
-                          color = cell_colors_px,
-                          title = paste("Trajectory_Inference_3D-PCA_", patient),
-                          print = TRUE,
-                          outputDir = paste0(outputDir, "/", patient, "/"),
-                          width = 1200,
-                          height = 800)
-    rgl.close()
+    # ### 3D Slingshot
+    # slingshot_3d_lineages(slingshot_obj = slingshot_obj,
+    #                       color = cell_colors_px,
+    #                       title = paste("Trajectory_Inference_3D-PCA_", patient),
+    #                       print = TRUE,
+    #                       outputDir = paste0(outputDir, "/", patient, "/"),
+    #                       width = 1200,
+    #                       height = 800)
+    # rgl.close()
     
     
     gc()
