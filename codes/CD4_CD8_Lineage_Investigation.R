@@ -74,7 +74,7 @@ cd4_cd8_investigation <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seura
   target_mat <- as.SingleCellExperiment(Seurat_Obj, assay = "RNA")
   
   ###
-  NHD.main <- SingleR(test = target_mat, ref = list(NHD), labels = list(NHD$label.main ))
+  NHD.main <- SingleR(test = target_mat, ref = list(NHD), labels = list(NHD$label.main))
   table(NHD.main$labels)
   
   
