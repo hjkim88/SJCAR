@@ -1036,16 +1036,16 @@ ifitm3_pi3k <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR19_Oc
     ### heatmap
     
     ### get target samples
-    persister_samples <- rownames(Seurat_Obj@meta.data)[which(GMP_CARpos_Persister == "YES")]
-    non_persister_samples <- rownames(Seurat_Obj@meta.data)[which(GMP_CARpos_Persister == "NO")]
-    target_samples <- c(persister_samples, non_persister_samples)
+    persister_samples2 <- rownames(Seurat_Obj@meta.data)[which(GMP_CARpos_Persister == "YES")]
+    non_persister_samples2 <- rownames(Seurat_Obj@meta.data)[which(GMP_CARpos_Persister == "NO")]
+    target_samples2 <- c(persister_samples2, non_persister_samples2)
     
     ### use all the pathway genes for the heatmap
     target_genes <- intersect(pi3k_pathways[[pathway]],
                               rownames(Seurat_Obj@assays$RNA@data))
     
     ### create a heatmap mat
-    heatmap_mat <- data.frame(Seurat_Obj@assays$RNA@counts[c("IFITM3", target_genes),target_samples],
+    heatmap_mat <- data.frame(Seurat_Obj@assays$RNA@counts[c("IFITM3", target_genes),target_samples2],
                               check.names = FALSE)
     
     ### scale the data
@@ -1056,10 +1056,10 @@ ifitm3_pi3k <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR19_Oc
     heatmap_mat_scaled[which(heatmap_mat_scaled > abs(min(heatmap_mat_scaled, na.rm = TRUE)))] <- abs(min(heatmap_mat_scaled, na.rm = TRUE))
     
     ### set colside colors
-    col_colors <- c(rep("blue", length(which(colnames(heatmap_mat_scaled) %in% persister_samples))),
-                    rep("red", length(which(colnames(heatmap_mat_scaled) %in% non_persister_samples))))
-    names(col_colors) <- c(rep("Persisters", length(which(colnames(heatmap_mat_scaled) %in% persister_samples))),
-                           rep("Non-Persisters", length(which(colnames(heatmap_mat_scaled) %in% non_persister_samples))))
+    col_colors <- c(rep("blue", length(which(colnames(heatmap_mat_scaled) %in% persister_samples2))),
+                    rep("red", length(which(colnames(heatmap_mat_scaled) %in% non_persister_samples2))))
+    names(col_colors) <- c(rep("Persisters", length(which(colnames(heatmap_mat_scaled) %in% persister_samples2))),
+                           rep("Non-Persisters", length(which(colnames(heatmap_mat_scaled) %in% non_persister_samples2))))
     
     ### set rowside colors
     row_colors <- c("black", rep("grey", length(which(rownames(heatmap_mat_scaled) %in% target_genes))))
