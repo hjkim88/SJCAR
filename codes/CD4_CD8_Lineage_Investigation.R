@@ -653,6 +653,153 @@ cd4_cd8_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/
   }
   
   
+  ### check if there are lineages that have mixed CD4/CD8 cells
+  ### that means something is wrong with CD4 or CD8 cells becuase they should all be the same
   
+  ### load clonotype lineages info
+  SJCAR19_Clonotype_Frequency <- readRDS(clonotype_lineage_info_path)
+  
+  ### for each patient produce how many lineages (clones) have the mixed cells
+  for(patient in unique(Seurat_Obj@meta.data$px)) {
+    
+    ### print progress
+    writeLines(paste(patient))
+    
+    ### create a dir
+    outputDir2 <- paste0(outputDir, patient, "/CD4_CD8/")
+    dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+    
+    ### get clonotype frequency data of the patient - CARpos only
+    target_file <- SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[patient]]
+    
+    ### remove all zero time points
+    time_points <- colnames(target_file)[which(apply(target_file, 2, sum) != 0)]
+    
+    ### get time points except the Total
+    time_points <- setdiff(time_points, c("Total"))
+    
+    if(length(time_points) > 1) {
+      ###  get lineages
+      lineage_table <- target_file[which(apply(target_file[,time_points], 1, function(x) {
+        return(length(which(x > 0)) > 1)  
+      })),time_points]
+      
+      ### separate the CD4 and CD8 cells
+      lineage_table <- data.frame(clone_id=rownames(lineage_table),
+                                  lineage_table,
+                                  stringsAsFactors = FALSE, check.names = FALSE)
+      lineage_table_CD <- data.frame(sapply(lineage_table, function(x) c(rbind(x, x, x))),
+                                     stringsAsFactors = FALSE, check.names = FALSE)
+      lineage_table_CD <- data.frame(clone_id=lineage_table_CD$clone_id,
+                                     cell_type=rep(c("CD4", "CD8", "ALL"), nrow(lineage_table)),
+                                     sapply(lineage_table_CD[,time_points],
+                                            as.numeric),
+                                     stringsAsFactors = FALSE, check.names = FALSE)
+      rownames(lineage_table_CD) <- paste(c(rbind(rownames(lineage_table),
+                                                  rownames(lineage_table),
+                                                  rownames(lineage_table))),
+                                          c("CD4", "CD8", "ALL"), sep = "_")
+      
+      ### specific time point indicies
+      tp_indicies <- lapply(time_points, function(x) which(Seurat_Obj@meta.data$time == x))
+      names(tp_indicies) <- time_points
+      
+      ### fill out the new table
+      lineage_table_CD$total_count <- 0
+      for(i in 1:nrow(lineage_table_CD)) {
+        if(lineage_table_CD$cell_type[i] != "ALL") {
+          car_clone_idx <- intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                     intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient == lineage_table_CD$clone_id[i]),
+                                               which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == lineage_table_CD$cell_type[i])))
+          for(tp in time_points) {
+            lineage_table_CD[i,tp] <- length(intersect(car_clone_idx, tp_indicies[[tp]]))
+          }
+        }
+        lineage_table_CD$total_count[i] <- sum(lineage_table_CD[i,time_points])
+      }
+      
+      ### check whether a clone has mixed cells
+      total_cellNum <- 0
+      mixed_cellNum <- 0
+      total_cellNum_specific <- NULL
+      mixed_cellNum_specific <- NULL
+      mixed_clones <- NULL
+      for(clone in unique(lineage_table_CD$clone_id)) {
+        if((lineage_table_CD[paste0(clone, "_CD4"),"total_count"] > 0) && (lineage_table_CD[paste0(clone, "_CD8"),"total_count"] > 0)) {
+          temp <- ifelse(lineage_table_CD[paste0(clone, "_CD4"),"total_count"] > lineage_table_CD[paste0(clone, "_CD8"),"total_count"],
+                         as.numeric(lineage_table_CD[paste0(clone, "_CD8"),"total_count"]),
+                         as.numeric(lineage_table_CD[paste0(clone, "_CD4"),"total_count"]))
+          mixed_cellNum <- mixed_cellNum + temp
+          mixed_cellNum_specific <- c(mixed_cellNum_specific, temp)
+          mixed_clones <- c(mixed_clones, clone)
+          total_cellNum_specific <- c(total_cellNum_specific, lineage_table_CD[paste0(clone, "_ALL"),"total_count"])
+        }
+        total_cellNum <- total_cellNum + lineage_table_CD[paste0(clone, "_ALL"),"total_count"]
+      }
+      
+      ### save result if exists
+      if(length(mixed_clones) > 0) {
+        result_table <- data.frame(Clone_ID=mixed_clones,
+                                   Mixed_CellNum=mixed_cellNum_specific,
+                                   Total_CellNum=total_cellNum_specific)
+        
+        write.xlsx2(result_table, file = paste0(outputDir2, patient, "_CD4_CD8_Mixed_Clones_And_Cells.xlsx"),
+                    sheetName = "CD4_CD8_Mixed_Clones_And_Cells", row.names = FALSE)
+      }
+      
+      ### save total result
+      writeLines(paste(patient, "Total cell #:", total_cellNum, ",",
+                       "Mixed cell #:", mixed_cellNum,
+                       "Error %:", round(100*mixed_cellNum/total_cellNum, digits = 3), "%"))
+    }
+    
+  }
+  
+  #
+  ### CD4/CD8 ratio in CAR+ and ALL
+  #
+  
+  ### make an empty data frame
+  cd4_cd8_ratio <- data.frame(Library=unique(Seurat_Obj@meta.data$library),
+                              CD4_CD8_ALL_Num="",
+                              CD4_CD8_CARpos_Num="",
+                              CD4_CD8_ALL_Ratio="",
+                              CD4_CD8_CARpos_Ratio="",
+                              stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(cd4_cd8_ratio) <- cd4_cd8_ratio$Library
+  
+  ### fill the data frame
+  for(lib in cd4_cd8_ratio$Library) {
+    
+    ### prepare the numbers
+    total_num_all <- length(which(Seurat_Obj@meta.data$library == lib))
+    total_num_car <- length(intersect(which(Seurat_Obj@meta.data$library == lib),
+                                      which(Seurat_Obj@meta.data$CAR == "CARpos")))
+    cd4_num_all <- length(intersect(which(Seurat_Obj@meta.data$library == lib),
+                                    which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD4")))
+    cd8_num_all <- length(intersect(which(Seurat_Obj@meta.data$library == lib),
+                                    which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8")))
+    cd4_num_car <- length(intersect(intersect(which(Seurat_Obj@meta.data$library == lib),
+                                              which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD4")),
+                                    which(Seurat_Obj@meta.data$CAR == "CARpos")))
+    cd8_num_car <- length(intersect(intersect(which(Seurat_Obj@meta.data$library == lib),
+                                              which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8")),
+                                    which(Seurat_Obj@meta.data$CAR == "CARpos")))
+    cd4_ratio_all <- round(100 * cd4_num_all / total_num_all, digits = 3)
+    cd8_ratio_all <- round(100 * cd8_num_all / total_num_all, digits = 3)
+    cd4_ratio_car <- round(100 * cd4_num_car / total_num_car, digits = 3)
+    cd8_ratio_car <- round(100 * cd8_num_car / total_num_car, digits = 3)
+    
+    ### fill the data frame
+    cd4_cd8_ratio[lib,"CD4_CD8_ALL_Num"] <- paste("CD4:", cd4_num_all, ",", "CD8:", cd8_num_all)
+    cd4_cd8_ratio[lib,"CD4_CD8_CARpos_Num"] <- paste("CD4:", cd4_num_car, ",", "CD8:", cd8_num_car)
+    cd4_cd8_ratio[lib,"CD4_CD8_ALL_Ratio"] <- paste("CD4:", cd4_ratio_all, "% ,", "CD8:", cd8_ratio_all, "%")
+    cd4_cd8_ratio[lib,"CD4_CD8_CARpos_Ratio"] <- paste("CD4:", cd4_ratio_car, "% ,", "CD8:", cd8_ratio_car, "%")
+    
+  }
+  
+  ### save the result as an Excel file
+  write.xlsx2(cd4_cd8_ratio, file = paste0(outputDir, "CD4_CD8_Ratio.xlsx"),
+              sheetName = "CD4_CD8_Ratio", row.names = FALSE)
   
 }
