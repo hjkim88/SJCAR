@@ -27,7 +27,25 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
     require(Seurat, quietly = TRUE)
   }
   
+  ### create outputDir
+  dir.create(outputDir, showWarnings = FALSE, recursive = TRUE)
   
+  ### load Seurat object
+  Seurat_Obj <- readRDS(Seurat_RObj_path)
+  
+  ### rownames in the meta.data should be in the same order as colnames in the counts
+  Seurat_Obj@meta.data <- Seurat_Obj@meta.data[colnames(Seurat_Obj@assays$RNA@counts),]
+  print(identical(rownames(Seurat_Obj@meta.data), colnames(Seurat_Obj@assays$RNA@counts)))
+  
+  ### active assay = "RNA"
+  Seurat_Obj@active.assay <- "RNA"
+  
+  ### check whether the orders are the same
+  print(identical(names(Idents(object = Seurat_Obj)), rownames(Seurat_Obj@meta.data)))
+  
+  ### set time points
+  total_time_points <- c("PreTrans", "PreTransB", "Wk-1", "Wk-1Run1", "Wk-1Run2", "Wk0", "GMP", "GMP-redo",
+                         "Wk1", "Wk1b", "Wk2", "Wk3", "Wk4", "Wk6", "Wk8", "3mo", "6mo", "9mo")
   
   
   
