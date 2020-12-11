@@ -750,10 +750,17 @@ cd4_cd8_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/
                       sheetName = "CD4_CD8_Mixed_Clones_And_Cells", row.names = FALSE)
         }
         
+        ### mixed lineage numbers
+        total_lineage_num <- nrow(lineage_table)
+        mixed_lineage_num <- length(mixed_clones)
+        
         ### save total result
-        writeLines(paste(patient, "Total cell #:", total_cellNum, ",",
-                         "Mixed cell #:", mixed_cellNum,
-                         "Error %:", round(100*mixed_cellNum/total_cellNum, digits = 3), "%"))
+        writeLines(paste(patient, "- Total cell #:", total_cellNum, ",",
+                         "- Mixed cell #:", mixed_cellNum, ",",
+                         "- Error %:", round(100*mixed_cellNum/total_cellNum, digits = 3), "%,",
+                         "- Total Lineage #:", total_lineage_num, ",",
+                         "- Mixed Lineage #:", mixed_lineage_num, ",",
+                         "- Error %:", round(100*mixed_lineage_num/total_lineage_num, digits = 3), "%"))
       }
     }
     
@@ -793,6 +800,11 @@ cd4_cd8_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/
     cd8_ratio_all <- round(100 * cd8_num_all / total_num_all, digits = 3)
     cd4_ratio_car <- round(100 * cd4_num_car / total_num_car, digits = 3)
     cd8_ratio_car <- round(100 * cd8_num_car / total_num_car, digits = 3)
+    ### lineages
+    lib_meta <- Seurat_Obj@meta.data[which(Seurat_Obj@meta.data$library == lib),]
+    lib_meta_cd4 <- lib_meta[which(lib_meta$CD4_CD8_by_Consensus == "CD4"),]
+    lib_meta_cd8 <- lib_meta[which(lib_meta$CD4_CD8_by_Consensus == "CD8"),]
+    cd4_lineage_num_all <- length(unique(lib_meta_cd4[duplicated(lib_meta_cd4$clonotype_id_by_patient),]))
     
     ### fill the data frame
     cd4_cd8_ratio[lib,"CD4_CD8_ALL_Num"] <- paste("CD4:", cd4_num_all, ",", "CD8:", cd8_num_all)
