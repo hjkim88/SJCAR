@@ -686,73 +686,75 @@ cd4_cd8_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/
         return(length(which(x > 0)) > 1)  
       })),time_points]
       
-      ### separate the CD4 and CD8 cells
-      lineage_table <- data.frame(clone_id=rownames(lineage_table),
-                                  lineage_table,
-                                  stringsAsFactors = FALSE, check.names = FALSE)
-      lineage_table_CD <- data.frame(sapply(lineage_table, function(x) c(rbind(x, x, x))),
-                                     stringsAsFactors = FALSE, check.names = FALSE)
-      lineage_table_CD <- data.frame(clone_id=lineage_table_CD$clone_id,
-                                     cell_type=rep(c("CD4", "CD8", "ALL"), nrow(lineage_table)),
-                                     sapply(lineage_table_CD[,time_points],
-                                            as.numeric),
-                                     stringsAsFactors = FALSE, check.names = FALSE)
-      rownames(lineage_table_CD) <- paste(c(rbind(rownames(lineage_table),
-                                                  rownames(lineage_table),
-                                                  rownames(lineage_table))),
-                                          c("CD4", "CD8", "ALL"), sep = "_")
-      
-      ### specific time point indicies
-      tp_indicies <- lapply(time_points, function(x) which(Seurat_Obj@meta.data$time == x))
-      names(tp_indicies) <- time_points
-      
-      ### fill out the new table
-      lineage_table_CD$total_count <- 0
-      for(i in 1:nrow(lineage_table_CD)) {
-        if(lineage_table_CD$cell_type[i] != "ALL") {
-          car_clone_idx <- intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
-                                     intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient == lineage_table_CD$clone_id[i]),
-                                               which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == lineage_table_CD$cell_type[i])))
-          for(tp in time_points) {
-            lineage_table_CD[i,tp] <- length(intersect(car_clone_idx, tp_indicies[[tp]]))
-          }
-        }
-        lineage_table_CD$total_count[i] <- sum(lineage_table_CD[i,time_points])
-      }
-      
-      ### check whether a clone has mixed cells
-      total_cellNum <- 0
-      mixed_cellNum <- 0
-      total_cellNum_specific <- NULL
-      mixed_cellNum_specific <- NULL
-      mixed_clones <- NULL
-      for(clone in unique(lineage_table_CD$clone_id)) {
-        if((lineage_table_CD[paste0(clone, "_CD4"),"total_count"] > 0) && (lineage_table_CD[paste0(clone, "_CD8"),"total_count"] > 0)) {
-          temp <- ifelse(lineage_table_CD[paste0(clone, "_CD4"),"total_count"] > lineage_table_CD[paste0(clone, "_CD8"),"total_count"],
-                         as.numeric(lineage_table_CD[paste0(clone, "_CD8"),"total_count"]),
-                         as.numeric(lineage_table_CD[paste0(clone, "_CD4"),"total_count"]))
-          mixed_cellNum <- mixed_cellNum + temp
-          mixed_cellNum_specific <- c(mixed_cellNum_specific, temp)
-          mixed_clones <- c(mixed_clones, clone)
-          total_cellNum_specific <- c(total_cellNum_specific, lineage_table_CD[paste0(clone, "_ALL"),"total_count"])
-        }
-        total_cellNum <- total_cellNum + lineage_table_CD[paste0(clone, "_ALL"),"total_count"]
-      }
-      
-      ### save result if exists
-      if(length(mixed_clones) > 0) {
-        result_table <- data.frame(Clone_ID=mixed_clones,
-                                   Mixed_CellNum=mixed_cellNum_specific,
-                                   Total_CellNum=total_cellNum_specific)
+      if(nrow(lineage_table) > 0) {
+        ### separate the CD4 and CD8 cells
+        lineage_table <- data.frame(clone_id=rownames(lineage_table),
+                                    lineage_table,
+                                    stringsAsFactors = FALSE, check.names = FALSE)
+        lineage_table_CD <- data.frame(sapply(lineage_table, function(x) c(rbind(x, x, x))),
+                                       stringsAsFactors = FALSE, check.names = FALSE)
+        lineage_table_CD <- data.frame(clone_id=lineage_table_CD$clone_id,
+                                       cell_type=rep(c("CD4", "CD8", "ALL"), nrow(lineage_table)),
+                                       sapply(lineage_table_CD[,time_points],
+                                              as.numeric),
+                                       stringsAsFactors = FALSE, check.names = FALSE)
+        rownames(lineage_table_CD) <- paste(c(rbind(rownames(lineage_table),
+                                                    rownames(lineage_table),
+                                                    rownames(lineage_table))),
+                                            c("CD4", "CD8", "ALL"), sep = "_")
         
-        write.xlsx2(result_table, file = paste0(outputDir2, patient, "_CD4_CD8_Mixed_Clones_And_Cells.xlsx"),
-                    sheetName = "CD4_CD8_Mixed_Clones_And_Cells", row.names = FALSE)
+        ### specific time point indicies
+        tp_indicies <- lapply(time_points, function(x) which(Seurat_Obj@meta.data$time == x))
+        names(tp_indicies) <- time_points
+        
+        ### fill out the new table
+        lineage_table_CD$total_count <- 0
+        for(i in 1:nrow(lineage_table_CD)) {
+          if(lineage_table_CD$cell_type[i] != "ALL") {
+            car_clone_idx <- intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                       intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient == lineage_table_CD$clone_id[i]),
+                                                 which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == lineage_table_CD$cell_type[i])))
+            for(tp in time_points) {
+              lineage_table_CD[i,tp] <- length(intersect(car_clone_idx, tp_indicies[[tp]]))
+            }
+          }
+          lineage_table_CD$total_count[i] <- sum(lineage_table_CD[i,time_points])
+        }
+        
+        ### check whether a clone has mixed cells
+        total_cellNum <- 0
+        mixed_cellNum <- 0
+        total_cellNum_specific <- NULL
+        mixed_cellNum_specific <- NULL
+        mixed_clones <- NULL
+        for(clone in unique(lineage_table_CD$clone_id)) {
+          if((lineage_table_CD[paste0(clone, "_CD4"),"total_count"] > 0) && (lineage_table_CD[paste0(clone, "_CD8"),"total_count"] > 0)) {
+            temp <- ifelse(lineage_table_CD[paste0(clone, "_CD4"),"total_count"] > lineage_table_CD[paste0(clone, "_CD8"),"total_count"],
+                           as.numeric(lineage_table_CD[paste0(clone, "_CD8"),"total_count"]),
+                           as.numeric(lineage_table_CD[paste0(clone, "_CD4"),"total_count"]))
+            mixed_cellNum <- mixed_cellNum + temp
+            mixed_cellNum_specific <- c(mixed_cellNum_specific, temp)
+            mixed_clones <- c(mixed_clones, clone)
+            total_cellNum_specific <- c(total_cellNum_specific, lineage_table_CD[paste0(clone, "_ALL"),"total_count"])
+          }
+          total_cellNum <- total_cellNum + lineage_table_CD[paste0(clone, "_ALL"),"total_count"]
+        }
+        
+        ### save result if exists
+        if(length(mixed_clones) > 0) {
+          result_table <- data.frame(Clone_ID=mixed_clones,
+                                     Mixed_CellNum=mixed_cellNum_specific,
+                                     Total_CellNum=total_cellNum_specific)
+          
+          write.xlsx2(result_table, file = paste0(outputDir2, patient, "_CD4_CD8_Mixed_Clones_And_Cells.xlsx"),
+                      sheetName = "CD4_CD8_Mixed_Clones_And_Cells", row.names = FALSE)
+        }
+        
+        ### save total result
+        writeLines(paste(patient, "Total cell #:", total_cellNum, ",",
+                         "Mixed cell #:", mixed_cellNum,
+                         "Error %:", round(100*mixed_cellNum/total_cellNum, digits = 3), "%"))
       }
-      
-      ### save total result
-      writeLines(paste(patient, "Total cell #:", total_cellNum, ",",
-                       "Mixed cell #:", mixed_cellNum,
-                       "Error %:", round(100*mixed_cellNum/total_cellNum, digits = 3), "%"))
     }
     
   }
