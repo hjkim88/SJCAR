@@ -21,9 +21,9 @@
 #
 #   Example
 #               > source("The_directory_of_GMP_Persistency_Marker_Discovery.R/GMP_Persistency_Marker_Discovery.R")
-#               > persistency_study(Seurat_RObj_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/NEW_SJCAR_SEURAT_OBJ/SJCAR19_Oct2020_Seurat_Obj.RDS",
-#                                   clonotype_lineage_info_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/NEW_SJCAR_SEURAT_OBJ/SJCAR19_Clonotype_Lineages.RDS",
-#                                   outputDir="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/new_results2/Persistency/")
+#               > persistency_study(Seurat_RObj_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/data/SJCAR19_Oct2020_Seurat_Obj.RDS",
+#                                   clonotype_lineage_info_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/data/SJCAR19_Clonotype_Lineages.RDS",
+#                                   outputDir="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/new_results/Persistency/")
 ###
 
 persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR19_Oct2020_Seurat_Obj.RDS",
@@ -60,6 +60,24 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     install.packages("viridis")
     require(viridis, quietly = TRUE)
   }
+  if(!require(DESeq2, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("DESeq2")
+    require(DESeq2, quietly = TRUE)
+  }
+  if(!require(zinbwave, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("zinbwave")
+    require(zinbwave, quietly = TRUE)
+  }
+  if(!require(BiocParallel, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("BiocParallel")
+    require(BiocParallel, quietly = TRUE)
+  }
   
   ### create outputDir
   dir.create(outputDir, showWarnings = FALSE, recursive = TRUE)
@@ -84,6 +102,63 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   ### load clonotype lineages info
   SJCAR19_Clonotype_Frequency <- readRDS(clonotype_lineage_info_path)
   
+  ### set idents with the libary
+  Seurat_Obj <- SetIdent(object = Seurat_Obj,
+                         cells = rownames(Seurat_Obj@meta.data),
+                         value = Seurat_Obj@meta.data$GMP_CARpos_Persister)
+  
+  ### get GMP CAR+ cells as a SingleCellExperiment object
+  GMP_CARpos_sce <- as.SingleCellExperiment(subset(Seurat_Obj, idents = c("YES", "NO")), assay = "RNA")
+  
+  ### for memory efficiency, remove the large Seurat object
+  rm(Seurat_Obj)
+  gc()
+  
+  ### QC
+  ### 26027 genes & 109614 cells
+  row_sum <- rowSums(counts(GMP_CARpos_sce) > 0)
+  col_sum <- colSums(counts(GMP_CARpos_sce) > 0)
+  plot(density(row_sum))
+  plot(density(col_sum))
+  
+  
+  
+  
+  ### low count filter - at least 10 with count of 5 or more
+  keep <- rowSums(counts(GMP_CARpos_sce) >= 5) >= 10
+  table(keep)
+  
+  ### filter out the trash genes
+  GMP_CARpos_sce <- GMP_CARpos_sce[keep,]
+  
+  ### check the cells
+  keep <- colSums(counts(GMP_CARpos_sce) >= 5) >= 600
+  
+  ### "counts" should be in the first place in the assayNames(GMP_CARpos_sce)
+  nms <- c("counts", setdiff(assayNames(GMP_CARpos_sce), "counts"))
+  assays(GMP_CARpos_sce) <- assays(GMP_CARpos_sce)[nms]
+  
+  ### epsilon setting as recommended by the ZINB-WaVE integration paper
+  system.time({
+    zinb <- zinbwave(GMP_CARpos_sce, K=0, observationalWeights=TRUE,
+                     BPPARAM=SerialParam(), epsilon=1e12)
+  })
+  
+  
+  dds <- DESeqDataSet(zinb, design=~condition)
+  dds <- estimateSizeFactors(dds, type="poscounts")
+  library(scran)
+  scr <- computeSumFactors(dds)
+  dat <- data.frame(true=dds$ExpLibSize,
+                    pos=sizeFactors(dds),
+                    sum=sizeFactors(scr))
+  dat$true <- dat$true / exp(mean(log(dat$true)))
+  panel.scatter <- function(x,y,...) {
+    points(x,y,...)
+    abline(0,1,col="red",lwd=2)
+    legend("topleft", legend=round(cor(x,y),3))
+  }
+  pairs(dat, panel=panel.scatter)
   
   
   
