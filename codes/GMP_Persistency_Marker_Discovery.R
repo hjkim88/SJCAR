@@ -121,18 +121,36 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   plot(density(row_sum))
   plot(density(col_sum))
   
+  ### set parameter
+  ### gene.min.pct: in a gene, at least n % of each condition (cells) should be expressed
+  ### cell.min.num: in a cell, at least n genes should be expressed (determine after looking at the density plot above)
+  gene.min.pct <- 0.2
+  cell.min.num <- 2000
+  cell.max.num <- 5000
   
-  
-  
-  ### low count filter - at least 10 with count of 5 or more
-  keep <- rowSums(counts(GMP_CARpos_sce) >= 5) >= 10
-  table(keep)
-  
-  ### filter out the trash genes
+  ### low count filter for genes
+  yes_num <- length(which(GMP_CARpos_sce$ident == "YES"))
+  no_num <- length(which(GMP_CARpos_sce$ident == "NO"))
+  yes_sum <- rowSums(counts(GMP_CARpos_sce)[,which(GMP_CARpos_sce$ident == "YES")] > 0)
+  no_sum <- rowSums(counts(GMP_CARpos_sce)[,which(GMP_CARpos_sce$ident == "NO")] > 0)
+  yes_exp_pct <- yes_sum / yes_num
+  no_exp_pct <- no_sum / no_num
+  keep <- intersect(which(yes_exp_pct >= gene.min.pct),
+                    which(no_exp_pct >= gene.min.pct))
   GMP_CARpos_sce <- GMP_CARpos_sce[keep,]
   
-  ### check the cells
-  keep <- colSums(counts(GMP_CARpos_sce) >= 5) >= 600
+  ### low count filter for cells
+  keep <- intersect(which(colSums(counts(GMP_CARpos_sce) > 0) >= cell.min.num),
+                    which(colSums(counts(GMP_CARpos_sce) > 0) <= cell.max.num))
+  GMP_CARpos_sce <- GMP_CARpos_sce[,keep]
+  
+  
+  ### there are too many cells (especially in the second condition), so we will randomly choose some
+  ### to lower the computational complexity
+  set.seed(1234)
+  keep <- sample(which(GMP_CARpos_sce$ident == "NO"), length(which(GMP_CARpos_sce$ident == "YES")))
+  keep <- union(keep, which(GMP_CARpos_sce$ident == "YES"))
+  GMP_CARpos_sce <- GMP_CARpos_sce[,keep]
   
   ### "counts" should be in the first place in the assayNames(GMP_CARpos_sce)
   nms <- c("counts", setdiff(assayNames(GMP_CARpos_sce), "counts"))
