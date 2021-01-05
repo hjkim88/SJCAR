@@ -1297,6 +1297,7 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
   
   ### GMP CAR+ persistent clones
   pClones <- NULL
+  indeterminate_patient_pool <- NULL
   for(i in 1:length(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]])) {
     gmp_idx <- which(colnames(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) == "GMP")
     gmp_redo_idx <- which(colnames(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) == "GMP-redo")
@@ -1336,6 +1337,12 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
         }
       }
     }
+    
+    ### what are the patients that have less than 3 after-infusion time points?
+    total_idx <- which(colnames(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) == "Total")
+    if(total_idx - last_gmp_idx <= 3) {
+      indeterminate_patient_pool <- c(indeterminate_patient_pool, names(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]])[i])
+    }
   }
   
   ### GMP CAR+ persistent cells
@@ -1345,10 +1352,16 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
                               which(Seurat_Obj@meta.data$CAR == "CARpos")))
   
   ### GMP CAR+ non-persistent cells
+  ### some patients have no later-time point data, so we cannot say they are non-persisters
+  ### even if there is no lineage found - e.g., Px00 & Px01
+  ### there should be at least 3 after-infusion time points to determine non-persisters
   npIdx <- setdiff(intersect(union(which(Seurat_Obj@meta.data$time == "GMP"),
                                    which(Seurat_Obj@meta.data$time == "GMP-redo")),
                              which(Seurat_Obj@meta.data$CAR == "CARpos")),
                    which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% pClones))
+  
+  ### what are the patients that have less than 3 after-infusion time points?
+  npIdx <- setdiff(npIdx, which(Seurat_Obj@meta.data$px %in% indeterminate_patient_pool))
   
   ### check whether the orders are the same
   print(identical(names(Idents(object = Seurat_Obj)), rownames(Seurat_Obj@meta.data)))
