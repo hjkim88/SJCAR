@@ -364,8 +364,8 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
     time_points <- colnames(SJCAR19_Clonotype_Frequency[["ALL"]][[patient]])[1:(ncol(SJCAR19_Clonotype_Frequency[["ALL"]][[patient]])-1)]
     
     ### fill out the table
-    for(i in nrow(SJCAR19_Lineages_in_Full[[patient]])) {
-      if(SJCAR19_Lineages_in_Full[[patient]]$CD_Type != "ALL") {
+    for(i in 1:nrow(SJCAR19_Lineages_in_Full[[patient]])) {
+      if(SJCAR19_Lineages_in_Full[[patient]]$CD_Type[i] != "ALL") {
         clone_idx <- intersect(which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == SJCAR19_Lineages_in_Full[[patient]]$CD_Type[i]),
                                intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient == SJCAR19_Lineages_in_Full[[patient]]$Clone_ID[i]),
                                          which(Seurat_Obj@meta.data$CAR == SJCAR19_Lineages_in_Full[[patient]]$CAR_Type[i])))
@@ -386,6 +386,7 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
                 sheetName = patient,
                 row.names = FALSE,
                 append = TRUE)
+    gc()
   }
   
   ### network graph
