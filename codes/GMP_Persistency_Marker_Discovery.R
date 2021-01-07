@@ -944,6 +944,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     }
     
     ### I have to think about row-side scaling / col-side scaling
+    ### because the colors don't seem to be different between two conditions
     
     ### heatmap
     png(paste0(outputDir2, "Heatmap_DEG_GMP_Last_vs_Not_Last_", featureSelectionNum, "_(", i, ").png"),
