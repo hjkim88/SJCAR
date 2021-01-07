@@ -12,10 +12,10 @@
 #
 #   Example
 #               > source("The_directory_of_Epitope_Spreading.R/Epitope_Spreading.R")
-#               > epitope_spreading_investigation(Seurat_RObj_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/NEW_SJCAR_SEURAT_OBJ/SJCAR19_Oct2020_Seurat_Obj.RDS",
-#                                                 clonotype_lineage_info_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/NEW_SJCAR_SEURAT_OBJ/SJCAR19_Clonotype_Lineages.RDS",
-#                                                 vdjdb_file_path="./data/VDJDB_Homo_Sapiens_121320.xlsx",
-#                                                 outputDir="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/new_results2/")
+#               > epitope_spreading_investigation(Seurat_RObj_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/data/SJCAR19_Oct2020_Seurat_Obj.RDS",
+#                                                 clonotype_lineage_info_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/data/SJCAR19_Clonotype_Lineages.RDS",
+#                                                 vdjdb_file_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/data/VDJDB_Homo_Sapiens_121320.xlsx",
+#                                                 outputDir="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/new_results/Lineages_by_CAR/")
 ###
 
 epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR19_Oct2020_Seurat_Obj.RDS",
@@ -174,7 +174,7 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
   }
   
   ### CARneg threshold
-  ### Any lineages that have AFTER-GMP CAR- cells larger than the threshold will be considred interesting
+  ### Any lineages that have AFTER-GMP CAR- cells larger than the threshold will be considered interesting
   carneg_threshold <- 10
   
   ### find epitope spreading candidates
@@ -338,5 +338,58 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
       
     }
   }
+  
+  ### split the CAR+/CAR- lineage table to convey whether a cell is a CD4/CD8
+  
+  ### make a new object for that
+  SJCAR19_Lineages_in_Full <- vector("list", length = length(SJCAR19_Lineages_by_CAR))
+  names(SJCAR19_Lineages_in_Full) <- names(SJCAR19_Lineages_by_CAR)
+  for(patient in names(SJCAR19_Lineages_in_Full)) {
+    ### add CD4/CD8 sections
+    ### CAR+/CAR-/ALL x CD4/CD8/ALL - 9 rows per clone
+    SJCAR19_Lineages_in_Full[[patient]] <- apply(SJCAR19_Lineages_by_CAR[[patient]], 2, function(x) rbind(x, x, x))
+    
+    ### column name change 'Cell_Type' -> 'CAR_Type'
+    colnames(SJCAR19_Lineages_in_Full[[patient]])[1] <- "CAR_Type"
+    
+    ### add a column to describe CD4/CD8 info
+    SJCAR19_Lineages_in_Full[[patient]] <- data.frame(CD_Type=rep(c("CD4", "CD8", "ALL"), nrow(SJCAR19_Lineages_by_CAR[[patient]])),
+                                                      SJCAR19_Lineages_in_Full[[patient]],
+                                                      stringsAsFactors = FALSE, check.names = FALSE)
+    
+    ### numerize the numeric columns
+    SJCAR19_Lineages_in_Full[[patient]][,colnames(SJCAR19_Clonotype_Frequency[["ALL"]][[patient]])] <- sapply(SJCAR19_Lineages_in_Full[[patient]][,colnames(SJCAR19_Clonotype_Frequency[["ALL"]][[patient]])], as.numeric)
+    
+    ### get time points
+    time_points <- colnames(SJCAR19_Clonotype_Frequency[["ALL"]][[patient]])[1:(ncol(SJCAR19_Clonotype_Frequency[["ALL"]][[patient]])-1)]
+    
+    ### fill out the table
+    for(i in nrow(SJCAR19_Lineages_in_Full[[patient]])) {
+      if(SJCAR19_Lineages_in_Full[[patient]]$CD_Type != "ALL") {
+        clone_idx <- intersect(which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == SJCAR19_Lineages_in_Full[[patient]]$CD_Type[i]),
+                               intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient == SJCAR19_Lineages_in_Full[[patient]]$Clone_ID[i]),
+                                         which(Seurat_Obj@meta.data$CAR == SJCAR19_Lineages_in_Full[[patient]]$CAR_Type[i])))
+        for(tp in time_points) {
+          SJCAR19_Lineages_in_Full[[patient]][i,tp] <- length(intersect(clone_idx,
+                                                                        which(Seurat_Obj@meta.data$time == tp)))
+        }
+        SJCAR19_Lineages_in_Full[[patient]]$Total[i] <- sum(SJCAR19_Lineages_in_Full[[patient]][i,time_points])
+      }
+    }
+  }
+  
+  ### save the result
+  saveRDS(SJCAR19_Lineages_in_Full, file = paste0(outputDir, "SJCAR19_Lineages_in_Full.RDS"))
+  for(patient in names(SJCAR19_Lineages_in_Full)) {
+    write.xlsx2(SJCAR19_Lineages_in_Full[[patient]],
+                file = paste0(outputDir, "SJCAR19_Lineages_in_Full.xlsx"),
+                sheetName = patient,
+                row.names = FALSE,
+                append = TRUE)
+  }
+  
+  ### network graph
+  
+  
   
 }
