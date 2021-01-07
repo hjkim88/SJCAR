@@ -238,7 +238,7 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
       ### numerize the clone_size column
       plot_df$Clone_Size <- as.numeric(plot_df$Clone_Size)
       
-      ### add the number of PB cells
+      ### add the number of CARpos cells
       plot_df$CARpos_Num <- ""
       for(i in 1:nrow(plot_df)) {
         num <- interesting_clones[[patient]][paste0(plot_df$Clone[i], "_CARpos"),as.character(plot_df$Time[i])]
@@ -262,7 +262,7 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
         theme_cleveland2() +
         scale_fill_viridis(discrete = T) +
         scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
-      ggsave(file = paste0(outputDir2, patient, "Interesting_Clonal_Tracing_CAR.png"), width = 18, height = 9, dpi = 300)
+      ggsave(file = paste0(outputDir2, patient, "_Interesting_Clonal_Tracing_CAR.png"), width = 18, height = 9, dpi = 300)
       
       #
       ### annotate VDJDB
@@ -276,54 +276,78 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
       interesting_clones[[patient]]$Reference <- ""
       for(i in seq(1, nrow(interesting_clones[[patient]]), 3)) {
         ### get each CDR_AA sequences for each clone
-        cdr3_list <- strsplit(interesting_clones[[patient]]$CDR3_AA, split = ";", fixed = TRUE)[[1]]
+        cdr3_list <- strsplit(interesting_clones[[patient]]$CDR3_AA[i], split = ";", fixed = TRUE)[[1]]
         
         ### get annotation
         for(cdr3 in cdr3_list) {
           target_idx <- which(vdjdb$Combined_CDR3 == cdr3)
           if(length(target_idx) > 0) {
-            interesting_clones[[patient]]$MHC_A[i] <- paste0(interesting_clones[[patient]]$MHC_A[i], ";",
-                                                             vdjdb$`MHC A`[target_idx])
-            interesting_clones[[patient]]$MHC_A[i+1] <- paste0(interesting_clones[[patient]]$MHC_A[i+1], ";",
+            if(interesting_clones[[patient]]$MHC_A[i] == "") {
+              interesting_clones[[patient]]$MHC_A[i] <- vdjdb$`MHC A`[target_idx]
+              interesting_clones[[patient]]$MHC_A[i+1] <- vdjdb$`MHC A`[target_idx]
+              interesting_clones[[patient]]$MHC_A[i+2] <- vdjdb$`MHC A`[target_idx]
+              interesting_clones[[patient]]$MHC_B[i] <- vdjdb$`MHC B`[target_idx]
+              interesting_clones[[patient]]$MHC_B[i+1] <- vdjdb$`MHC B`[target_idx]
+              interesting_clones[[patient]]$MHC_B[i+2] <- vdjdb$`MHC B`[target_idx]
+              interesting_clones[[patient]]$MHC_Class[i] <- vdjdb$`MHC class`[target_idx]
+              interesting_clones[[patient]]$MHC_Class[i+1] <- vdjdb$`MHC class`[target_idx]
+              interesting_clones[[patient]]$MHC_Class[i+2] <- vdjdb$`MHC class`[target_idx]
+              interesting_clones[[patient]]$Epitope[i] <- vdjdb$Epitope[target_idx]
+              interesting_clones[[patient]]$Epitope[i+1] <- vdjdb$Epitope[target_idx]
+              interesting_clones[[patient]]$Epitope[i+2] <- vdjdb$Epitope[target_idx]
+              interesting_clones[[patient]]$Epitope_Gene[i] <- vdjdb$`Epitope gene`[target_idx]
+              interesting_clones[[patient]]$Epitope_Gene[i+1] <- vdjdb$`Epitope gene`[target_idx]
+              interesting_clones[[patient]]$Epitope_Gene[i+2] <- vdjdb$`Epitope gene`[target_idx]
+              interesting_clones[[patient]]$Epitope_Species[i] <- vdjdb$`Epitope species`[target_idx]
+              interesting_clones[[patient]]$Epitope_Species[i+1] <- vdjdb$`Epitope species`[target_idx]
+              interesting_clones[[patient]]$Epitope_Species[i+2] <- vdjdb$`Epitope species`[target_idx]
+              interesting_clones[[patient]]$Reference[i] <- vdjdb$Reference[target_idx]
+              interesting_clones[[patient]]$Reference[i+1] <- vdjdb$Reference[target_idx]
+              interesting_clones[[patient]]$Reference[i+2] <- vdjdb$Reference[target_idx]
+            } else {
+              interesting_clones[[patient]]$MHC_A[i] <- paste0(interesting_clones[[patient]]$MHC_A[i], ";",
                                                                vdjdb$`MHC A`[target_idx])
-            interesting_clones[[patient]]$MHC_A[i+2] <- paste0(interesting_clones[[patient]]$MHC_A[i+2], ";",
-                                                               vdjdb$`MHC A`[target_idx])
-            interesting_clones[[patient]]$MHC_B[i] <- paste0(interesting_clones[[patient]]$MHC_B[i], ";",
-                                                             vdjdb$`MHC B`[target_idx])
-            interesting_clones[[patient]]$MHC_B[i+1] <- paste0(interesting_clones[[patient]]$MHC_B[i+1], ";",
+              interesting_clones[[patient]]$MHC_A[i+1] <- paste0(interesting_clones[[patient]]$MHC_A[i+1], ";",
+                                                                 vdjdb$`MHC A`[target_idx])
+              interesting_clones[[patient]]$MHC_A[i+2] <- paste0(interesting_clones[[patient]]$MHC_A[i+2], ";",
+                                                                 vdjdb$`MHC A`[target_idx])
+              interesting_clones[[patient]]$MHC_B[i] <- paste0(interesting_clones[[patient]]$MHC_B[i], ";",
                                                                vdjdb$`MHC B`[target_idx])
-            interesting_clones[[patient]]$MHC_B[i+2] <- paste0(interesting_clones[[patient]]$MHC_B[i+2], ";",
-                                                               vdjdb$`MHC B`[target_idx])
-            interesting_clones[[patient]]$MHC_Class[i] <- paste0(interesting_clones[[patient]]$MHC_Class[i], ";",
-                                                                 vdjdb$`MHC class`[target_idx])
-            interesting_clones[[patient]]$MHC_Class[i+1] <- paste0(interesting_clones[[patient]]$MHC_Class[i+1], ";",
+              interesting_clones[[patient]]$MHC_B[i+1] <- paste0(interesting_clones[[patient]]$MHC_B[i+1], ";",
+                                                                 vdjdb$`MHC B`[target_idx])
+              interesting_clones[[patient]]$MHC_B[i+2] <- paste0(interesting_clones[[patient]]$MHC_B[i+2], ";",
+                                                                 vdjdb$`MHC B`[target_idx])
+              interesting_clones[[patient]]$MHC_Class[i] <- paste0(interesting_clones[[patient]]$MHC_Class[i], ";",
                                                                    vdjdb$`MHC class`[target_idx])
-            interesting_clones[[patient]]$MHC_Class[i+2] <- paste0(interesting_clones[[patient]]$MHC_Class[i+2], ";",
-                                                                   vdjdb$`MHC class`[target_idx])
-            interesting_clones[[patient]]$Epitope[i] <- paste0(interesting_clones[[patient]]$Epitope[i], ";",
-                                                               vdjdb$Epitope[target_idx])
-            interesting_clones[[patient]]$Epitope[i+1] <- paste0(interesting_clones[[patient]]$Epitope[i+1], ";",
+              interesting_clones[[patient]]$MHC_Class[i+1] <- paste0(interesting_clones[[patient]]$MHC_Class[i+1], ";",
+                                                                     vdjdb$`MHC class`[target_idx])
+              interesting_clones[[patient]]$MHC_Class[i+2] <- paste0(interesting_clones[[patient]]$MHC_Class[i+2], ";",
+                                                                     vdjdb$`MHC class`[target_idx])
+              interesting_clones[[patient]]$Epitope[i] <- paste0(interesting_clones[[patient]]$Epitope[i], ";",
                                                                  vdjdb$Epitope[target_idx])
-            interesting_clones[[patient]]$Epitope[i+2] <- paste0(interesting_clones[[patient]]$Epitope[i+2], ";",
-                                                                 vdjdb$Epitope[target_idx])
-            interesting_clones[[patient]]$Epitope_Gene[i] <- paste0(interesting_clones[[patient]]$Epitope_Gene[i], ";",
-                                                                    vdjdb$`Epitope gene`[target_idx])
-            interesting_clones[[patient]]$Epitope_Gene[i+1] <- paste0(interesting_clones[[patient]]$Epitope_Gene[i+1], ";",
+              interesting_clones[[patient]]$Epitope[i+1] <- paste0(interesting_clones[[patient]]$Epitope[i+1], ";",
+                                                                   vdjdb$Epitope[target_idx])
+              interesting_clones[[patient]]$Epitope[i+2] <- paste0(interesting_clones[[patient]]$Epitope[i+2], ";",
+                                                                   vdjdb$Epitope[target_idx])
+              interesting_clones[[patient]]$Epitope_Gene[i] <- paste0(interesting_clones[[patient]]$Epitope_Gene[i], ";",
                                                                       vdjdb$`Epitope gene`[target_idx])
-            interesting_clones[[patient]]$Epitope_Gene[i+2] <- paste0(interesting_clones[[patient]]$Epitope_Gene[i+2], ";",
-                                                                      vdjdb$`Epitope gene`[target_idx])
-            interesting_clones[[patient]]$Epitope_Species[i] <- paste0(interesting_clones[[patient]]$Epitope_Species[i], ";",
-                                                                       vdjdb$`Epitope species`[target_idx])
-            interesting_clones[[patient]]$Epitope_Species[i+1] <- paste0(interesting_clones[[patient]]$Epitope_Species[i+1], ";",
+              interesting_clones[[patient]]$Epitope_Gene[i+1] <- paste0(interesting_clones[[patient]]$Epitope_Gene[i+1], ";",
+                                                                        vdjdb$`Epitope gene`[target_idx])
+              interesting_clones[[patient]]$Epitope_Gene[i+2] <- paste0(interesting_clones[[patient]]$Epitope_Gene[i+2], ";",
+                                                                        vdjdb$`Epitope gene`[target_idx])
+              interesting_clones[[patient]]$Epitope_Species[i] <- paste0(interesting_clones[[patient]]$Epitope_Species[i], ";",
                                                                          vdjdb$`Epitope species`[target_idx])
-            interesting_clones[[patient]]$Epitope_Species[i+2] <- paste0(interesting_clones[[patient]]$Epitope_Species[i+2], ";",
-                                                                         vdjdb$`Epitope species`[target_idx])
-            interesting_clones[[patient]]$Reference[i] <- paste0(interesting_clones[[patient]]$Reference[i], ";",
-                                                                 vdjdb$Reference[target_idx])
-            interesting_clones[[patient]]$Reference[i+1] <- paste0(interesting_clones[[patient]]$Reference[i+1], ";",
+              interesting_clones[[patient]]$Epitope_Species[i+1] <- paste0(interesting_clones[[patient]]$Epitope_Species[i+1], ";",
+                                                                           vdjdb$`Epitope species`[target_idx])
+              interesting_clones[[patient]]$Epitope_Species[i+2] <- paste0(interesting_clones[[patient]]$Epitope_Species[i+2], ";",
+                                                                           vdjdb$`Epitope species`[target_idx])
+              interesting_clones[[patient]]$Reference[i] <- paste0(interesting_clones[[patient]]$Reference[i], ";",
                                                                    vdjdb$Reference[target_idx])
-            interesting_clones[[patient]]$Reference[i+2] <- paste0(interesting_clones[[patient]]$Reference[i+2], ";",
-                                                                   vdjdb$Reference[target_idx])
+              interesting_clones[[patient]]$Reference[i+1] <- paste0(interesting_clones[[patient]]$Reference[i+1], ";",
+                                                                     vdjdb$Reference[target_idx])
+              interesting_clones[[patient]]$Reference[i+2] <- paste0(interesting_clones[[patient]]$Reference[i+2], ";",
+                                                                     vdjdb$Reference[target_idx])
+            }
           }
         }
       }
@@ -366,15 +390,140 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
     ### fill out the table
     for(i in 1:nrow(SJCAR19_Lineages_in_Full[[patient]])) {
       if(SJCAR19_Lineages_in_Full[[patient]]$CD_Type[i] != "ALL") {
-        clone_idx <- intersect(which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == SJCAR19_Lineages_in_Full[[patient]]$CD_Type[i]),
-                               intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient == SJCAR19_Lineages_in_Full[[patient]]$Clone_ID[i]),
-                                         which(Seurat_Obj@meta.data$CAR == SJCAR19_Lineages_in_Full[[patient]]$CAR_Type[i])))
+        if(SJCAR19_Lineages_in_Full[[patient]]$CAR_Type[i] == "ALL") {
+          clone_idx <- intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient == SJCAR19_Lineages_in_Full[[patient]]$Clone_ID[i]),
+                                 which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == SJCAR19_Lineages_in_Full[[patient]]$CD_Type[i]))
+        } else {
+          clone_idx <- intersect(which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == SJCAR19_Lineages_in_Full[[patient]]$CD_Type[i]),
+                                 intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient == SJCAR19_Lineages_in_Full[[patient]]$Clone_ID[i]),
+                                           which(Seurat_Obj@meta.data$CAR == SJCAR19_Lineages_in_Full[[patient]]$CAR_Type[i])))
+        }
+        
         for(tp in time_points) {
           SJCAR19_Lineages_in_Full[[patient]][i,tp] <- length(intersect(clone_idx,
                                                                         which(Seurat_Obj@meta.data$time == tp)))
         }
         SJCAR19_Lineages_in_Full[[patient]]$Total[i] <- sum(SJCAR19_Lineages_in_Full[[patient]][i,time_points])
       }
+    }
+    
+    ### annotate VDJDB
+    SJCAR19_Lineages_in_Full[[patient]]$MHC_A <- ""
+    SJCAR19_Lineages_in_Full[[patient]]$MHC_B <- ""
+    SJCAR19_Lineages_in_Full[[patient]]$MHC_Class <- ""
+    SJCAR19_Lineages_in_Full[[patient]]$Epitope <- ""
+    SJCAR19_Lineages_in_Full[[patient]]$Epitope_Gene <- ""
+    SJCAR19_Lineages_in_Full[[patient]]$Epitope_Species <- ""
+    SJCAR19_Lineages_in_Full[[patient]]$Reference <- ""
+    CDR3_AA <- unique(SJCAR19_Lineages_in_Full[[patient]]$CDR3_AA)
+    for(i in 1:length(CDR3_AA)) {
+      ### get each CDR_AA sequences for each clone
+      cdr3_list <- strsplit(CDR3_AA[i], split = ";", fixed = TRUE)[[1]]
+      
+      ### get index of the clone in the table
+      table_idx <- which(SJCAR19_Lineages_in_Full[[patient]]$CDR3_AA == CDR3_AA[i])
+      
+      ### get annotation
+      for(cdr3 in cdr3_list) {
+        ### get index of the CDR3 in the vdj
+        target_idx <- which(vdjdb$Combined_CDR3 == cdr3)
+        if(length(target_idx) > 0) {
+          if(SJCAR19_Lineages_in_Full[[patient]]$MHC_A[table_idx[1]] == "") {
+            SJCAR19_Lineages_in_Full[[patient]]$MHC_A[table_idx] <- vdjdb$`MHC A`[target_idx]
+            SJCAR19_Lineages_in_Full[[patient]]$MHC_B[table_idx] <- vdjdb$`MHC B`[target_idx]
+            SJCAR19_Lineages_in_Full[[patient]]$MHC_Class[table_idx] <- vdjdb$`MHC class`[target_idx]
+            SJCAR19_Lineages_in_Full[[patient]]$Epitope[table_idx] <- vdjdb$Epitope[target_idx]
+            SJCAR19_Lineages_in_Full[[patient]]$Epitope_Gene[table_idx] <- vdjdb$`Epitope gene`[target_idx]
+            SJCAR19_Lineages_in_Full[[patient]]$Epitope_Species[table_idx] <- vdjdb$`Epitope species`[target_idx]
+            SJCAR19_Lineages_in_Full[[patient]]$Reference[table_idx] <- vdjdb$Reference[target_idx]
+          } else {
+            SJCAR19_Lineages_in_Full[[patient]]$MHC_A[table_idx] <- paste0(SJCAR19_Lineages_in_Full[[patient]]$MHC_A[table_idx], ";",
+                                                                           vdjdb$`MHC A`[target_idx])
+            SJCAR19_Lineages_in_Full[[patient]]$MHC_B[table_idx] <- paste0(SJCAR19_Lineages_in_Full[[patient]]$MHC_B[table_idx], ";",
+                                                                           vdjdb$`MHC B`[target_idx])
+            SJCAR19_Lineages_in_Full[[patient]]$MHC_Class[table_idx] <- paste0(SJCAR19_Lineages_in_Full[[patient]]$MHC_Class[table_idx], ";",
+                                                                               vdjdb$`MHC class`[target_idx])
+            SJCAR19_Lineages_in_Full[[patient]]$Epitope[table_idx] <- paste0(SJCAR19_Lineages_in_Full[[patient]]$Epitope[table_idx], ";",
+                                                                             vdjdb$Epitope[target_idx])
+            SJCAR19_Lineages_in_Full[[patient]]$Epitope_Gene[table_idx] <- paste0(SJCAR19_Lineages_in_Full[[patient]]$Epitope_Gene[table_idx], ";",
+                                                                                  vdjdb$`Epitope gene`[target_idx])
+            SJCAR19_Lineages_in_Full[[patient]]$Epitope_Species[table_idx] <- paste0(SJCAR19_Lineages_in_Full[[patient]]$Epitope_Species[table_idx], ";",
+                                                                                     vdjdb$`Epitope species`[target_idx])
+            SJCAR19_Lineages_in_Full[[patient]]$Reference[table_idx] <- paste0(SJCAR19_Lineages_in_Full[[patient]]$Reference[table_idx], ";",
+                                                                               vdjdb$Reference[target_idx])
+          }
+        }
+      }
+    }
+    
+    #
+    ### lineages in CAR- cells only, but annotate CD4 cells in the alluvial plot
+    #
+    
+    ### get index after GMP
+    gmp_idx <- which(colnames(SJCAR19_Lineages_in_Full[[patient]]) == "GMP")
+    gmp_redo_idx <- which(colnames(SJCAR19_Lineages_in_Full[[patient]]) == "GMP-redo")
+    after_gmp_idx <- max(gmp_idx, gmp_redo_idx)
+    total_idx <- which(colnames(SJCAR19_Lineages_in_Full[[patient]]) == "Total")
+    
+    if(after_gmp_idx != -Inf && (after_gmp_idx+1) < total_idx) {
+      ### get the interesting clones only & CAR- cells only
+      plot_data_table <- SJCAR19_Lineages_in_Full[[patient]][intersect(intersect(which(SJCAR19_Lineages_in_Full[[patient]]$CAR_Type == "CARneg"),
+                                                                                 which(SJCAR19_Lineages_in_Full[[patient]]$CD_Type == "ALL")),
+                                                                       which(SJCAR19_Lineages_in_Full[[patient]]$Clone_ID %in% unique(interesting_clones[[patient]]$Clone_ID))),]
+      
+      ### get an input data frame for the alluvial plot
+      time_points <- colnames(SJCAR19_Lineages_in_Full[[patient]])[6:(ncol(SJCAR19_Lineages_in_Full[[patient]])-8)]
+      total_rows <- length(which(plot_data_table[,time_points] > 0))
+      plot_df <- data.frame(Time=rep("", total_rows),
+                            Clone_Size=rep(0, total_rows),
+                            Clone=rep("", total_rows),
+                            CDR3=rep("", total_rows))
+      cnt <- 1
+      for(i in 1:nrow(plot_data_table)) {
+        for(tp in time_points) {
+          if(plot_data_table[i,tp] > 0) {
+            plot_df[cnt,] <- c(tp,
+                               plot_data_table[i,tp],
+                               plot_data_table$Clone_ID[i],
+                               plot_data_table$CDR3_AA[i])
+            cnt <- cnt + 1
+          }
+        }
+      }
+      plot_df$Time <- factor(plot_df$Time, levels = time_points)
+      
+      ### numerize the clone_size column
+      plot_df$Clone_Size <- as.numeric(plot_df$Clone_Size)
+      
+      ### add the number of CD4 cells
+      plot_df$CD4_Num <- ""
+      for(i in 1:nrow(plot_df)) {
+        t_idx <- intersect(intersect(which(SJCAR19_Lineages_in_Full[[patient]]$Clone_ID == plot_df$Clone[i]),
+                                     which(SJCAR19_Lineages_in_Full[[patient]]$CAR_Type == "CARneg")),
+                           which(SJCAR19_Lineages_in_Full[[patient]]$CD_Type == "CD4"))
+        num <- SJCAR19_Lineages_in_Full[[patient]][t_idx,as.character(plot_df$Time[i])]
+        if(num > 0) {
+          plot_df$CD4_Num[i] <- num
+        }
+      }
+      
+      ### draw the alluvial plot
+      ggplot(plot_df,
+             aes(x = Time, stratum = Clone, alluvium = Clone,
+                 y = Clone_Size,
+                 fill = CDR3, label = CD4_Num)) +
+        ggtitle(paste(patient, "Clonal Tracing (Epitope Spreading) CAR- Only")) +
+        geom_stratum(alpha = 1) +
+        geom_text(stat = "stratum", size = 3, col = "black") +
+        geom_flow() +
+        rotate_x_text(90) +
+        theme_pubr(legend = "none") +
+        theme(axis.title.x = element_blank()) +
+        theme_cleveland2() +
+        scale_fill_viridis(discrete = T) +
+        scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+      ggsave(file = paste0(outputDir, patient, "/", patient, "_Interesting_Clonal_Tracing_CARneg_Only.png"), width = 18, height = 9, dpi = 300)
     }
   }
   
@@ -388,9 +537,5 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
                 append = TRUE)
     gc()
   }
-  
-  ### network graph
-  
-  
   
 }
