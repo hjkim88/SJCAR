@@ -15,7 +15,7 @@
 #               - Classifier comparison between 1. using the top DE genes vs 2. using random genes
 #               - if there are too many persisters from one patient, then build a classifier with the patient only
 #                 and test with other cells
-#               - Revered PCA/UMAP (gene-patient conversion) to show whether those genes are separated by persistency
+#               - Reversed PCA/UMAP (gene-patient conversion) to show whether those genes are separated by persistency
 #
 #
 #   Instruction
@@ -85,6 +85,10 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   if(!require(gplots, quietly = TRUE)) {
     install.packages("gplots")
     library(gplots, quietly = TRUE)
+  }
+  if(!require(uwot, quietly = TRUE)) {
+    install.packages("uwot")
+    require(uwot, quietly = TRUE)
   }
   
   # ******************************************************************************************
@@ -788,6 +792,24 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                 row.names = FALSE, sheetName = paste0("KEGG_Result"))
   }
   
+  ### A function for scaling for heatmap
+  scale_h <- function(data, type, na.rm=TRUE) {
+    
+    if(type == "row") {
+      scaled <- t(scale(t(data)))
+    } else if(type == "col") {
+      scaled <- scale(data)
+    } else {
+      stop("Type is required: row or col")
+    }
+    
+    if(na.rm == TRUE && (length(which(is.na(scaled))) > 0))  {
+      scaled <- scaled[-unique(which(is.na(scaled), arr.ind = TRUE)[,1]),]
+    }
+    
+    return(scaled)
+  }
+  
   ### hierarchical clustering functions
   dist.spear <- function(x) as.dist(1-cor(t(x), method = "spearman"))
   hclust.ave <- function(x) hclust(x, method="average")
@@ -802,11 +824,11 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   ### because of the imbalance of the two cluster sizes, we randomly choose
   ### the same number of samples in each class and iteratively build the classifier
   iteration <- 10
-  set.seed(1234)
+  set.seed(2990)
   featureSelectionNum <- 100
-  sampleNum <- 300
-  methodTypes <- c("svmLinear", "svmRadial", "gbm", "rf", "LogitBoost", "knn")
-  methodNames <- c("SVMLinear", "SVMRadial", "GBM", "RandomForest", "LogitBoost", "K-NN")
+  sampleNum <- 100
+  methodTypes <- c("svmLinear", "svmRadial", "gbm", "parRF", "glmboost", "knn")
+  methodNames <- c("SVMLinear", "SVMRadial", "GBM", "RandomForest", "Linear_Model", "K-NN")
   train_control <- trainControl(method="LOOCV", classProbs = TRUE, savePredictions = TRUE, verboseIter = FALSE)
   
   ### the indicies of the persisters
@@ -829,7 +851,8 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     input_data <- normalizeRNASEQwithVST(readCount = data.frame(Seurat_Obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],
                                                                                              c(cond1_samps,
                                                                                                cond2_samps)] + log_trans_add,
-                                                                stringsAsFactors = FALSE, check.names = FALSE))
+                                                                stringsAsFactors = FALSE, check.names = FALSE),
+                                         filter_thresh = 0)
     
     ### annotate class for the input data
     input_data <- data.frame(t(input_data), stringsAsFactors = FALSE, check.names = FALSE)
@@ -871,10 +894,11 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     #
     ### normalize the read counts
     ### before the normalization, only keep the samples that will be used in the classifier
-    input_data <- normalizeRNASEQwithVST(readCount = data.frame(Seurat_Obj@assays$RNA@counts[sample(rownames(de_result), featureSelectionNum),
+    input_data <- normalizeRNASEQwithVST(readCount = data.frame(Seurat_Obj@assays$RNA@counts[sample(rownames(Seurat_Obj@assays$RNA@counts), featureSelectionNum),
                                                                                              c(cond1_samps,
                                                                                                cond2_samps)] + log_trans_add,
-                                                                stringsAsFactors = FALSE, check.names = FALSE))
+                                                                stringsAsFactors = FALSE, check.names = FALSE),
+                                         filter_thresh = 0)
     
     ### annotate class for the input data
     input_data <- data.frame(t(input_data), stringsAsFactors = FALSE, check.names = FALSE)
@@ -913,11 +937,19 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     #
     ### A heatmap to show those genes are actually differentially expressed between the two conditions
     #
+    # ### make a matrix for the heatmap
+    # heatmap_mat <- as.matrix(normalizeRNASEQwithVST(readCount = data.frame(Seurat_Obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],
+    #                                                                                                     c(cond1_samps,
+    #                                                                                                       cond2_samps)] + log_trans_add,
+    #                                                                        stringsAsFactors = FALSE, check.names = FALSE)),
+    #                                                 filter_trash = 0)
+    
     ### make a matrix for the heatmap
-    heatmap_mat <- as.matrix(normalizeRNASEQwithVST(readCount = data.frame(Seurat_Obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],
-                                                                                                        c(cond1_samps,
-                                                                                                          cond2_samps)] + log_trans_add,
-                                                                           stringsAsFactors = FALSE, check.names = FALSE)))
+    heatmap_mat <- as.matrix(scale_h(data.frame(Seurat_Obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],
+                                                                             c(cond1_samps,
+                                                                               cond2_samps)],
+                                                                           stringsAsFactors = FALSE, check.names = FALSE),
+                                     type = "row"))
     
     ### set rowside colors
     uniqueV <- c("YES", "NO")
@@ -943,12 +975,9 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
       heatmap_mat[which(heatmap_mat > limit_v)] <- limit_v
     }
     
-    ### I have to think about row-side scaling / col-side scaling
-    ### because the colors don't seem to be different between two conditions
-    
     ### heatmap
     png(paste0(outputDir2, "Heatmap_DEG_GMP_Last_vs_Not_Last_", featureSelectionNum, "_(", i, ").png"),
-        width = 2000, height = 1500, res = 200)
+        width = 3000, height = 2200, res = 300)
     par(oma=c(0,0,3,5))
     heatmap.3(as.matrix(heatmap_mat),
               xlab = "", ylab = "", col=colorpanel(100, low = "green", high = "red"),
@@ -959,7 +988,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
               distfun=dist.spear, hclustfun=hclust.ave,
               ColSideColors = cbind(colors1[as.character(Seurat_Obj@meta.data[colnames(heatmap_mat),"GMP_CARpos_Persister"])],
                                     colors2[as.character(Seurat_Obj@meta.data[colnames(heatmap_mat),"px"])]),
-              cexRow = 1.5, cexCol = 1.5, na.rm = TRUE,
+              cexRow = 0.3, cexCol = 1.5, na.rm = TRUE,
               main = paste0(nrow(heatmap_mat), " DE Genes x ",
                             ncol(heatmap_mat), " Cells"))
     legend("topright", inset = 0, xpd = TRUE, title = "Persistency",
@@ -970,8 +999,156 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
            fill = colors2, cex = 0.8, box.lty = 1)
     dev.off()
     
+    
+    gc()
   }
   
+  ### select 10 from each patient and build the classifier & the heatmap
+  sample_num_from_each_px <- 10
+  set.seed(2990)
+  cond1_samps <- NULL
+  cond2_samps <- NULL
+  for(px in unique(Seurat_Obj@meta.data$px[all_gmp_last])) {
+    px_idx <- which(Seurat_Obj@meta.data$px == px)
+    cond1_samps <- c(cond1_samps, rownames(Seurat_Obj@meta.data)[sample(intersect(all_gmp_last,
+                                                                                  px_idx),
+                                                                        sample_num_from_each_px)])
+    cond2_samps <- c(cond2_samps, rownames(Seurat_Obj@meta.data)[sample(intersect(all_gmp_not_last,
+                                                                                  px_idx),
+                                                                        sample_num_from_each_px)])
+  }
+  
+  ### normalize the read counts
+  ### before the normalization, only keep the samples that will be used in the classifier
+  input_data <- normalizeRNASEQwithVST(readCount = data.frame(Seurat_Obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],
+                                                                                           c(cond1_samps,
+                                                                                             cond2_samps)] + log_trans_add,
+                                                              stringsAsFactors = FALSE, check.names = FALSE),
+                                       filter_thresh = 0)
+  
+  ### annotate class for the input data
+  input_data <- data.frame(t(input_data), stringsAsFactors = FALSE, check.names = FALSE)
+  input_data$Class <- factor(c(rep("GMP_Last", length(cond1_samps)),
+                               rep("GMP_Not_Last", length(cond2_samps))),
+                             levels = c("GMP_Last", "GMP_Not_Last"))
+  
+  ### build classifier and test
+  ### LOOCV
+  p <- list()
+  acc <- NULL
+  for(j in 1:length(methodTypes)) {
+    writeLines(paste(methodTypes[j]))
+    model <- train(Class~., data=input_data, trControl=train_control, method=methodTypes[j])
+    roc <- roc(model$pred$obs, model$pred$GMP_Last)
+    acc <- c(acc, round(mean(model$results$Accuracy), 3))
+    p[[j]] <- plot.roc(roc, main = paste(methodNames[j], "With DEGs & Selected Samples\n",
+                                         "Accuracy =", acc[j]),
+                       legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+                       xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+    gc()
+  }
+  
+  ### draw ROC curves
+  png(paste0(outputDir2, "Classifier_Using_DEG_GMP_Last_vs_Not_Last_With_Selected_Samples_", featureSelectionNum, ".png"),
+      width = 2000, height = 2000, res = 350)
+  par(mfrow=c(3, 2))
+  for(j in 1:length(methodTypes)) {
+    plot.roc(p[[j]], main = paste(methodNames[j], "Using Gene Expressions\n",
+                                  "Accuracy =", acc[j]),
+             legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+             xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+  }
+  dev.off()
+  
+  
+  ### make a matrix for the heatmap
+  heatmap_mat <- as.matrix(scale_h(data.frame(Seurat_Obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],
+                                                                           c(cond1_samps,
+                                                                             cond2_samps)],
+                                              stringsAsFactors = FALSE, check.names = FALSE),
+                                   type = "row"))
+  
+  ### set rowside colors
+  uniqueV <- c("YES", "NO")
+  colors1 <- c("gray", "black")
+  names(colors1) <- uniqueV
+  uniqueV <- unique(Seurat_Obj@meta.data[colnames(heatmap_mat),"px"])
+  colors2 <- colorRampPalette(brewer.pal(length(uniqueV), "Spectral"))(length(uniqueV))
+  names(colors2) <- uniqueV
+  
+  ### order the colors2
+  colors2 <- colors2[order(names(colors2))]
+  
+  ### because there are some outliers in positive values
+  ### we scale more for the heatmap
+  median_v <- median(heatmap_mat)
+  min_v <- min(heatmap_mat)
+  max_v <- max(heatmap_mat)
+  if((median_v - min_v) > (max_v - median_v)) {
+    imit_v <- median_v - (max_v - median_v)
+    heatmap_mat[which(heatmap_mat < limit_v)] <- limit_v
+  } else {
+    limit_v <- median_v + (median_v - min_v)
+    heatmap_mat[which(heatmap_mat > limit_v)] <- limit_v
+  }
+  
+  ### heatmap
+  png(paste0(outputDir2, "Heatmap_DEG_GMP_Last_vs_Not_Last_With_Selected_Samples_", featureSelectionNum, ".png"),
+      width = 3000, height = 2200, res = 300)
+  par(oma=c(0,0,3,5))
+  heatmap.3(as.matrix(heatmap_mat),
+            xlab = "", ylab = "", col=colorpanel(100, low = "green", high = "red"),
+            scale="none", key=TRUE, keysize=1.5, density.info="density",
+            dendrogram = "none", trace = "none",
+            labRow = rownames(heatmap_mat), labCol = FALSE,
+            Rowv = FALSE, Colv = FALSE,
+            distfun=dist.spear, hclustfun=hclust.ave,
+            ColSideColors = cbind(colors1[as.character(Seurat_Obj@meta.data[colnames(heatmap_mat),"GMP_CARpos_Persister"])],
+                                  colors2[as.character(Seurat_Obj@meta.data[colnames(heatmap_mat),"px"])]),
+            cexRow = 0.3, cexCol = 1.5, na.rm = TRUE,
+            main = paste0(nrow(heatmap_mat), " DE Genes x ",
+                          ncol(heatmap_mat), " Cells"))
+  legend("topright", inset = 0, xpd = TRUE, title = "Persistency",
+         legend = c("Persisters", "Non-Persisters"),
+         fill = colors1, cex = 0.8, box.lty = 1)
+  legend("left", inset = 0, xpd = TRUE, title = "Patients",
+         legend = names(colors2),
+         fill = colors2, cex = 0.8, box.lty = 1)
+  dev.off()
+  
+  #
+  ### Reversed UMAP (gene-patient conversion) to show whether those genes are separated by persistency
+  #
+  
+  ### get random samples for each condition
+  set.seed(1234)
+  persister_samps <- rownames(Seurat_Obj@meta.data)[sample(all_gmp_last, 1000)]
+  DEGs <- rownames(de_result)[1:featureSelectionNum]
+  RGs <- sample(rownames(Seurat_Obj@assays$RNA@counts), featureSelectionNum)
+  
+  ### Reversed UMAP
+  input_data <- normalizeRNASEQwithVST(readCount = data.frame(Seurat_Obj@assays$RNA@counts[c(DEGs, RGs),
+                                                                                           persister_samps] + log_trans_add,
+                                                              stringsAsFactors = FALSE, check.names = FALSE),
+                                       filter_thresh = 0)
+  reversed_umap <- umap(input_data)
+  rownames(reversed_umap) <- c(DEGs, RGs)
+  colnames(reversed_umap) <- c("UMAP1", "UMAP2")
+  reversed_umap <- data.frame(reversed_umap,
+                              Cluster=c(rep("DEGs", length(DEGs)), rep("RGs", length(RGs))),
+                              Gene=rownames(reversed_umap),
+                              stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### draw UMAP
+  ggplot(reversed_umap, aes_string(x="UMAP1", y="UMAP2", label="Gene")) +
+    geom_point(aes_string(col="Cluster"), size=2, alpha=0.8) +
+    xlab("UMAP1") + ylab("UMAP2") +
+    labs(col="DEGs/Random Genes") +
+    ggtitle(paste0("Reversed UMAP with 100 DEGs & 100 RGs")) +
+    scale_color_brewer(palette="Dark2") +
+    theme_classic(base_size = 16)
+  ggsave(file = paste0(outputDir2, "Reversed_UMAP_DEG_vs_RG.png"),
+         width = 8, height = 6, dpi = 500)
   
   
   # ### get GMP CAR+ cells as a SingleCellExperiment object
