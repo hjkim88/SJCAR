@@ -101,6 +101,15 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
     ### separate the CAR+ and CAR- cells
     SJCAR19_Lineages_by_CAR[[patient]] <- SJCAR19_Clonotype_Frequency[["ALL"]][[patient]]
     SJCAR19_Lineages_by_CAR[[patient]] <- data.frame(Clone_ID=rownames(SJCAR19_Clonotype_Frequency[["ALL"]][[patient]]),
+                                                     V_Gene=sapply(rownames(SJCAR19_Clonotype_Frequency[["ALL"]][[patient]]), function(x) {
+                                                       return(paste(unique(Seurat_Obj@meta.data$v_gene[which(Seurat_Obj@meta.data$clonotype_id_by_patient == x)]), collapse = "-"))
+                                                     }),
+                                                     J_Gene=sapply(rownames(SJCAR19_Clonotype_Frequency[["ALL"]][[patient]]), function(x) {
+                                                       return(paste(unique(Seurat_Obj@meta.data$j_gene[which(Seurat_Obj@meta.data$clonotype_id_by_patient == x)]), collapse = "-"))
+                                                     }),
+                                                     C_Gene=sapply(rownames(SJCAR19_Clonotype_Frequency[["ALL"]][[patient]]), function(x) {
+                                                       return(paste(unique(Seurat_Obj@meta.data$c_gene[which(Seurat_Obj@meta.data$clonotype_id_by_patient == x)]), collapse = "-"))
+                                                     }),
                                                      CDR3_AA=sapply(rownames(SJCAR19_Clonotype_Frequency[["ALL"]][[patient]]), function(x) {
                                                        return(paste(unique(Seurat_Obj@meta.data$cdr3_aa[which(Seurat_Obj@meta.data$clonotype_id_by_patient == x)]), collapse = "-"))
                                                      }),
