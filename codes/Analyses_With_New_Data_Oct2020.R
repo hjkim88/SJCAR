@@ -13,8 +13,8 @@
 #   Example
 #               > source("The_directory_of_Analyses_With_New_Data_Oct2020.R/Analyses_With_New_Data_Oct2020.R")
 #               > analyses_with_new_data(Seurat_RObj_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/SJCAR19_Oct2020_Seurat_Obj2.RDS",
-#                                        barcode_dir="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/JCC/JCC212_SJCAR19/GEXbarcodes_15Oct2020/",
-#                                        TCR_dir="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/JCC/JCC212_SJCAR19/TCRs_15Oct2020/",
+#                                        barcode_dir="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/data/GEXbarcodes_15Oct2020/",
+#                                        TCR_dir="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/data/TCRs_15Oct2020/",
 #                                        clonotype_lineage_info_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/SJCAR19_Clonotype_Lineages.RDS",
 #                                        outputDir="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/new_results/")
 ###
@@ -294,6 +294,9 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
       rownames(tcr_data) <- tcr_data$barcode
       for(barcode in tcr_data$barcode) {
         idx <- which(temp$barcode == barcode)
+        tcr_data[barcode,"v_gene"] <- paste(c(tcr_data[barcode,"v_gene"], temp[idx, "v_gene"]), collapse = ";")
+        tcr_data[barcode,"j_gene"] <- paste(c(tcr_data[barcode,"j_gene"], temp[idx, "j_gene"]), collapse = ";")
+        tcr_data[barcode,"c_gene"] <- paste(c(tcr_data[barcode,"c_gene"], temp[idx, "c_gene"]), collapse = ";")
         tcr_data[barcode,"cdr3"] <- paste(c(tcr_data[barcode,"cdr3"], temp[idx, "cdr3"]), collapse = ";")
         tcr_data[barcode,"cdr3_nt"] <- paste(c(tcr_data[barcode,"cdr3_nt"], temp[idx, "cdr3_nt"]), collapse = ";")
         tcr_data[barcode,"productive"] <- paste(c(tcr_data[barcode,"productive"], temp[idx, "productive"]), collapse = ";")
@@ -303,8 +306,8 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
     }
     
     ### only retain informative columns
-    tcr_data <- tcr_data[,c("barcode", "raw_clonotype_id", "cdr3", "cdr3_nt", "reads", "umis", "productive")]
-    colnames(tcr_data) <- c("barcode", "raw_clonotype_id", "cdr3_aa", "cdr3_nt", "tcr_reads", "tcr_umis", "tcr_productive")
+    tcr_data <- tcr_data[,c("barcode", "raw_clonotype_id", "v_gene", "j_gene", "c_gene", "cdr3", "cdr3_nt", "reads", "umis", "productive")]
+    colnames(tcr_data) <- c("barcode", "raw_clonotype_id", "v_gene", "j_gene", "c_gene", "cdr3_aa", "cdr3_nt", "tcr_reads", "tcr_umis", "tcr_productive")
     
     ### add time & patient info
     temp <- strsplit(basename(TCR_data_dirs[i]), split = "_", fixed = TRUE)[[1]]
@@ -404,6 +407,9 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
   ### attach TCR info to the meta.data
   Seurat_Obj@meta.data$tcr_file_name <- NA
   Seurat_Obj@meta.data$raw_clonotype_id <- NA
+  Seurat_Obj@meta.data$v_gene <- NA
+  Seurat_Obj@meta.data$j_gene <- NA
+  Seurat_Obj@meta.data$c_gene <- NA
   Seurat_Obj@meta.data$cdr3_aa <- NA
   Seurat_Obj@meta.data$cdr3_nt <- NA
   Seurat_Obj@meta.data$tcr_reads <- NA
@@ -1096,20 +1102,20 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
   }
   
   
-  ### because we think there are too many CAR+ cells in patient 5 - Wk1,
-  ### we want to see how the CAR counts of the cells are
-  print(identical(rownames(Seurat_Obj@meta.data), colnames(Seurat_Obj@assays$RNA@counts)))
-  target_idx <- intersect(intersect(which(Seurat_Obj@meta.data$px == "SJCAR19-05"),
-                                    which(Seurat_Obj@meta.data$time == "Wk1")),
-                          which(Seurat_Obj@meta.data$CAR == "CARpos"))
-  
-  ### density plot
-  ggplot(data.frame(CARcount=Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short", target_idx]),
-         aes(x = CARcount)) +
-    geom_histogram(binwidth = 1) +
-    ggtitle(paste("CAR counts of the Px5 Wk1 CAR+ Cells")) +
-    theme_classic(base_size = 16)
-  ggsave(file = paste0(outputDir, "/CAR_Counts_Px5_Wk1.png"), width = 8, height = 6, dpi = 300)
+  # ### because we think there are too many CAR+ cells in patient 5 - Wk1,
+  # ### we want to see how the CAR counts of the cells are
+  # print(identical(rownames(Seurat_Obj@meta.data), colnames(Seurat_Obj@assays$RNA@counts)))
+  # target_idx <- intersect(intersect(which(Seurat_Obj@meta.data$px == "SJCAR19-05"),
+  #                                   which(Seurat_Obj@meta.data$time == "Wk1")),
+  #                         which(Seurat_Obj@meta.data$CAR == "CARpos"))
+  # 
+  # ### density plot
+  # ggplot(data.frame(CARcount=Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short", target_idx]),
+  #        aes(x = CARcount)) +
+  #   geom_histogram(binwidth = 1) +
+  #   ggtitle(paste("CAR counts of the Px5 Wk1 CAR+ Cells")) +
+  #   theme_classic(base_size = 16)
+  # ggsave(file = paste0(outputDir, "/CAR_Counts_Px5_Wk1.png"), width = 8, height = 6, dpi = 300)
   
   
   ### make a clonotype lineage table RDS file
