@@ -224,7 +224,7 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
       plot_data_table <- interesting_clones[[patient]][which(interesting_clones[[patient]]$Cell_Type == "ALL"),]
       
       ### get an input data frame for the alluvial plot
-      time_points <- colnames(interesting_clones[[patient]])[5:(ncol(interesting_clones[[patient]])-1)]
+      time_points <- colnames(interesting_clones[[patient]])[8:(ncol(interesting_clones[[patient]])-1)]
       total_rows <- length(which(plot_data_table[,time_points] > 0))
       plot_df <- data.frame(Time=rep("", total_rows),
                             Clone_Size=rep(0, total_rows),
@@ -482,7 +482,7 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
                                                                        which(SJCAR19_Lineages_in_Full[[patient]]$Clone_ID %in% unique(interesting_clones[[patient]]$Clone_ID))),]
       
       ### get an input data frame for the alluvial plot
-      time_points <- colnames(SJCAR19_Lineages_in_Full[[patient]])[6:(ncol(SJCAR19_Lineages_in_Full[[patient]])-8)]
+      time_points <- colnames(SJCAR19_Lineages_in_Full[[patient]])[9:(ncol(SJCAR19_Lineages_in_Full[[patient]])-8)]
       total_rows <- length(which(plot_data_table[,time_points] > 0))
       plot_df <- data.frame(Time=rep("", total_rows),
                             Clone_Size=rep(0, total_rows),
