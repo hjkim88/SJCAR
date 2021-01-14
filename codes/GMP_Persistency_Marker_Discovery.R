@@ -3,7 +3,7 @@
 #   Author    : Hyunjin Kim
 #   Date      : Dec 29, 2020
 #   Email     : hyunjin.kim@stjude.org
-#   Purpose   : 1. What markers predict whether a lineage (CAR+/CAR-) will persist after infusion?
+#   Purpose   : What markers predict whether a lineage (CAR+/CAR-) will persist after infusion?
 #               - DE analysis
 #               - GO/Pathway analysis
 #               - A heatmap to show those genes are actually differentially expressed between the two conditions
@@ -17,6 +17,17 @@
 #                 and test with other cells
 #               - Reversed PCA/UMAP (gene-patient conversion) to show whether those genes are separated by persistency
 #
+#               * After meeting with Jeremy at Jan 11,
+#               === TO-DO List ===
+#               1. Make statistics
+#               - The number of lineages
+#               - The number of persister cells
+#               - Statistics info with lineages specifically from GMP
+#               - CD4/CD8 - associated lineage info
+#               2. Classifier (Remove CD4 cells)
+#               - Use only one random cell per each lineage and permute to see if there are many changes
+#               - Use all the cells of all the lineages but LOPOCV (Leave One Patient Out -> Patient-based)
+#               3. Attach V & J info, and also the responder info to the Seurat object
 #
 #   Instruction
 #               1. Source("GMP_Persistency_Marker_Discovery.R")
