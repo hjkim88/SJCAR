@@ -440,6 +440,9 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
     if(identical(Seurat_Obj@meta.data$barcode_short[gex_idx], shared_barcodes)) {
       Seurat_Obj@meta.data$tcr_file_name[gex_idx] <- max_lib
       Seurat_Obj@meta.data$raw_clonotype_id[gex_idx] <- tcr[[max_lib]][shared_barcodes,"raw_clonotype_id"]
+      Seurat_Obj@meta.data$v_gene[gex_idx] <- tcr[[max_lib]][shared_barcodes,"v_gene"]
+      Seurat_Obj@meta.data$j_gene[gex_idx] <- tcr[[max_lib]][shared_barcodes,"j_gene"]
+      Seurat_Obj@meta.data$c_gene[gex_idx] <- tcr[[max_lib]][shared_barcodes,"c_gene"]
       Seurat_Obj@meta.data$cdr3_aa[gex_idx] <- tcr[[max_lib]][shared_barcodes,"cdr3_aa"]
       Seurat_Obj@meta.data$cdr3_nt[gex_idx] <- tcr[[max_lib]][shared_barcodes,"cdr3_nt"]
       Seurat_Obj@meta.data$tcr_reads[gex_idx] <- tcr[[max_lib]][shared_barcodes,"tcr_reads"]
