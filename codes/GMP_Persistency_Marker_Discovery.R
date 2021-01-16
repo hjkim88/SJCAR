@@ -1234,6 +1234,19 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   # pairs(dat, panel=panel.scatter)
   
   
+  ### 1. Make statistics
+  ### - The number of lineages
+  ### - The number of persister cells
+  ### - Statistics info with lineages specifically from GMP
+  ### - CD4/CD8 - associated lineage info
+  ### rows are patients and the columns are the info
+  
+  ### make an empty data frame
+  SJCAR19_Stats_Table <- data.frame(matrix(NA, ))
+  
+  
+  
+  
   
   
 }
