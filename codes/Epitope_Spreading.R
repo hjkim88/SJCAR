@@ -194,9 +194,9 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
     ### get index after GMP
     gmp_idx <- which(colnames(SJCAR19_Lineages_by_CAR[[patient]]) == "GMP")
     gmp_redo_idx <- which(colnames(SJCAR19_Lineages_by_CAR[[patient]]) == "GMP-redo")
-    after_gmp_idx <- max(gmp_idx, gmp_redo_idx)
+    after_gmp_idx <- max(gmp_idx, gmp_redo_idx) + 1
     
-    if(after_gmp_idx != -Inf && (after_gmp_idx+1) < ncol(SJCAR19_Lineages_by_CAR[[patient]])) {
+    if(after_gmp_idx != -Inf && after_gmp_idx < ncol(SJCAR19_Lineages_by_CAR[[patient]])) {
       ### output directory for the given patient
       outputDir2 <- paste0(outputDir, patient, "/")
       dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
@@ -472,10 +472,10 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
     ### get index after GMP
     gmp_idx <- which(colnames(SJCAR19_Lineages_in_Full[[patient]]) == "GMP")
     gmp_redo_idx <- which(colnames(SJCAR19_Lineages_in_Full[[patient]]) == "GMP-redo")
-    after_gmp_idx <- max(gmp_idx, gmp_redo_idx)
+    after_gmp_idx <- max(gmp_idx, gmp_redo_idx) + 1
     total_idx <- which(colnames(SJCAR19_Lineages_in_Full[[patient]]) == "Total")
     
-    if(after_gmp_idx != -Inf && (after_gmp_idx+1) < total_idx) {
+    if(after_gmp_idx != -Inf && after_gmp_idx < total_idx) {
       ### get the interesting clones only & CAR- cells only
       plot_data_table <- SJCAR19_Lineages_in_Full[[patient]][intersect(intersect(which(SJCAR19_Lineages_in_Full[[patient]]$CAR_Type == "CARneg"),
                                                                                  which(SJCAR19_Lineages_in_Full[[patient]]$CD_Type == "ALL")),
