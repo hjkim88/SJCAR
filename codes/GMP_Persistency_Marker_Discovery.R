@@ -1234,18 +1234,50 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   # pairs(dat, panel=panel.scatter)
   
   
-  ### 1. Make statistics
-  ### - The number of lineages
-  ### - The number of persister cells
-  ### - Statistics info with lineages specifically from GMP
-  ### - CD4/CD8 - associated lineage info
-  ### rows are patients and the columns are the info
+  ### Make statistics
+  ### 1.  The number of the lineages
+  ### 2.  The number of CD4 lineages
+  ### 3.  The number of CD8 lineages
+  ### 4.  The number of CD4 cells in the lineages
+  ### 5.  The number of CD8 cells in the lineages
+  ### 6.  The number of CAR+ cells in the lineages
+  ### 7.  The number of CAR- cells in the lineages
+  ### 8.  The number of total cells in the lineages
+  ### 9.  The number of the CAR+ lineages
+  ### 10. The number of the CAR- lineages
+  ### 11. The number of persister lineages from GMP (CAR+ ONLY)
+  ### 12. The number of persister cells from GMP (CAR+ ONLY)
+  ###
+  ### rows are patients and the 12 columns are the above info
   
   ### make an empty data frame
-  SJCAR19_Stats_Table <- data.frame(matrix(NA, ))
+  SJCAR19_Stats_Table <- data.frame(matrix(NA,
+                                           length(SJCAR19_Clonotype_Frequency[["ALL"]]),
+                                           12),
+                                    stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(SJCAR19_Stats_Table) <- names(SJCAR19_Clonotype_Frequency[["ALL"]])
+  colnames(SJCAR19_Stats_Table) <- c("Lineage_#",
+                                     "CD4_Lineage_#",
+                                     "CD8_Lineage_#",
+                                     "Lineage_CD4_Cell_#",
+                                     "Lineage_CD8_Cell_#",
+                                     "Lineage_CARpos_Cell_#",
+                                     "Lineage_CARneg_Cell_#",
+                                     "Lineage_Total_Cell_#",
+                                     "CARpos_Lineage_#",
+                                     "CARneg_Lineage_#",
+                                     "GMP_Persister_Lineage_#",
+                                     "GMP_Persister_Cell_#")
   
-  
-  
+  ### for each patient fill out the stats table
+  for(px in rownames(SJCAR19_Stats_Table)) {
+    SJCAR19_Stats_Table[px,"Lineage_#"] <- 
+    
+    
+    
+    
+    
+  }
   
   
   
