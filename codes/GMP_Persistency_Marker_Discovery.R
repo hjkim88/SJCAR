@@ -1302,7 +1302,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
       SJCAR19_Stats_Table[px,"Lineage_#"] <- length(lineage_idx)
       
       ### Lineage_Total_Cell_#
-      SJCAR19_Stats_Table[px,"Lineage_Total_Cell_#"] <- sum(target_table[lineage_idx,"Total"])
+      SJCAR19_Stats_Table[px,"Lineage_Total_Cell_#"] <- sum(as.numeric(unlist(target_table[lineage_idx,"Total"])))
       
       ### get index after GMP
       gmp_idx <- which(colnames(target_table) == "GMP")
@@ -1325,47 +1325,51 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
         is_gmp_lineage_exist <- is_gmp_cell_exist & is_after_gmp_exist
         
         SJCAR19_Stats_Table[px,"GMP_Persister_Lineage_#"] <- length(which(is_gmp_lineage_exist == TRUE))
-        SJCAR19_Stats_Table[px,"GMP_Persister_Cell_#"] <- sum(target_table[is_gmp_lineage_exist,after_gmp_idx:(ncol(target_table)-1)])
+        SJCAR19_Stats_Table[px,"GMP_Persister_Cell_#"] <- sum(as.numeric(unlist(target_table[is_gmp_lineage_exist,after_gmp_idx:(ncol(target_table)-1)])))
       } else {
         SJCAR19_Stats_Table[px,"GMP_Persister_Lineage_#"] <- 0
         SJCAR19_Stats_Table[px,"GMP_Persister_Cell_#"] <- 0
       }
       
       ### CD4_Lineage_#
-      target_table_cd4 <- SJCAR19_Lineages_in_Full[[px]][which(SJCAR19_Lineages_in_Full[[px]]$CD_Type == "CD4"),
+      target_table_cd4 <- SJCAR19_Lineages_in_Full[[px]][intersect(which(SJCAR19_Lineages_in_Full[[px]]$CD_Type == "CD4"),
+                                                                   which(SJCAR19_Lineages_in_Full[[px]]$CAR_Type == "ALL")),
                                                          (which(colnames(SJCAR19_Lineages_in_Full[[px]]) == "CDR3_NT")+1):which(colnames(SJCAR19_Lineages_in_Full[[px]]) == "Total")]
       CD4_lineage_idx <- which(apply(target_table_cd4[,1:(ncol(target_table_cd4)-1)], 1, function(x) length(which(x > 0))) > 1)
       SJCAR19_Stats_Table[px,"CD4_Lineage_#"] <- length(CD4_lineage_idx)
       
       ### CD8_Lineage_#
-      target_table_cd8 <- SJCAR19_Lineages_in_Full[[px]][which(SJCAR19_Lineages_in_Full[[px]]$CD_Type == "CD8"),
+      target_table_cd8 <- SJCAR19_Lineages_in_Full[[px]][intersect(which(SJCAR19_Lineages_in_Full[[px]]$CD_Type == "CD8"),
+                                                                   which(SJCAR19_Lineages_in_Full[[px]]$CAR_Type == "ALL")),
                                                          (which(colnames(SJCAR19_Lineages_in_Full[[px]]) == "CDR3_NT")+1):which(colnames(SJCAR19_Lineages_in_Full[[px]]) == "Total")]
       CD8_lineage_idx <- which(apply(target_table_cd8[,1:(ncol(target_table_cd8)-1)], 1, function(x) length(which(x > 0))) > 1)
       SJCAR19_Stats_Table[px,"CD8_Lineage_#"] <- length(CD8_lineage_idx)
       
       ### Lineage_CD4_Cell_#
-      SJCAR19_Stats_Table[px,"Lineage_CD4_Cell_#"] <- sum(target_table_cd4[CD4_lineage_idx,"Total"])
+      SJCAR19_Stats_Table[px,"Lineage_CD4_Cell_#"] <- sum(as.numeric(unlist(target_table_cd4[CD4_lineage_idx,"Total"])))
       
       ### Lineage_CD8_Cell_#
-      SJCAR19_Stats_Table[px,"Lineage_CD8_Cell_#"] <- sum(target_table_cd8[CD8_lineage_idx,"Total"])
+      SJCAR19_Stats_Table[px,"Lineage_CD8_Cell_#"] <- sum(as.numeric(unlist(target_table_cd8[CD8_lineage_idx,"Total"])))
       
       ### CARpos_Lineage_#
-      target_table_carpos <- SJCAR19_Lineages_in_Full[[px]][which(SJCAR19_Lineages_in_Full[[px]]$CAR_Type == "CARpos"),
+      target_table_carpos <- SJCAR19_Lineages_in_Full[[px]][intersect(which(SJCAR19_Lineages_in_Full[[px]]$CAR_Type == "CARpos"),
+                                                                      which(SJCAR19_Lineages_in_Full[[px]]$CD_Type == "ALL")),
                                                             (which(colnames(SJCAR19_Lineages_in_Full[[px]]) == "CDR3_NT")+1):which(colnames(SJCAR19_Lineages_in_Full[[px]]) == "Total")]
       carpos_lineage_idx <- which(apply(target_table_carpos[,1:(ncol(target_table_carpos)-1)], 1, function(x) length(which(x > 0))) > 1)
       SJCAR19_Stats_Table[px,"CARpos_Lineage_#"] <- length(carpos_lineage_idx)
       
       ### CARneg_Lineage_#
-      target_table_carneg <- SJCAR19_Lineages_in_Full[[px]][which(SJCAR19_Lineages_in_Full[[px]]$CAR_Type == "CARneg"),
+      target_table_carneg <- SJCAR19_Lineages_in_Full[[px]][intersect(which(SJCAR19_Lineages_in_Full[[px]]$CAR_Type == "CARneg"),
+                                                                      which(SJCAR19_Lineages_in_Full[[px]]$CD_Type == "ALL")),
                                                             (which(colnames(SJCAR19_Lineages_in_Full[[px]]) == "CDR3_NT")+1):which(colnames(SJCAR19_Lineages_in_Full[[px]]) == "Total")]
       carneg_lineage_idx <- which(apply(target_table_carneg[,1:(ncol(target_table_carneg)-1)], 1, function(x) length(which(x > 0))) > 1)
       SJCAR19_Stats_Table[px,"CARneg_Lineage_#"] <- length(carneg_lineage_idx)
       
       ### Lineage_CARpos_Cell_#
-      SJCAR19_Stats_Table[px,"Lineage_CARpos_Cell_#"] <- sum(target_table_carpos[carpos_lineage_idx,"Total"])
+      SJCAR19_Stats_Table[px,"Lineage_CARpos_Cell_#"] <- sum(as.numeric(unlist(target_table_carpos[carpos_lineage_idx,"Total"])))
       
       ### Lineage_CARneg_Cell_#
-      SJCAR19_Stats_Table[px,"Lineage_CARneg_Cell_#"] <- sum(target_table_carneg[carneg_lineage_idx,"Total"])
+      SJCAR19_Stats_Table[px,"Lineage_CARneg_Cell_#"] <- sum(as.numeric(unlist(target_table_carneg[carneg_lineage_idx,"Total"])))
       
       #
       ### GMP_Persister_CD4_Lineage_#
@@ -1390,7 +1394,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
         is_gmp_lineage_exist <- is_gmp_cell_exist & is_after_gmp_exist
         
         SJCAR19_Stats_Table[px,"GMP_Persister_CD4_Lineage_#"] <- length(which(is_gmp_lineage_exist == TRUE))
-        SJCAR19_Stats_Table[px,"GMP_Persister_CD4_Cell_#"] <- sum(target_table_cd4[is_gmp_lineage_exist,after_gmp_idx:(ncol(target_table_cd4)-1)])
+        SJCAR19_Stats_Table[px,"GMP_Persister_CD4_Cell_#"] <- sum(as.numeric(unlist(target_table_cd4[is_gmp_lineage_exist,after_gmp_idx:(ncol(target_table_cd4)-1)])))
       } else {
         SJCAR19_Stats_Table[px,"GMP_Persister_CD4_Lineage_#"] <- 0
         SJCAR19_Stats_Table[px,"GMP_Persister_CD4_Cell_#"] <- 0
@@ -1419,7 +1423,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
         is_gmp_lineage_exist <- is_gmp_cell_exist & is_after_gmp_exist
         
         SJCAR19_Stats_Table[px,"GMP_Persister_CD8_Lineage_#"] <- length(which(is_gmp_lineage_exist == TRUE))
-        SJCAR19_Stats_Table[px,"GMP_Persister_CD8_Cell_#"] <- sum(target_table_cd8[is_gmp_lineage_exist,after_gmp_idx:(ncol(target_table_cd8)-1)])
+        SJCAR19_Stats_Table[px,"GMP_Persister_CD8_Cell_#"] <- sum(as.numeric(unlist(target_table_cd8[is_gmp_lineage_exist,after_gmp_idx:(ncol(target_table_cd8)-1)])))
       } else {
         SJCAR19_Stats_Table[px,"GMP_Persister_CD8_Lineage_#"] <- 0
         SJCAR19_Stats_Table[px,"GMP_Persister_CD8_Cell_#"] <- 0
@@ -1448,7 +1452,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
         is_gmp_lineage_exist <- is_gmp_cell_exist & is_after_gmp_exist
         
         SJCAR19_Stats_Table[px,"GMP_Persister_CARpos_Lineage_#"] <- length(which(is_gmp_lineage_exist == TRUE))
-        SJCAR19_Stats_Table[px,"GMP_Persister_CARpos_Cell_#"] <- sum(target_table_carpos[is_gmp_lineage_exist,after_gmp_idx:(ncol(target_table_carpos)-1)])
+        SJCAR19_Stats_Table[px,"GMP_Persister_CARpos_Cell_#"] <- sum(as.numeric(unlist(target_table_carpos[is_gmp_lineage_exist,after_gmp_idx:(ncol(target_table_carpos)-1)])))
       } else {
         SJCAR19_Stats_Table[px,"GMP_Persister_CARpos_Lineage_#"] <- 0
         SJCAR19_Stats_Table[px,"GMP_Persister_CARpos_Cell_#"] <- 0
@@ -1477,7 +1481,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
         is_gmp_lineage_exist <- is_gmp_cell_exist & is_after_gmp_exist
         
         SJCAR19_Stats_Table[px,"GMP_Persister_CARneg_Lineage_#"] <- length(which(is_gmp_lineage_exist == TRUE))
-        SJCAR19_Stats_Table[px,"GMP_Persister_CARneg_Cell_#"] <- sum(target_table_carneg[is_gmp_lineage_exist,after_gmp_idx:(ncol(target_table_carneg)-1)])
+        SJCAR19_Stats_Table[px,"GMP_Persister_CARneg_Cell_#"] <- sum(as.numeric(unlist(target_table_carneg[is_gmp_lineage_exist,after_gmp_idx:(ncol(target_table_carneg)-1)])))
       } else {
         SJCAR19_Stats_Table[px,"GMP_Persister_CARneg_Lineage_#"] <- 0
         SJCAR19_Stats_Table[px,"GMP_Persister_CARneg_Cell_#"] <- 0
