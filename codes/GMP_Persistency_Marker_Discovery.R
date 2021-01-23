@@ -1498,5 +1498,87 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
               sheetName = "SJCAR19_Statistics", row.names = FALSE)
   
   
+  ### Classifier (Remove CD4 cells)
+  ### Use only one random cell per each lineage and permute to see if there are many changes
+  
+  ### set parameters
+  iteration <- 100
+  set.seed(2990)
+  featureSelectionNum <- 100
+  methodTypes <- c("svmLinear", "svmRadial", "gbm", "parRF", "glmboost", "knn")
+  methodNames <- c("SVMLinear", "SVMRadial", "GBM", "RandomForest", "Linear_Model", "K-NN")
+  train_control <- trainControl(method="LOOCV", classProbs = TRUE, savePredictions = TRUE, verboseIter = FALSE)
+  
+  ### the indicies of the persisters
+  all_gmp_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES")
+  all_gmp_not_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "NO")
+  
+  ### a small number that will be added to the counts for normalization
+  ### log transform should not have 0 values
+  log_trans_add <- 1
+  
+  ### build the classifier 100 times
+  for(i in 1:iteration) {
+    
+    ### get random cell per each lineage
+    
+    
+    
+    
+    
+    cond1_samps <- rownames(Seurat_Obj@meta.data)[sample(all_gmp_last, sampleNum)]
+    cond2_samps <- rownames(Seurat_Obj@meta.data)[sample(all_gmp_not_last, sampleNum)]
+    
+    ### normalize the read counts
+    ### before the normalization, only keep the samples that will be used in the classifier
+    input_data <- normalizeRNASEQwithVST(readCount = data.frame(Seurat_Obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],
+                                                                                             c(cond1_samps,
+                                                                                               cond2_samps)] + log_trans_add,
+                                                                stringsAsFactors = FALSE, check.names = FALSE),
+                                         filter_thresh = 0)
+    
+    ### annotate class for the input data
+    input_data <- data.frame(t(input_data), stringsAsFactors = FALSE, check.names = FALSE)
+    input_data$Class <- factor(c(rep("GMP_Last", sampleNum),
+                                 rep("GMP_Not_Last", sampleNum)),
+                               levels = c("GMP_Last", "GMP_Not_Last"))
+    
+    ### build classifier and test
+    ### LOOCV
+    p <- list()
+    acc <- NULL
+    for(j in 1:length(methodTypes)) {
+      writeLines(paste(methodTypes[j]))
+      model <- train(Class~., data=input_data, trControl=train_control, method=methodTypes[j])
+      roc <- roc(model$pred$obs, model$pred$GMP_Last)
+      acc <- c(acc, round(mean(model$results$Accuracy), 3))
+      p[[j]] <- plot.roc(roc, main = paste(methodNames[j], "Using DE Genes\n",
+                                           "Accuracy =", acc[j]),
+                         legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+                         xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+      gc()
+    }
+    
+    ### draw ROC curves
+    png(paste0(outputDir2, "Classifier_Using_DEG_GMP_Last_vs_Not_Last_", featureSelectionNum, "_(", i, ").png"),
+        width = 2000, height = 2000, res = 350)
+    par(mfrow=c(3, 2))
+    for(j in 1:length(methodTypes)) {
+      plot.roc(p[[j]], main = paste(methodNames[j], "Using Gene Expressions\n",
+                                    "Accuracy =", acc[j]),
+               legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+               xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+    }
+    dev.off()
+  
+    gc()
+  }
+  
+  
+  
+  
+  
+  
+  
   
 }
