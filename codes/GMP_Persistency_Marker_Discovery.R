@@ -73,6 +73,10 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     install.packages("ggpubr")
     require(ggpubr, quietly = TRUE)
   }
+  if(!require(ggsci, quietly = TRUE)) {
+    install.packages("ggsci")
+    require(ggsci, quietly = TRUE)
+  }
   if(!require(viridis, quietly = TRUE)) {
     install.packages("viridis")
     require(viridis, quietly = TRUE)
@@ -1607,7 +1611,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     }
     
     ### draw ROC curves
-    png(paste0(outputDir2, "Classifier_Using_DEG_GMP_Last_vs_Not_Last_", featureSelectionNum, "One_Cell_Per_Lineage_(", i, ").png"),
+    png(paste0(outputDir2, "Classifier_Using_DEG_GMP_Last_vs_Not_Last_", featureSelectionNum, "_One_Cell_Per_Lineage_(", i, ").png"),
         width = 2000, height = 2000, res = 350)
     par(mfrow=c(3, 2))
     for(j in 1:length(methodTypes)) {
@@ -1621,12 +1625,40 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     gc()
   }
   
+  ### save the ACC & AUC values
+  saveRDS(eval_acc, file = paste0(outputDir2, "eval_acc.RDS"))
+  saveRDS(eval_auc, file = paste0(outputDir2, "eval_auc.RDS"))
+  
   ### Draw line graphs with iteration ACC & AUC
-  plot_df <- matrix(0, iteration, 2*length(methodTypes))
-  colnames(plot_df) <- 
+  plot_df <- matrix(0, iteration*2, length(methodTypes)+2)
+  colnames(plot_df) <- c("Iteration", methodNames, "Measure")
+  plot_df <- data.frame(plot_df, stringsAsFactors = FALSE, check.names = FALSE)
   
+  ### fill out the table
+  for(mname in methodNames) {
+    plot_df[1:iteration,mname] <- eval_acc[[mname]]
+    plot_df[(iteration+1):(iteration*2),mname] <- eval_auc[[mname]]
+    plot_df[,"Measure"] <- c(rep("ACC", iteration), rep("AUC", iteration))
+  }
   
+  ### line graph generation
+  p <- vector("list", length = length(methodTypes))
+  names(p) <- methodNames
+  for(mname in methodNames) {
+    p[[mname]] <- ggplot(plot_df, aes_string(x= "Iteration", y=mname, group="Measure")) +
+      geom_line(aes_string(color="Measure", linetype="Measure")) +
+      theme_classic(base_size = 16) +
+      scale_color_npg()
+  }
   
-  
+  ### arrange the plots and save
+  fName <- paste0("Classifier_Result_Using_DEG_GMP_Last_vs_Not_Last_", featureSelectionNum, "_One_Cell_Per_Lineage")
+  rowNum <- 3
+  colNum <- 2
+  g <- arrangeGrob(grobs = p,
+                   nrow = rowNum,
+                   ncol = colNum,
+                   top = fName)
+  ggsave(file = paste0(outputDir2, fName, ".png"), g, width = 20, height = 20, dpi = 300)
   
 }
