@@ -1500,11 +1500,22 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   
   ### Classifier (Remove CD4 cells)
   ### Use only one random cell per each lineage and permute to see if there are many changes
+  #
+  ### gmp_last vs gmp_not_last
+  ### 3428 vs 102958 cells
+  ### 2126 vs 58114 CD8 cells
+  ### 1223 vs 94240 lineages
+  ### 837 vs 51671 CD8 lineages
+  
+  ### create outputDir2
+  outputDir2 <- paste0(outputDir, "DE_Classifier_One_Cell_Per_Lineage/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### set parameters
   iteration <- 100
   set.seed(2990)
   featureSelectionNum <- 100
+  sampleNum <- 100
   methodTypes <- c("svmLinear", "svmRadial", "gbm", "parRF", "glmboost", "knn")
   methodNames <- c("SVMLinear", "SVMRadial", "GBM", "RandomForest", "Linear_Model", "K-NN")
   train_control <- trainControl(method="LOOCV", classProbs = TRUE, savePredictions = TRUE, verboseIter = FALSE)
@@ -1513,21 +1524,55 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   all_gmp_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES")
   all_gmp_not_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "NO")
   
+  ### only use the CD8 cells
+  all_gmp_last <- intersect(all_gmp_last,
+                            which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  all_gmp_not_last <- intersect(all_gmp_not_last,
+                                which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  
+  ### a table that indicates which cell comes from which lineage (persister vs non-persister)
+  persister_cell_table <- data.frame(Persistance=c(rep("YES", length(all_gmp_last)),
+                                                   rep("NO", length(all_gmp_not_last))),
+                                     Cell_Name=rownames(Seurat_Obj@meta.data)[c(all_gmp_last, all_gmp_not_last)],
+                                     Index=c(all_gmp_last, all_gmp_not_last),
+                                     Clonotype=Seurat_Obj@meta.data$clonotype_id_by_patient[c(all_gmp_last, all_gmp_not_last)],
+                                     stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### unique lineages
+  all_gmp_last_lineages <- unique(Seurat_Obj@meta.data$clonotype_id_by_patient[all_gmp_last])
+  all_gmp_not_last_lineages <- unique(Seurat_Obj@meta.data$clonotype_id_by_patient[all_gmp_not_last])
+  
   ### a small number that will be added to the counts for normalization
   ### log transform should not have 0 values
   log_trans_add <- 1
   
+  ### performance evaluation
+  eval_acc <- vector("list", length(methodTypes))
+  names(eval_acc) <- methodNames
+  eval_auc <- vector("list", length(methodTypes))
+  names(eval_auc) <- methodNames
+  
   ### build the classifier 100 times
   for(i in 1:iteration) {
     
-    ### get random cell per each lineage
+    ### wirte progress
+    writeLines(paste(i))
     
+    ### get random lineages
+    cond1_lineages <- sample(all_gmp_last_lineages, sampleNum)
+    cond2_lineages <- sample(all_gmp_not_last_lineages, sampleNum)
     
-    
-    
-    
-    cond1_samps <- rownames(Seurat_Obj@meta.data)[sample(all_gmp_last, sampleNum)]
-    cond2_samps <- rownames(Seurat_Obj@meta.data)[sample(all_gmp_not_last, sampleNum)]
+    ### get random samples from the random lineages (one cell per lineage)
+    cond1_samps <- NULL
+    for(lineage in cond1_lineages) {
+      lineage_pool <- which(persister_cell_table$Clonotype == lineage)
+      cond1_samps <- c(cond1_samps, persister_cell_table$Cell_Name[sample(lineage_pool, 1)])
+    }
+    cond2_samps <- NULL
+    for(lineage in cond2_lineages) {
+      lineage_pool <- which(persister_cell_table$Clonotype == lineage)
+      cond2_samps <- c(cond2_samps, persister_cell_table$Cell_Name[sample(lineage_pool, 1)])
+    }
     
     ### normalize the read counts
     ### before the normalization, only keep the samples that will be used in the classifier
@@ -1556,11 +1601,13 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                                            "Accuracy =", acc[j]),
                          legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
                          xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+      eval_acc[[methodNames[j]]] <- c(eval_acc[[methodNames[j]]], acc)
+      eval_auc[[methodNames[j]]] <- c(eval_auc[[methodNames[j]]], as.numeric(roc$auc))
       gc()
     }
     
     ### draw ROC curves
-    png(paste0(outputDir2, "Classifier_Using_DEG_GMP_Last_vs_Not_Last_", featureSelectionNum, "_(", i, ").png"),
+    png(paste0(outputDir2, "Classifier_Using_DEG_GMP_Last_vs_Not_Last_", featureSelectionNum, "One_Cell_Per_Lineage_(", i, ").png"),
         width = 2000, height = 2000, res = 350)
     par(mfrow=c(3, 2))
     for(j in 1:length(methodTypes)) {
@@ -1574,8 +1621,9 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     gc()
   }
   
-  
-  
+  ### Draw line graphs with iteration ACC & AUC
+  plot_df <- matrix(0, iteration, 2*length(methodTypes))
+  colnames(plot_df) <- 
   
   
   
