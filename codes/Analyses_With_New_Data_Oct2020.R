@@ -1372,6 +1372,9 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
   ### what are the patients that have less than 3 after-infusion time points?
   npIdx <- setdiff(npIdx, which(Seurat_Obj@meta.data$px %in% indeterminate_patient_pool))
   
+  ### remove cells which do not have TCR info (we don't know about those cells yet)
+  npIdx <- setdiff(npIdx, which(is.na(Seurat_Obj@meta.data$cdr3_aa)))
+  
   ### check whether the orders are the same
   print(identical(names(Idents(object = Seurat_Obj)), rownames(Seurat_Obj@meta.data)))
   
