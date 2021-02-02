@@ -1873,8 +1873,33 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   }
   
   
+  #
+  ### Split patients into two groups (weighting for # of CAR+ lineages or cells at GMP),
+  ### use one group as training and test on the other, then flip them and do the same
+  #
+  ### first we need to combine the two Seurat objects from different patients
+  Seurat_Obj_C2 <- readRDS(file = "./data/NEW_SJCAR_SEURAT_OBJ/SJCAR19_Oct2020_Seurat_Obj_C2.RDS")
+  Seurat_Obj_Total <- merge(x = Seurat_Obj, y = Seurat_Obj_C2,
+                            add.cell.ids = c("Set1", "Set2"),
+                            project = "SJCAR19_Oct2020")
   
+  ### rownames in the meta.data should be in the same order as colnames in the counts
+  Seurat_Obj_Total@meta.data <- Seurat_Obj_Total@meta.data[colnames(Seurat_Obj_Total@assays$RNA@counts),]
+  print(identical(rownames(Seurat_Obj_Total@meta.data), colnames(Seurat_Obj_Total@assays$RNA@counts)))
   
+  ### active assay = "RNA"
+  Seurat_Obj_Total@active.assay <- "RNA"
+  
+  ### check whether the orders are the same
+  print(identical(names(Idents(object = Seurat_Obj_Total)), rownames(Seurat_Obj_Total@meta.data)))
+  
+  ### remove the source seurat objects
+  rm(Seurat_Obj)
+  rm(Seurat_Obj_C2)
+  gc()
+  
+  ### save the new total seurat object
+  saveRDS(Seurat_Obj_Total, file = "./data/NEW_SJCAR_SEURAT_OBJ/SJCAR19_Oct2020_Seurat_Obj_Total.RDS")
   
   
   
