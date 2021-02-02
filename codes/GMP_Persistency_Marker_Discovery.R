@@ -1901,6 +1901,68 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   ### save the new total seurat object
   saveRDS(Seurat_Obj_Total, file = "./data/NEW_SJCAR_SEURAT_OBJ/SJCAR19_Oct2020_Seurat_Obj_Total.RDS")
   
+  ### divide the patients into two groups
+  #
+  ### GMP_Persister_CD8_Cell_#
+  ### 8941 (11) + 1347 (3) + 118 (12) + 162 (5) + 72 (9) + 70 (13) = 10710
+  ### 4013 (6) + 2189 (2) + 1954 (4) + 496 (10) + 282 (7) + 256 (8) = 9190
+  #
+  ### GMP_Persister_CARpos_Lineage_#
+  ### 108 (11) + 0 (3) + 0 (12) + 18 (5) + 4 (9) + 1 (13) = 131
+  ### 20 (6) + 4 (2) + 6 (4) + 34 (10) + 9 (7) + 25 (8) = 98
+  
+  Seurat_Obj_Total$Classifier_Group <- NA
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-03",
+                                                                     "SJCAR19-05",
+                                                                     "SJCAR19-09",
+                                                                     "SJCAR19-11",
+                                                                     "SJCAR19-12",
+                                                                     "SJCAR19-13"))] <- "G1"
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-02",
+                                                                     "SJCAR19-04",
+                                                                     "SJCAR19-06",
+                                                                     "SJCAR19-07",
+                                                                     "SJCAR19-08",
+                                                                     "SJCAR19-10"))] <- "G2"
+  
+  ### create outputDir2
+  outputDir2 <- paste0(outputDir, "DE_Classifier_Two_Group/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### the indicies of the persisters
+  all_gmp_last <- which(Seurat_Obj_Total@meta.data$GMP_CARpos_Persister == "YES")
+  all_gmp_not_last <- which(Seurat_Obj_Total@meta.data$GMP_CARpos_Persister == "NO")
+  
+  ### only use the CD8 cells
+  all_gmp_last <- intersect(all_gmp_last,
+                            which(Seurat_Obj_Total@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  all_gmp_not_last <- intersect(all_gmp_not_last,
+                                which(Seurat_Obj_Total@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  
+  ### a table that indicates which cell comes from which lineage (persister vs non-persister)
+  persister_cell_table <- data.frame(Persistance=c(rep("YES", length(all_gmp_last)),
+                                                   rep("NO", length(all_gmp_not_last))),
+                                     Cell_Name=rownames(Seurat_Obj_Total@meta.data)[c(all_gmp_last, all_gmp_not_last)],
+                                     Index=c(all_gmp_last, all_gmp_not_last),
+                                     Clonotype=Seurat_Obj_Total@meta.data$clonotype_id_by_patient[c(all_gmp_last, all_gmp_not_last)],
+                                     stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### unique lineages
+  all_gmp_last_lineages <- unique(Seurat_Obj_Total@meta.data$clonotype_id_by_patient[all_gmp_last])
+  all_gmp_not_last_lineages <- unique(Seurat_Obj_Total@meta.data$clonotype_id_by_patient[all_gmp_not_last])
+  
+  ### set parameters for the classifier
+  iteration <- 10
+  set.seed(2990)
+  featureSelectionNum <- 100
+  testSampleNum <- 1000
+  target_px <- unique(intersect(Seurat_Obj@meta.data$px[all_gmp_last],
+                                Seurat_Obj@meta.data$px[all_gmp_not_last]))
+  cv_k <- length(target_px)
+  methodTypes <- c("svmLinear", "svmRadial", "gbm", "parRF", "glmboost", "knn")
+  methodNames <- c("SVMLinear", "SVMRadial", "GBM", "RandomForest", "Linear_Model", "KNN")
+  log_trans_add <- 1
+  
   
   
   
