@@ -1893,6 +1893,12 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   ### check whether the orders are the same
   print(identical(names(Idents(object = Seurat_Obj_Total)), rownames(Seurat_Obj_Total@meta.data)))
   
+  ### set batch info to the meta data
+  temp <- sapply(rownames(Seurat_Obj_Total@meta.data), function(x) substr(x, 1, 4))
+  Seurat_Obj_Total@meta.data$Batch <- NA
+  Seurat_Obj_Total@meta.data$Batch[which(temp == "Set1")] <- "Batch1"
+  Seurat_Obj_Total@meta.data$Batch[which(temp == "Set2")] <- "Batch2"
+  
   ### remove the source seurat objects
   rm(Seurat_Obj)
   rm(Seurat_Obj_C2)
@@ -1939,29 +1945,173 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   all_gmp_not_last <- intersect(all_gmp_not_last,
                                 which(Seurat_Obj_Total@meta.data$CD4_CD8_by_Consensus == "CD8"))
   
-  ### a table that indicates which cell comes from which lineage (persister vs non-persister)
-  persister_cell_table <- data.frame(Persistance=c(rep("YES", length(all_gmp_last)),
-                                                   rep("NO", length(all_gmp_not_last))),
-                                     Cell_Name=rownames(Seurat_Obj_Total@meta.data)[c(all_gmp_last, all_gmp_not_last)],
-                                     Index=c(all_gmp_last, all_gmp_not_last),
-                                     Clonotype=Seurat_Obj_Total@meta.data$clonotype_id_by_patient[c(all_gmp_last, all_gmp_not_last)],
-                                     stringsAsFactors = FALSE, check.names = FALSE)
-  
-  ### unique lineages
-  all_gmp_last_lineages <- unique(Seurat_Obj_Total@meta.data$clonotype_id_by_patient[all_gmp_last])
-  all_gmp_not_last_lineages <- unique(Seurat_Obj_Total@meta.data$clonotype_id_by_patient[all_gmp_not_last])
-  
   ### set parameters for the classifier
-  iteration <- 10
   set.seed(2990)
   featureSelectionNum <- 100
-  testSampleNum <- 1000
-  target_px <- unique(intersect(Seurat_Obj@meta.data$px[all_gmp_last],
-                                Seurat_Obj@meta.data$px[all_gmp_not_last]))
-  cv_k <- length(target_px)
+  target_px <- unique(intersect(Seurat_Obj_Total@meta.data$px[all_gmp_last],
+                                Seurat_Obj_Total@meta.data$px[all_gmp_not_last]))
   methodTypes <- c("svmLinear", "svmRadial", "gbm", "parRF", "glmboost", "knn")
   methodNames <- c("SVMLinear", "SVMRadial", "GBM", "RandomForest", "Linear_Model", "KNN")
   log_trans_add <- 1
+  
+  ### performance evaluation
+  eval_acc <- vector("list", length(methodTypes))
+  names(eval_acc) <- methodNames
+  eval_auc <- vector("list", length(methodTypes))
+  names(eval_auc) <- methodNames
+  
+  ### prepare training & test samples
+  samps1 <- rownames(Seurat_Obj_Total@meta.data)[intersect(which(Seurat_Obj_Total@meta.data$Classifier_Group == "G1"),
+                                                           all_gmp_last)]
+  not_last_pool <- intersect(which(Seurat_Obj_Total@meta.data$Classifier_Group == "G1"),
+                             all_gmp_not_last)
+  pxs <- unique(Seurat_Obj_Total@meta.data$px[which(Seurat_Obj_Total@meta.data$Classifier_Group == "G1")])
+  samps1_last_num <- length(samps1)
+  sampleNum_per_px <- round(samps1_last_num / length(pxs))
+  for(px in pxs) {
+    target_pool <- intersect(not_last_pool,
+                             which(Seurat_Obj_Total@meta.data$px == px))
+    if(length(target_pool) > sampleNum_per_px) {
+      samps1 <- c(samps1, rownames(Seurat_Obj_Total@meta.data)[sample(target_pool,
+                                                                      sampleNum_per_px)])
+    } else {
+      samps1 <- c(samps1, rownames(Seurat_Obj_Total@meta.data)[target_pool])
+    }
+  }
+  if(length(samps1) < (samps1_last_num*2)) {
+    samps1 <- c(samps1, sample(setdiff(rownames(Seurat_Obj_Total@meta.data)[not_last_pool], samps1),
+                               ((samps1_last_num*2)-length(samps1))))
+  }
+  
+  samps2 <- rownames(Seurat_Obj_Total@meta.data)[intersect(which(Seurat_Obj_Total@meta.data$Classifier_Group == "G2"),
+                                                           all_gmp_last)]
+  not_last_pool <- intersect(which(Seurat_Obj_Total@meta.data$Classifier_Group == "G2"),
+                             all_gmp_not_last)
+  pxs <- unique(Seurat_Obj_Total@meta.data$px[which(Seurat_Obj_Total@meta.data$Classifier_Group == "G2")])
+  samps2_last_num <- length(samps2)
+  sampleNum_per_px <- round(samps2_last_num / length(pxs))
+  for(px in pxs) {
+    target_pool <- intersect(not_last_pool,
+                             which(Seurat_Obj_Total@meta.data$px == px))
+    if(length(target_pool) > sampleNum_per_px) {
+      samps2 <- c(samps2, rownames(Seurat_Obj_Total@meta.data)[sample(target_pool,
+                                                                      sampleNum_per_px)])
+    } else {
+      samps2 <- c(samps2, rownames(Seurat_Obj_Total@meta.data)[target_pool])
+    }
+  }
+  if(length(samps2) < (samps2_last_num*2)) {
+    samps2 <- c(samps2, sample(setdiff(rownames(Seurat_Obj_Total@meta.data)[not_last_pool], samps2),
+                               ((samps2_last_num*2)-length(samps2))))
+  }
+  
+  #
+  ### perform classifier a) training: samps1 test: samps2, b) training: samps2 test: samps1
+  #
+  ### new obj for the training data & set idents with the info
+  classifier_seurat_obj <- subset(Seurat_Obj_Total, cells = samps1)
+  classifier_seurat_obj <- SetIdent(object = classifier_seurat_obj,
+                                    cells = rownames(classifier_seurat_obj@meta.data),
+                                    value = classifier_seurat_obj@meta.data$GMP_CARpos_Persister)
+  
+  ### DE analysis
+  de_result <- FindMarkers(classifier_seurat_obj,
+                           ident.1 = "YES",
+                           ident.2 = "NO",
+                           min.pct = 0.1,
+                           logfc.threshold = 0.1,
+                           test.use = "wilcox")
+  
+  ### normalize the read counts
+  input_data <- normalizeRNASEQwithVST(readCount = data.frame(classifier_seurat_obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],] + log_trans_add,
+                                                              stringsAsFactors = FALSE, check.names = FALSE),
+                                       filter_thresh = 0)
+  
+  ### annotate class for the input data
+  input_data <- data.frame(t(input_data), stringsAsFactors = FALSE, check.names = FALSE)
+  input_data$Class <- factor(classifier_seurat_obj@meta.data$GMP_CARpos_Persister,
+                             levels = c("YES", "NO"))
+  
+  ### new obj for the training data & set idents with the info
+  classifier_seurat_obj <- subset(Seurat_Obj_Total, cells = samps2)
+  
+  ### normalize the read counts
+  test_data <- normalizeRNASEQwithVST(readCount = data.frame(classifier_seurat_obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],] + log_trans_add,
+                                                             stringsAsFactors = FALSE, check.names = FALSE),
+                                      filter_thresh = 0)
+  
+  ### annotate class for the test data
+  test_data <- data.frame(t(test_data), stringsAsFactors = FALSE, check.names = FALSE)
+  test_data$Class <- factor(classifier_seurat_obj@meta.data$GMP_CARpos_Persister,
+                            levels = c("YES", "NO"))
+  
+  ### train control options
+  train_control <- trainControl(method="none", classProbs = TRUE, savePredictions = TRUE, verboseIter = FALSE)
+  
+  # 1
+  ### build classifier and test
+  p <- list()
+  acc <- NA
+  for(j in 1:length(methodTypes)) {
+    writeLines(paste(methodTypes[j]))
+    model <- train(Class~., data=input_data, method=methodTypes[j], trControl = train_control)
+    pred_result <- predict(model, newdata = test_data)
+    acc <- round((sum(pred_result == test_data$Class) / nrow(test_data)), 3)
+    pred_result <- predict(model, newdata = test_data, type = "prob")
+    roc <- roc(test_data$Class, pred_result$YES)
+    p[[j]] <- plot.roc(roc, main = paste(methodNames[j], "Using DE Genes\n",
+                                         "Accuracy =", acc),
+                       legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+                       xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+    eval_acc[[methodNames[j]]] <- c(eval_acc[[methodNames[j]]], acc)
+    eval_auc[[methodNames[j]]] <- c(eval_auc[[methodNames[j]]], as.numeric(roc$auc))
+    gc()
+  }
+  
+  ### draw ROC curves
+  png(paste0(outputDir2, "Classifier_Using_DEG_GMP_Last_vs_Not_Last_", featureSelectionNum, "_Two_Group_(1).png"),
+      width = 2000, height = 2000, res = 350)
+  par(mfrow=c(3, 2))
+  for(j in 1:length(methodTypes)) {
+    plot.roc(p[[j]], main = paste(methodNames[j], "Using Gene Expressions\n",
+                                  "Accuracy =", eval_acc[[methodNames[j]]][1]),
+             legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+             xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+  }
+  dev.off()
+  
+  # 2
+  ### build classifier and test
+  p <- list()
+  acc <- NA
+  for(j in 1:length(methodTypes)) {
+    writeLines(paste(methodTypes[j]))
+    model <- train(Class~., data=test_data, method=methodTypes[j], trControl = train_control)
+    pred_result <- predict(model, newdata = input_data)
+    acc <- round((sum(pred_result == input_data$Class) / nrow(input_data)), 3)
+    pred_result <- predict(model, newdata = input_data, type = "prob")
+    roc <- roc(input_data$Class, pred_result$YES)
+    p[[j]] <- plot.roc(roc, main = paste(methodNames[j], "Using DE Genes\n",
+                                         "Accuracy =", acc),
+                       legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+                       xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+    eval_acc[[methodNames[j]]] <- c(eval_acc[[methodNames[j]]], acc)
+    eval_auc[[methodNames[j]]] <- c(eval_auc[[methodNames[j]]], as.numeric(roc$auc))
+    gc()
+  }
+  
+  ### draw ROC curves
+  png(paste0(outputDir2, "Classifier_Using_DEG_GMP_Last_vs_Not_Last_", featureSelectionNum, "_Two_Group_(2).png"),
+      width = 2000, height = 2000, res = 350)
+  par(mfrow=c(3, 2))
+  for(j in 1:length(methodTypes)) {
+    plot.roc(p[[j]], main = paste(methodNames[j], "Using Gene Expressions\n",
+                                  "Accuracy =", eval_acc[[methodNames[j]]][2]),
+             legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+             xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+  }
+  dev.off()
+  
   
   
   
