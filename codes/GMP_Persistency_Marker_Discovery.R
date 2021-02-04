@@ -1873,6 +1873,103 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   }
   
   
+  ### A function to perform 2D PCA and save a plot
+  ### normalizedMat: rows are genes and columns are samples
+  ### grp: group information of the samples
+  ### num: the number of top genes to be used based on variance (-1 [default]: use all the genes)
+  ### component: to draw a plot with PC1 & PC2 or PC2 & PC3
+  ### title: title of the plot
+  ### suppliment: if it is TRUE, this function additionally generates figures and tables
+  ###             related to contributions. For example, which genes are highly contributed to
+  ###             the PC1, PC2, etc.
+  ### outDir: output directory for the plot
+  pca_plot <- function(normalizedMat, grp,
+                       num = -1, component=c("PC1&PC2", "PC2&PC3"),
+                       title="PCA_Plot",
+                       suppliment=FALSE,
+                       outDir="./") {
+    ### load library
+    if(!require(ggfortify, quietly = TRUE)) {
+      install.packages("ggfortify")
+      library(ggfortify, quietly = TRUE)
+    }
+    if(!require(FactoMineR, quietly = TRUE)) {
+      install.packages("FactoMineR")
+      library(FactoMineR, quietly = TRUE)
+    }
+    if(!require(factoextra, quietly = TRUE)) {
+      install.packages("factoextra")
+      library(factoextra, quietly = TRUE)
+    }
+    if(!require(xlsx, quietly = TRUE)) {
+      install.packages("xlsx")
+      require(xlsx, quietly = TRUE)
+    }
+    
+    ### select the top genes based on variance
+    if(num >= 0 && num <= nrow(normalizedMat)) {
+      v <- apply(normalizedMat, 1, var)
+      v <- v[order(-v)]
+      top_genes <- names(v)[1:num]
+    } else {
+      top_genes <- rownames(normalizedMat)
+    }
+    
+    ### PCA
+    pca_result <- PCA(t(normalizedMat[top_genes,]), graph = FALSE)
+    colnames(pca_result$ind$coord) <- paste0("PC", 1:ncol(pca_result$ind$coord))
+    colnames(pca_result$var$contrib) <- paste0("PC", 1:ncol(pca_result$var$contrib))
+    pca_group <- data.frame(pca_result$ind$coord, group=grp)
+    
+    colors = rainbow(length(unique(grp)))
+    names(colors) = unique(grp)
+    
+    ### save as png
+    if(component[1] == "PC1&PC2") {
+      ggplot(pca_group,aes(x=PC1,y=PC2,col=group)) +
+        labs(title=paste0(title, "_PC1-2")) +
+        geom_point() +
+        # geom_text(aes(label=colnames(normalizedMat)),hjust="inward", vjust="inward") +
+        scale_color_manual(values = colors) +
+        theme_classic(base_size = 16)
+      ggsave(filename = paste0(outDir, title, "_PC1-2", ".png"), width = 10, height = 8)
+      
+      if(suppliment) {
+        fviz_contrib(pca_result, choice = "var", axes = 1, top = 30)
+        ggsave(filename = paste0(outDir, title, "_PC1_contribution.png"), width = 12, height = 8)
+        
+        fviz_contrib(pca_result, choice = "var", axes = 2, top = 30)
+        ggsave(filename = paste0(outDir, title, "_PC2_contribution.png"), width = 12, height = 8)
+      }
+    } else if(component[1] == "PC2&PC3") {
+      ggplot(pca_group,aes(x=PC2,y=PC3,col=group)) +
+        labs(title=paste0(title, "_PC2-3")) +
+        geom_point() +
+        # geom_text(aes(label=colnames(normalizedMat)),hjust="inward", vjust="inward") +
+        scale_color_manual(values = colors) +
+        theme_classic(base_size = 16)
+      ggsave(filename = paste0(outDir, title, "_PC2-3", ".png"), width = 10, height = 8)
+      
+      if(suppliment) {
+        fviz_contrib(pca_result, choice = "var", axes = 2, top = 30)
+        ggsave(filename = paste0(outDir, title, "_PC2_contribution.png"), width = 12, height = 8)
+        
+        fviz_contrib(pca_result, choice = "var", axes = 3, top = 30)
+        ggsave(filename = paste0(outDir, title, "_PC3_contribution.png"), width = 12, height = 8)
+      }
+    } else {
+      stop("\"component\" parameter should be \"PC1&PC2\" or \"PC2&PC3\"")
+    }
+    
+    if(suppliment) {
+      write.xlsx2(data.frame(Gene_Symbol=rownames(pca_result$var$contrib), pca_result$var$contrib,
+                             stringsAsFactors = FALSE, check.names = FALSE),
+                  file = paste0(outDir, title, "_PC_contribution.xlsx"),
+                  sheetName = "PCA_contribution", row.names = FALSE)
+    }
+  }
+  
+  
   #
   ### Split patients into two groups (weighting for # of CAR+ lineages or cells at GMP),
   ### use one group as training and test on the other, then flip them and do the same
@@ -1907,6 +2004,261 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   ### save the new total seurat object
   saveRDS(Seurat_Obj_Total, file = "./data/NEW_SJCAR_SEURAT_OBJ/SJCAR19_Oct2020_Seurat_Obj_Total.RDS")
   
+  
+  ### the indicies of the persisters
+  all_gmp_last <- which(Seurat_Obj_Total@meta.data$GMP_CARpos_Persister == "YES")
+  all_gmp_not_last <- which(Seurat_Obj_Total@meta.data$GMP_CARpos_Persister == "NO")
+  
+  ### only use the CD8 cells
+  all_gmp_last <- intersect(all_gmp_last,
+                            which(Seurat_Obj_Total@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  all_gmp_not_last <- intersect(all_gmp_not_last,
+                                which(Seurat_Obj_Total@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  
+  ### print out the numbers for each patient
+  for(px in unique(Seurat_Obj_Total@meta.data$px)) {
+    writeLines(paste(px, length(intersect(all_gmp_last,
+                                          which(Seurat_Obj_Total@meta.data$px == px)))))
+  }
+  
+  ### create outputDir2
+  outputDir2 <- paste0(outputDir, "DE_Classifier_Two_Group/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### all-in-one function for the two group classifier
+  two_group_classifier <- function(Group_Info,
+                                   seed.k=1234,
+                                   featureSelectionNum=100,
+                                   file_nums = c(1,2),
+                                   output_dir) {
+    
+    ### set parameters for the classifier
+    set.seed(seed.k)
+    target_px <- unique(intersect(Seurat_Obj_Total@meta.data$px[all_gmp_last],
+                                  Seurat_Obj_Total@meta.data$px[all_gmp_not_last]))
+    methodTypes <- c("svmLinear", "svmRadial", "gbm", "parRF", "glmboost", "knn")
+    methodNames <- c("SVMLinear", "SVMRadial", "GBM", "RandomForest", "Linear_Model", "KNN")
+    log_trans_add <- 1
+    
+    ### performance evaluation
+    eval_acc <- vector("list", length(methodTypes))
+    names(eval_acc) <- methodNames
+    eval_auc <- vector("list", length(methodTypes))
+    names(eval_auc) <- methodNames
+    
+    ### prepare training & test samples
+    samps1 <- rownames(Seurat_Obj_Total@meta.data)[intersect(which(Group_Info == "G1"),
+                                                             all_gmp_last)]
+    not_last_pool <- intersect(which(Group_Info == "G1"),
+                               all_gmp_not_last)
+    pxs <- unique(Seurat_Obj_Total@meta.data$px[which(Group_Info == "G1")])
+    samps1_last_num <- length(samps1)
+    sampleNum_per_px <- round(samps1_last_num / length(pxs))
+    for(px in pxs) {
+      target_pool <- intersect(not_last_pool,
+                               which(Seurat_Obj_Total@meta.data$px == px))
+      if(length(target_pool) > sampleNum_per_px) {
+        samps1 <- c(samps1, rownames(Seurat_Obj_Total@meta.data)[sample(target_pool,
+                                                                        sampleNum_per_px)])
+      } else {
+        samps1 <- c(samps1, rownames(Seurat_Obj_Total@meta.data)[target_pool])
+      }
+    }
+    if(length(samps1) < (samps1_last_num*2)) {
+      samps1 <- c(samps1, sample(setdiff(rownames(Seurat_Obj_Total@meta.data)[not_last_pool], samps1),
+                                 ((samps1_last_num*2)-length(samps1))))
+    }
+    
+    samps2 <- rownames(Seurat_Obj_Total@meta.data)[intersect(which(Group_Info == "G2"),
+                                                             all_gmp_last)]
+    not_last_pool <- intersect(which(Group_Info == "G2"),
+                               all_gmp_not_last)
+    pxs <- unique(Seurat_Obj_Total@meta.data$px[which(Group_Info == "G2")])
+    samps2_last_num <- length(samps2)
+    sampleNum_per_px <- round(samps2_last_num / length(pxs))
+    for(px in pxs) {
+      target_pool <- intersect(not_last_pool,
+                               which(Seurat_Obj_Total@meta.data$px == px))
+      if(length(target_pool) > sampleNum_per_px) {
+        samps2 <- c(samps2, rownames(Seurat_Obj_Total@meta.data)[sample(target_pool,
+                                                                        sampleNum_per_px)])
+      } else {
+        samps2 <- c(samps2, rownames(Seurat_Obj_Total@meta.data)[target_pool])
+      }
+    }
+    if(length(samps2) < (samps2_last_num*2)) {
+      samps2 <- c(samps2, sample(setdiff(rownames(Seurat_Obj_Total@meta.data)[not_last_pool], samps2),
+                                 ((samps2_last_num*2)-length(samps2))))
+    }
+    
+    #
+    ### perform classifier a) training: samps1 test: samps2, b) training: samps2 test: samps1
+    #
+    ### new obj for the training data & set idents with the info
+    classifier_seurat_obj <- subset(Seurat_Obj_Total, cells = samps1)
+    classifier_seurat_obj <- SetIdent(object = classifier_seurat_obj,
+                                      cells = rownames(classifier_seurat_obj@meta.data),
+                                      value = classifier_seurat_obj@meta.data$GMP_CARpos_Persister)
+    
+    ### DE analysis
+    de_result <- FindMarkers(classifier_seurat_obj,
+                             ident.1 = "YES",
+                             ident.2 = "NO",
+                             min.pct = 0.1,
+                             logfc.threshold = 0.1,
+                             test.use = "wilcox")
+    
+    ### normalize the read counts
+    input_data <- normalizeRNASEQwithVST(readCount = data.frame(classifier_seurat_obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],] + log_trans_add,
+                                                                stringsAsFactors = FALSE, check.names = FALSE),
+                                         filter_thresh = 0)
+    
+    ### annotate class for the input data
+    input_data <- data.frame(t(input_data), stringsAsFactors = FALSE, check.names = FALSE)
+    input_data$Class <- factor(classifier_seurat_obj@meta.data[rownames(input_data),"GMP_CARpos_Persister"],
+                               levels = c("YES", "NO"))
+    
+    ### new obj for the test data & set idents with the info
+    classifier_seurat_obj <- subset(Seurat_Obj_Total, cells = samps2)
+    classifier_seurat_obj <- SetIdent(object = classifier_seurat_obj,
+                                      cells = rownames(classifier_seurat_obj@meta.data),
+                                      value = classifier_seurat_obj@meta.data$GMP_CARpos_Persister)
+    
+    ### DE analysis for the test data
+    de_result2 <- FindMarkers(classifier_seurat_obj,
+                              ident.1 = "YES",
+                              ident.2 = "NO",
+                              min.pct = 0.1,
+                              logfc.threshold = 0.1,
+                              test.use = "wilcox")
+    
+    ### normalize the read counts
+    test_data <- normalizeRNASEQwithVST(readCount = data.frame(classifier_seurat_obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],] + log_trans_add,
+                                                               stringsAsFactors = FALSE, check.names = FALSE),
+                                        filter_thresh = 0)
+    
+    ### annotate class for the test data
+    test_data <- data.frame(t(test_data), stringsAsFactors = FALSE, check.names = FALSE)
+    test_data$Class <- factor(classifier_seurat_obj@meta.data[rownames(test_data),"GMP_CARpos_Persister"],
+                              levels = c("YES", "NO"))
+    
+    ### train control options
+    train_control <- trainControl(method="none", classProbs = TRUE, savePredictions = TRUE, verboseIter = FALSE)
+    
+    # 1
+    ### build classifier and test
+    p <- list()
+    acc <- NA
+    for(j in 1:length(methodTypes)) {
+      writeLines(paste(methodTypes[j]))
+      model <- train(Class~., data=input_data, method=methodTypes[j], trControl = train_control)
+      pred_result <- predict(model, newdata = test_data)
+      acc <- round((sum(pred_result == test_data$Class) / nrow(test_data)), 3)
+      pred_result <- predict(model, newdata = test_data, type = "prob")
+      roc <- roc(test_data$Class, pred_result$YES)
+      p[[j]] <- plot.roc(roc, main = paste(methodNames[j], "Using DE Genes\n",
+                                           "Accuracy =", acc),
+                         legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+                         xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+      eval_acc[[methodNames[j]]] <- c(eval_acc[[methodNames[j]]], acc)
+      eval_auc[[methodNames[j]]] <- c(eval_auc[[methodNames[j]]], as.numeric(roc$auc))
+      gc()
+    }
+    
+    ### draw ROC curves
+    png(paste0(output_dir, "/Classifier_Using_DEG_GMP_Last_vs_Not_Last_", featureSelectionNum, "_Two_Group_(", file_nums[1], ").png"),
+        width = 2000, height = 2000, res = 350)
+    par(mfrow=c(3, 2))
+    for(j in 1:length(methodTypes)) {
+      plot.roc(p[[j]], main = paste(methodNames[j], "Using Gene Expressions\n",
+                                    "Accuracy =", eval_acc[[methodNames[j]]][1]),
+               legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+               xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+    }
+    dev.off()
+    
+    ### PCA
+    pca_plot(normalizedMat = data.frame(t(input_data[,-ncol(input_data)]),
+                                        t(test_data[,-ncol(test_data)]),
+                                        stringsAsFactors = FALSE, check.names = FALSE),
+             grp = c(as.character(input_data$Class), as.character(test_data$Class)),
+             title = paste0("PCA_Classifier_", featureSelectionNum, "_Two_Group_(", file_nums[1], ")"),
+             outDir = output_dir)
+    
+    # 2
+    ### new obj for the training data
+    classifier_seurat_obj <- subset(Seurat_Obj_Total, cells = samps1)
+    
+    ### normalize the read counts
+    input_data <- normalizeRNASEQwithVST(readCount = data.frame(classifier_seurat_obj@assays$RNA@counts[rownames(de_result2)[1:featureSelectionNum],] + log_trans_add,
+                                                                stringsAsFactors = FALSE, check.names = FALSE),
+                                         filter_thresh = 0)
+    
+    ### annotate class for the input data
+    input_data <- data.frame(t(input_data), stringsAsFactors = FALSE, check.names = FALSE)
+    input_data$Class <- factor(classifier_seurat_obj@meta.data[rownames(input_data),"GMP_CARpos_Persister"],
+                               levels = c("YES", "NO"))
+    
+    ### new obj for the test data
+    classifier_seurat_obj <- subset(Seurat_Obj_Total, cells = samps2)
+    
+    ### normalize the read counts
+    test_data <- normalizeRNASEQwithVST(readCount = data.frame(classifier_seurat_obj@assays$RNA@counts[rownames(de_result2)[1:featureSelectionNum],] + log_trans_add,
+                                                               stringsAsFactors = FALSE, check.names = FALSE),
+                                        filter_thresh = 0)
+    
+    ### annotate class for the test data
+    test_data <- data.frame(t(test_data), stringsAsFactors = FALSE, check.names = FALSE)
+    test_data$Class <- factor(classifier_seurat_obj@meta.data[rownames(test_data),"GMP_CARpos_Persister"],
+                              levels = c("YES", "NO"))
+    
+    ### build classifier and test
+    p <- list()
+    acc <- NA
+    for(j in 1:length(methodTypes)) {
+      writeLines(paste(methodTypes[j]))
+      model <- train(Class~., data=test_data, method=methodTypes[j], trControl = train_control)
+      pred_result <- predict(model, newdata = input_data)
+      acc <- round((sum(pred_result == input_data$Class) / nrow(input_data)), 3)
+      pred_result <- predict(model, newdata = input_data, type = "prob")
+      roc <- roc(input_data$Class, pred_result$YES)
+      p[[j]] <- plot.roc(roc, main = paste(methodNames[j], "Using DE Genes\n",
+                                           "Accuracy =", acc),
+                         legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+                         xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+      eval_acc[[methodNames[j]]] <- c(eval_acc[[methodNames[j]]], acc)
+      eval_auc[[methodNames[j]]] <- c(eval_auc[[methodNames[j]]], as.numeric(roc$auc))
+      gc()
+    }
+    
+    ### draw ROC curves
+    png(paste0(output_dir, "/Classifier_Using_DEG_GMP_Last_vs_Not_Last_", featureSelectionNum, "_Two_Group_(", file_nums[2], ").png"),
+        width = 2000, height = 2000, res = 350)
+    par(mfrow=c(3, 2))
+    for(j in 1:length(methodTypes)) {
+      plot.roc(p[[j]], main = paste(methodNames[j], "Using Gene Expressions\n",
+                                    "Accuracy =", eval_acc[[methodNames[j]]][2]),
+               legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+               xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+    }
+    dev.off()
+    
+    ### PCA
+    pca_plot(normalizedMat = data.frame(t(input_data[,-ncol(input_data)]),
+                                        t(test_data[,-ncol(test_data)]),
+                                        stringsAsFactors = FALSE, check.names = FALSE),
+             grp = c(as.character(input_data$Class), as.character(test_data$Class)),
+             title = paste0("PCA_Classifier_", featureSelectionNum, "_Two_Group_(", file_nums[2], ")"),
+             outDir = output_dir)
+    
+    ### print out the sample ratio
+    writeLines(paste("#_Set1_GMP_Last:", length(which(input_data$Class == "YES")),
+                     "#_Set1:GMP_NOT_Last:", length(which(input_data$Class == "NO"))))
+    writeLines(paste("#_Set2_GMP_Last:", length(which(test_data$Class == "YES")),
+                     "#_Set2:GMP_NOT_Last:", length(which(test_data$Class == "NO"))))
+    
+  }
+  
   ### divide the patients into two groups
   #
   ### GMP_Persister_CD8_Cell_#
@@ -1931,187 +2283,148 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                                                                      "SJCAR19-08",
                                                                      "SJCAR19-10"))] <- "G2"
   
-  ### create outputDir2
-  outputDir2 <- paste0(outputDir, "DE_Classifier_Two_Group/")
-  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  ### perform classification
+  two_group_classifier(Group_Info = Seurat_Obj_Total$Classifier_Group,
+                       seed.k = 1234,
+                       featureSelectionNum = 100,
+                       file_nums = c(1,2),
+                       output_dir = outputDir2)
   
-  ### the indicies of the persisters
-  all_gmp_last <- which(Seurat_Obj_Total@meta.data$GMP_CARpos_Persister == "YES")
-  all_gmp_not_last <- which(Seurat_Obj_Total@meta.data$GMP_CARpos_Persister == "NO")
   
-  ### only use the CD8 cells
-  all_gmp_last <- intersect(all_gmp_last,
-                            which(Seurat_Obj_Total@meta.data$CD4_CD8_by_Consensus == "CD8"))
-  all_gmp_not_last <- intersect(all_gmp_not_last,
-                                which(Seurat_Obj_Total@meta.data$CD4_CD8_by_Consensus == "CD8"))
-  
-  ### set parameters for the classifier
-  set.seed(2990)
-  featureSelectionNum <- 100
-  target_px <- unique(intersect(Seurat_Obj_Total@meta.data$px[all_gmp_last],
-                                Seurat_Obj_Total@meta.data$px[all_gmp_not_last]))
-  methodTypes <- c("svmLinear", "svmRadial", "gbm", "parRF", "glmboost", "knn")
-  methodNames <- c("SVMLinear", "SVMRadial", "GBM", "RandomForest", "Linear_Model", "KNN")
-  log_trans_add <- 1
-  
-  ### performance evaluation
-  eval_acc <- vector("list", length(methodTypes))
-  names(eval_acc) <- methodNames
-  eval_auc <- vector("list", length(methodTypes))
-  names(eval_auc) <- methodNames
-  
-  ### prepare training & test samples
-  samps1 <- rownames(Seurat_Obj_Total@meta.data)[intersect(which(Seurat_Obj_Total@meta.data$Classifier_Group == "G1"),
-                                                           all_gmp_last)]
-  not_last_pool <- intersect(which(Seurat_Obj_Total@meta.data$Classifier_Group == "G1"),
-                             all_gmp_not_last)
-  pxs <- unique(Seurat_Obj_Total@meta.data$px[which(Seurat_Obj_Total@meta.data$Classifier_Group == "G1")])
-  samps1_last_num <- length(samps1)
-  sampleNum_per_px <- round(samps1_last_num / length(pxs))
-  for(px in pxs) {
-    target_pool <- intersect(not_last_pool,
-                             which(Seurat_Obj_Total@meta.data$px == px))
-    if(length(target_pool) > sampleNum_per_px) {
-      samps1 <- c(samps1, rownames(Seurat_Obj_Total@meta.data)[sample(target_pool,
-                                                                      sampleNum_per_px)])
-    } else {
-      samps1 <- c(samps1, rownames(Seurat_Obj_Total@meta.data)[target_pool])
-    }
-  }
-  if(length(samps1) < (samps1_last_num*2)) {
-    samps1 <- c(samps1, sample(setdiff(rownames(Seurat_Obj_Total@meta.data)[not_last_pool], samps1),
-                               ((samps1_last_num*2)-length(samps1))))
-  }
-  
-  samps2 <- rownames(Seurat_Obj_Total@meta.data)[intersect(which(Seurat_Obj_Total@meta.data$Classifier_Group == "G2"),
-                                                           all_gmp_last)]
-  not_last_pool <- intersect(which(Seurat_Obj_Total@meta.data$Classifier_Group == "G2"),
-                             all_gmp_not_last)
-  pxs <- unique(Seurat_Obj_Total@meta.data$px[which(Seurat_Obj_Total@meta.data$Classifier_Group == "G2")])
-  samps2_last_num <- length(samps2)
-  sampleNum_per_px <- round(samps2_last_num / length(pxs))
-  for(px in pxs) {
-    target_pool <- intersect(not_last_pool,
-                             which(Seurat_Obj_Total@meta.data$px == px))
-    if(length(target_pool) > sampleNum_per_px) {
-      samps2 <- c(samps2, rownames(Seurat_Obj_Total@meta.data)[sample(target_pool,
-                                                                      sampleNum_per_px)])
-    } else {
-      samps2 <- c(samps2, rownames(Seurat_Obj_Total@meta.data)[target_pool])
-    }
-  }
-  if(length(samps2) < (samps2_last_num*2)) {
-    samps2 <- c(samps2, sample(setdiff(rownames(Seurat_Obj_Total@meta.data)[not_last_pool], samps2),
-                               ((samps2_last_num*2)-length(samps2))))
-  }
-  
+  ### divide the patients into two groups
   #
-  ### perform classifier a) training: samps1 test: samps2, b) training: samps2 test: samps1
+  ### GMP Persister CD8 Cell Num
+  ### 966 (6) + 89 (10) + 63 (4) + 19 (12) + 16 (2) + 8 (13)
+  ### 523 (7) + 254 (11) + 118 (8) + 57 (5) + 32 (3) + 8 (9)
+  
+  Seurat_Obj_Total$Classifier_Group <- NA
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-06",
+                                                                     "SJCAR19-10",
+                                                                     "SJCAR19-04",
+                                                                     "SJCAR19-12",
+                                                                     "SJCAR19-02",
+                                                                     "SJCAR19-13"))] <- "G1"
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-07",
+                                                                     "SJCAR19-11",
+                                                                     "SJCAR19-08",
+                                                                     "SJCAR19-05",
+                                                                     "SJCAR19-03",
+                                                                     "SJCAR19-09"))] <- "G2"
+  
+  ### perform classification
+  two_group_classifier(Group_Info = Seurat_Obj_Total$Classifier_Group,
+                       seed.k = 1234,
+                       featureSelectionNum = 100,
+                       file_nums = c(3,4),
+                       output_dir = outputDir2)
+  
+  
+  ### divide the patients into two groups
   #
-  ### new obj for the training data & set idents with the info
-  classifier_seurat_obj <- subset(Seurat_Obj_Total, cells = samps1)
-  classifier_seurat_obj <- SetIdent(object = classifier_seurat_obj,
-                                    cells = rownames(classifier_seurat_obj@meta.data),
-                                    value = classifier_seurat_obj@meta.data$GMP_CARpos_Persister)
+  ### GMP Persister CD8 Cell Num
+  ### 966 (6) + 118 (8) + 57 (5) + 19 (12) + 16 (2) + 8 (9)
+  ### 523 (7) + 254 (11) + 89 (10) + 63 (4) + 32 (3) + 8 (13)
   
-  ### DE analysis
-  de_result <- FindMarkers(classifier_seurat_obj,
-                           ident.1 = "YES",
-                           ident.2 = "NO",
-                           min.pct = 0.1,
-                           logfc.threshold = 0.1,
-                           test.use = "wilcox")
+  Seurat_Obj_Total$Classifier_Group <- NA
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-06",
+                                                                     "SJCAR19-08",
+                                                                     "SJCAR19-05",
+                                                                     "SJCAR19-12",
+                                                                     "SJCAR19-02",
+                                                                     "SJCAR19-09"))] <- "G1"
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-07",
+                                                                     "SJCAR19-11",
+                                                                     "SJCAR19-10",
+                                                                     "SJCAR19-04",
+                                                                     "SJCAR19-03",
+                                                                     "SJCAR19-13"))] <- "G2"
   
-  ### normalize the read counts
-  input_data <- normalizeRNASEQwithVST(readCount = data.frame(classifier_seurat_obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],] + log_trans_add,
-                                                              stringsAsFactors = FALSE, check.names = FALSE),
-                                       filter_thresh = 0)
+  ### perform classification
+  two_group_classifier(Group_Info = Seurat_Obj_Total$Classifier_Group,
+                       seed.k = 1234,
+                       featureSelectionNum = 100,
+                       file_nums = c(5,6),
+                       output_dir = outputDir2)
   
-  ### annotate class for the input data
-  input_data <- data.frame(t(input_data), stringsAsFactors = FALSE, check.names = FALSE)
-  input_data$Class <- factor(classifier_seurat_obj@meta.data$GMP_CARpos_Persister,
-                             levels = c("YES", "NO"))
   
-  ### new obj for the training data & set idents with the info
-  classifier_seurat_obj <- subset(Seurat_Obj_Total, cells = samps2)
+  ### divide the patients into two groups
+  #
+  ### GMP Persister CD8 Cell Num
+  ### 966 (6) + 254 (11) + 32 (3) + 19 (12) + 16 (2) + 8 (9)
+  ### 523 (7) + 118 (8) + 89 (10) + 63 (4) + 57 (5) + 8 (13)
   
-  ### normalize the read counts
-  test_data <- normalizeRNASEQwithVST(readCount = data.frame(classifier_seurat_obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],] + log_trans_add,
-                                                             stringsAsFactors = FALSE, check.names = FALSE),
-                                      filter_thresh = 0)
+  Seurat_Obj_Total$Classifier_Group <- NA
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-06",
+                                                                     "SJCAR19-11",
+                                                                     "SJCAR19-03",
+                                                                     "SJCAR19-12",
+                                                                     "SJCAR19-02",
+                                                                     "SJCAR19-09"))] <- "G1"
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-07",
+                                                                     "SJCAR19-08",
+                                                                     "SJCAR19-10",
+                                                                     "SJCAR19-04",
+                                                                     "SJCAR19-05",
+                                                                     "SJCAR19-13"))] <- "G2"
   
-  ### annotate class for the test data
-  test_data <- data.frame(t(test_data), stringsAsFactors = FALSE, check.names = FALSE)
-  test_data$Class <- factor(classifier_seurat_obj@meta.data$GMP_CARpos_Persister,
-                            levels = c("YES", "NO"))
+  ### perform classification
+  two_group_classifier(Group_Info = Seurat_Obj_Total$Classifier_Group,
+                       seed.k = 1234,
+                       featureSelectionNum = 100,
+                       file_nums = c(7,8),
+                       output_dir = outputDir2)
   
-  ### train control options
-  train_control <- trainControl(method="none", classProbs = TRUE, savePredictions = TRUE, verboseIter = FALSE)
   
-  # 1
-  ### build classifier and test
-  p <- list()
-  acc <- NA
-  for(j in 1:length(methodTypes)) {
-    writeLines(paste(methodTypes[j]))
-    model <- train(Class~., data=input_data, method=methodTypes[j], trControl = train_control)
-    pred_result <- predict(model, newdata = test_data)
-    acc <- round((sum(pred_result == test_data$Class) / nrow(test_data)), 3)
-    pred_result <- predict(model, newdata = test_data, type = "prob")
-    roc <- roc(test_data$Class, pred_result$YES)
-    p[[j]] <- plot.roc(roc, main = paste(methodNames[j], "Using DE Genes\n",
-                                         "Accuracy =", acc),
-                       legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
-                       xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
-    eval_acc[[methodNames[j]]] <- c(eval_acc[[methodNames[j]]], acc)
-    eval_auc[[methodNames[j]]] <- c(eval_auc[[methodNames[j]]], as.numeric(roc$auc))
-    gc()
-  }
+  ### divide the patients into two groups
+  #
+  ### GMP Persister CD8 Cell Num
+  ### 966 (6) + 254 (11) + 32 (3) + 16 (2) + 8 (9)
+  ### 523 (7) + 118 (8) + 89 (10) + 63 (4) + 57 (5)
   
-  ### draw ROC curves
-  png(paste0(outputDir2, "Classifier_Using_DEG_GMP_Last_vs_Not_Last_", featureSelectionNum, "_Two_Group_(1).png"),
-      width = 2000, height = 2000, res = 350)
-  par(mfrow=c(3, 2))
-  for(j in 1:length(methodTypes)) {
-    plot.roc(p[[j]], main = paste(methodNames[j], "Using Gene Expressions\n",
-                                  "Accuracy =", eval_acc[[methodNames[j]]][1]),
-             legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
-             xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
-  }
-  dev.off()
+  Seurat_Obj_Total$Classifier_Group <- NA
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-06",
+                                                                     "SJCAR19-11",
+                                                                     "SJCAR19-03",
+                                                                     "SJCAR19-02",
+                                                                     "SJCAR19-09"))] <- "G1"
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-07",
+                                                                     "SJCAR19-08",
+                                                                     "SJCAR19-10",
+                                                                     "SJCAR19-04",
+                                                                     "SJCAR19-05"))] <- "G2"
   
-  # 2
-  ### build classifier and test
-  p <- list()
-  acc <- NA
-  for(j in 1:length(methodTypes)) {
-    writeLines(paste(methodTypes[j]))
-    model <- train(Class~., data=test_data, method=methodTypes[j], trControl = train_control)
-    pred_result <- predict(model, newdata = input_data)
-    acc <- round((sum(pred_result == input_data$Class) / nrow(input_data)), 3)
-    pred_result <- predict(model, newdata = input_data, type = "prob")
-    roc <- roc(input_data$Class, pred_result$YES)
-    p[[j]] <- plot.roc(roc, main = paste(methodNames[j], "Using DE Genes\n",
-                                         "Accuracy =", acc),
-                       legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
-                       xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
-    eval_acc[[methodNames[j]]] <- c(eval_acc[[methodNames[j]]], acc)
-    eval_auc[[methodNames[j]]] <- c(eval_auc[[methodNames[j]]], as.numeric(roc$auc))
-    gc()
-  }
+  ### perform classification
+  two_group_classifier(Group_Info = Seurat_Obj_Total$Classifier_Group,
+                       seed.k = 1234,
+                       featureSelectionNum = 100,
+                       file_nums = c(9,10),
+                       output_dir = outputDir2)
   
-  ### draw ROC curves
-  png(paste0(outputDir2, "Classifier_Using_DEG_GMP_Last_vs_Not_Last_", featureSelectionNum, "_Two_Group_(2).png"),
-      width = 2000, height = 2000, res = 350)
-  par(mfrow=c(3, 2))
-  for(j in 1:length(methodTypes)) {
-    plot.roc(p[[j]], main = paste(methodNames[j], "Using Gene Expressions\n",
-                                  "Accuracy =", eval_acc[[methodNames[j]]][2]),
-             legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
-             xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
-  }
-  dev.off()
   
+  ### divide the patients into two groups
+  #
+  ### GMP Persister CD8 Cell Num
+  ### 966 (6) + 89 (10) + 32 (3) + 16 (2) + 8 (9)
+  ### 523 (7) + 118 (8) + 254 (11) + 63 (4) + 57 (5)
+  
+  Seurat_Obj_Total$Classifier_Group <- NA
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-06",
+                                                                     "SJCAR19-10",
+                                                                     "SJCAR19-03",
+                                                                     "SJCAR19-02",
+                                                                     "SJCAR19-09"))] <- "G1"
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-07",
+                                                                     "SJCAR19-08",
+                                                                     "SJCAR19-11",
+                                                                     "SJCAR19-04",
+                                                                     "SJCAR19-05"))] <- "G2"
+  
+  ### perform classification
+  two_group_classifier(Group_Info = Seurat_Obj_Total$Classifier_Group,
+                       seed.k = 1234,
+                       featureSelectionNum = 100,
+                       file_nums = c(11,12),
+                       output_dir = outputDir2)
   
   
   
