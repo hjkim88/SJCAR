@@ -2178,10 +2178,9 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     dev.off()
     
     ### PCA
-    pca_plot(normalizedMat = data.frame(t(input_data[,-ncol(input_data)]),
-                                        t(test_data[,-ncol(test_data)]),
+    pca_plot(normalizedMat = data.frame(t(test_data[,-ncol(test_data)]),
                                         stringsAsFactors = FALSE, check.names = FALSE),
-             grp = c(as.character(input_data$Class), as.character(test_data$Class)),
+             grp = as.character(test_data$Class),
              title = paste0("PCA_Classifier_", featureSelectionNum, "_Two_Group_(", file_nums[1], ")"),
              outDir = output_dir)
     
@@ -2245,9 +2244,8 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     
     ### PCA
     pca_plot(normalizedMat = data.frame(t(input_data[,-ncol(input_data)]),
-                                        t(test_data[,-ncol(test_data)]),
                                         stringsAsFactors = FALSE, check.names = FALSE),
-             grp = c(as.character(input_data$Class), as.character(test_data$Class)),
+             grp = as.character(input_data$Class),
              title = paste0("PCA_Classifier_", featureSelectionNum, "_Two_Group_(", file_nums[2], ")"),
              outDir = output_dir)
     
@@ -2425,6 +2423,55 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                        featureSelectionNum = 100,
                        file_nums = c(11,12),
                        output_dir = outputDir2)
+  
+  
+  ### we want to perform the classifier with random cells
+  ### but this time, regardless of patient info,
+  ### and use the same number for training & testing
+  #
+  ### divide the patients into two groups randomly
+  set.seed(1234)
+  Seurat_Obj_Total$Classifier_Group <- NA
+  Seurat_Obj_Total$Classifier_Group[sample(length(Seurat_Obj_Total$Classifier_Group), round(length(Seurat_Obj_Total$Classifier_Group)/2))] <- "G1"
+  Seurat_Obj_Total$Classifier_Group[which(is.na(Seurat_Obj_Total$Classifier_Group))] <- "G2"
+  
+  ### perform classification
+  two_group_classifier(Group_Info = Seurat_Obj_Total$Classifier_Group,
+                       seed.k = 1234,
+                       featureSelectionNum = 100,
+                       file_nums = c(13,14),
+                       output_dir = outputDir2)
+  
+  #
+  ### PCA and UMAP comparing cells in a persister lineage VS not but with ALL the genes
+  #
+  
+  ### set idents with the library
+  Seurat_Obj_Total <- SetIdent(object = Seurat_Obj_Total,
+                               cells = rownames(Seurat_Obj_Total@meta.data),
+                               value = Seurat_Obj_Total@meta.data$GMP_CARpos_Persister)
+  
+  ### extract GMP cells only
+  Seurat_Obj_GMP <- subset(Seurat_Obj_Total, idents = c("YES", "NO"))
+  
+  ### scaling
+  Seurat_Obj_GMP <- ScaleData(Seurat_Obj_GMP,
+                              vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  
+  ### PCA
+  Seurat_Obj_GMP <- RunPCA(Seurat_Obj_GMP,
+                           features = VariableFeatures(object = Seurat_Obj_GMP))
+  
+  ### UMAP
+  Seurat_Obj_GMP <- RunUMAP(Seurat_Obj_GMP, dims = 1:15)
+  
+  ###
+  DimPlot(object = Seurat_Obj_GMP, reduction = "umap",
+          group.by = "GMP_CARpos_Persister", split.by = NULL,
+          pt.size = 1) +
+    ggtitle("UMAP of SJCAR19 Data") +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30))
+  ggsave(paste0(outputDir, "/", "UMAP_Plot.png"), plot = p, width = 20, height = 12, dpi = 300)
   
   
   
