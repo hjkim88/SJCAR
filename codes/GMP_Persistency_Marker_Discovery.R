@@ -769,10 +769,112 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   ### load clonotype lineages info
   SJCAR19_Clonotype_Frequency <- readRDS(clonotype_lineage_info_path)
   
+  pClones <- NULL
+  indeterminate_patient_pool <- NULL
+  for(i in 1:length(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]])) {
+    gmp_idx <- which(colnames(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) == "GMP")
+    gmp_redo_idx <- which(colnames(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) == "GMP-redo")
+    last_gmp_idx <- max(gmp_idx, gmp_redo_idx)
+    
+    if(length(gmp_redo_idx) > 0) {
+      ### if at least GMP or GMP-redo exist and there are at least one afterward-time point
+      if((last_gmp_idx != -Inf) && (ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) - last_gmp_idx > 1)) {
+        ### collect persistent clones that appeared in GMP and persist afterwards
+        if(nrow(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) > 0) {
+          for(j in 1:nrow(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])) {
+            for(k in last_gmp_idx:(ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])-1)) {
+              if((SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,"GMP"] > 0 ||
+                  SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,"GMP-redo"] > 0) &&
+                 SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,k] > 0) {
+                pClones <- c(pClones, rownames(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])[j])
+                break;
+              }
+            }
+          }
+        }
+      }
+    } else {
+      ### if at least GMP or GMP-redo exist and there are at least one afterward-time point
+      if((last_gmp_idx != -Inf) && (ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) - last_gmp_idx > 1)) {
+        ### collect persistent clones that appeared in GMP and persist afterwards
+        if(nrow(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) > 0) {
+          for(j in 1:nrow(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])) {
+            for(k in last_gmp_idx:(ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])-1)) {
+              if(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,"GMP"] > 0 &&
+                 SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,k] > 0) {
+                pClones <- c(pClones, rownames(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])[j])
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    ### what are the patients that have less than 3 after-infusion time points?
+    total_idx <- which(colnames(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) == "Total")
+    if(total_idx - last_gmp_idx <= 3) {
+      indeterminate_patient_pool <- c(indeterminate_patient_pool, names(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]])[i])
+    }
+  }
+  
+  ### All the CAR+ persistent cells
+  pIdx <- intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% pClones),
+                    which(Seurat_Obj@meta.data$CAR == "CARpos"))
+  
+  ### All the CAR+ non-persistent cells
+  ### some patients have no later-time point data, so we cannot say they are non-persisters
+  ### even if there is no lineage found - e.g., Px00 & Px01
+  ### there should be at least 3 after-infusion time points to determine non-persisters
+  npIdx <- setdiff(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                   which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% pClones))
+  
+  ### what are the patients that have less than 3 after-infusion time points?
+  npIdx <- setdiff(npIdx, which(Seurat_Obj@meta.data$px %in% indeterminate_patient_pool))
+  
+  ### remove cells which do not have TCR info (we don't know about those cells yet)
+  npIdx <- setdiff(npIdx, which(is.na(Seurat_Obj@meta.data$cdr3_aa)))
+  
+  ### check whether the orders are the same
+  print(identical(names(Idents(object = Seurat_Obj)), rownames(Seurat_Obj@meta.data)))
+  
+  ### annotate GMP CAR+ persisters
+  Seurat_Obj@meta.data$ALL_CARpos_Persister <- NA
+  Seurat_Obj@meta.data$ALL_CARpos_Persister[pIdx] <- "YES"
+  Seurat_Obj@meta.data$ALL_CARpos_Persister[npIdx] <- "NO"
+  
+  
   ### set idents with the libary
   Seurat_Obj <- SetIdent(object = Seurat_Obj,
                          cells = rownames(Seurat_Obj@meta.data),
-                         value = Seurat_Obj@meta.data$GMP_CARpos_Persister)
+                         value = Seurat_Obj@meta.data$ALL_CARpos_Persister)
+  
+  ### temporary seurat object for umap
+  umap_seurat_obj <- subset(Seurat_Obj, idents = c("YES", "NO"))
+  
+  ### UMAP with GMP
+  p <- DimPlot(object = umap_seurat_obj, reduction = "umap",
+               group.by = "ALL_CARpos_Persister", split.by = NULL,
+               pt.size = 2) +
+    ggtitle("UMAP of SJCAR19 Data") +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30)) +
+    labs(color="Is Persistent")
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir, "/", "UMAP_Plot_Persistency1.png"), plot = p, width = 20, height = 12, dpi = 300)
+  
+  ### UMAP with GMP by each patient
+  p <- DimPlot(object = umap_seurat_obj, reduction = "umap",
+               group.by = "ALL_CARpos_Persister", split.by = "px",
+               pt.size = 2, ncol = 3) +
+    ggtitle("UMAP of SJCAR19 Data") +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30)) +
+    labs(color="Is Persistent")
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir, "/", "UMAP_Plot_Persistency2.png"), plot = p, width = 20, height = 12, dpi = 300)
+  
+  ### remove the temporary object
+  rm(umap_seurat_obj)
+  gc()
   
   ### DE analysis
   de_result <- FindMarkers(Seurat_Obj,
@@ -2026,18 +2128,24 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### all-in-one function for the two group classifier
-  two_group_classifier <- function(Group_Info,
+  two_group_classifier <- function(Given_Seurat_Obj,
+                                   Given_gmp_last_idx,
+                                   Given_gmp_not_last_idx,
+                                   Group_Info,
                                    seed.k=1234,
                                    featureSelectionNum=100,
+                                   methodTypes = c("svmLinear", "svmRadial", "gbm", "parRF", "glmboost", "knn"),
+                                   methodNames = NULL,
                                    file_nums = c(1,2),
                                    output_dir) {
     
     ### set parameters for the classifier
     set.seed(seed.k)
-    target_px <- unique(intersect(Seurat_Obj_Total@meta.data$px[all_gmp_last],
-                                  Seurat_Obj_Total@meta.data$px[all_gmp_not_last]))
-    methodTypes <- c("svmLinear", "svmRadial", "gbm", "parRF", "glmboost", "knn")
-    methodNames <- c("SVMLinear", "SVMRadial", "GBM", "RandomForest", "Linear_Model", "KNN")
+    target_px <- unique(intersect(Given_Seurat_Obj@meta.data$px[Given_gmp_last_idx],
+                                  Given_Seurat_Obj@meta.data$px[Given_gmp_not_last_idx]))
+    if(is.null(methodNames)) {
+      methodNames <- methodTypes
+    }
     log_trans_add <- 1
     
     ### performance evaluation
@@ -2047,47 +2155,47 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     names(eval_auc) <- methodNames
     
     ### prepare training & test samples
-    samps1 <- rownames(Seurat_Obj_Total@meta.data)[intersect(which(Group_Info == "G1"),
-                                                             all_gmp_last)]
+    samps1 <- rownames(Given_Seurat_Obj@meta.data)[intersect(which(Group_Info == "G1"),
+                                                             Given_gmp_last_idx)]
     not_last_pool <- intersect(which(Group_Info == "G1"),
-                               all_gmp_not_last)
-    pxs <- unique(Seurat_Obj_Total@meta.data$px[which(Group_Info == "G1")])
+                               Given_gmp_not_last_idx)
+    pxs <- unique(Given_Seurat_Obj@meta.data$px[which(Group_Info == "G1")])
     samps1_last_num <- length(samps1)
     sampleNum_per_px <- round(samps1_last_num / length(pxs))
     for(px in pxs) {
       target_pool <- intersect(not_last_pool,
-                               which(Seurat_Obj_Total@meta.data$px == px))
+                               which(Given_Seurat_Obj@meta.data$px == px))
       if(length(target_pool) > sampleNum_per_px) {
-        samps1 <- c(samps1, rownames(Seurat_Obj_Total@meta.data)[sample(target_pool,
+        samps1 <- c(samps1, rownames(Given_Seurat_Obj@meta.data)[sample(target_pool,
                                                                         sampleNum_per_px)])
       } else {
-        samps1 <- c(samps1, rownames(Seurat_Obj_Total@meta.data)[target_pool])
+        samps1 <- c(samps1, rownames(Given_Seurat_Obj@meta.data)[target_pool])
       }
     }
     if(length(samps1) < (samps1_last_num*2)) {
-      samps1 <- c(samps1, sample(setdiff(rownames(Seurat_Obj_Total@meta.data)[not_last_pool], samps1),
+      samps1 <- c(samps1, sample(setdiff(rownames(Given_Seurat_Obj@meta.data)[not_last_pool], samps1),
                                  ((samps1_last_num*2)-length(samps1))))
     }
     
-    samps2 <- rownames(Seurat_Obj_Total@meta.data)[intersect(which(Group_Info == "G2"),
-                                                             all_gmp_last)]
+    samps2 <- rownames(Given_Seurat_Obj@meta.data)[intersect(which(Group_Info == "G2"),
+                                                             Given_gmp_last_idx)]
     not_last_pool <- intersect(which(Group_Info == "G2"),
-                               all_gmp_not_last)
-    pxs <- unique(Seurat_Obj_Total@meta.data$px[which(Group_Info == "G2")])
+                               Given_gmp_not_last_idx)
+    pxs <- unique(Given_Seurat_Obj@meta.data$px[which(Group_Info == "G2")])
     samps2_last_num <- length(samps2)
     sampleNum_per_px <- round(samps2_last_num / length(pxs))
     for(px in pxs) {
       target_pool <- intersect(not_last_pool,
-                               which(Seurat_Obj_Total@meta.data$px == px))
+                               which(Given_Seurat_Obj@meta.data$px == px))
       if(length(target_pool) > sampleNum_per_px) {
-        samps2 <- c(samps2, rownames(Seurat_Obj_Total@meta.data)[sample(target_pool,
+        samps2 <- c(samps2, rownames(Given_Seurat_Obj@meta.data)[sample(target_pool,
                                                                         sampleNum_per_px)])
       } else {
-        samps2 <- c(samps2, rownames(Seurat_Obj_Total@meta.data)[target_pool])
+        samps2 <- c(samps2, rownames(Given_Seurat_Obj@meta.data)[target_pool])
       }
     }
     if(length(samps2) < (samps2_last_num*2)) {
-      samps2 <- c(samps2, sample(setdiff(rownames(Seurat_Obj_Total@meta.data)[not_last_pool], samps2),
+      samps2 <- c(samps2, sample(setdiff(rownames(Given_Seurat_Obj@meta.data)[not_last_pool], samps2),
                                  ((samps2_last_num*2)-length(samps2))))
     }
     
@@ -2095,7 +2203,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     ### perform classifier a) training: samps1 test: samps2, b) training: samps2 test: samps1
     #
     ### new obj for the training data & set idents with the info
-    classifier_seurat_obj <- subset(Seurat_Obj_Total, cells = samps1)
+    classifier_seurat_obj <- subset(Given_Seurat_Obj, cells = samps1)
     classifier_seurat_obj <- SetIdent(object = classifier_seurat_obj,
                                       cells = rownames(classifier_seurat_obj@meta.data),
                                       value = classifier_seurat_obj@meta.data$GMP_CARpos_Persister)
@@ -2119,7 +2227,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                                levels = c("YES", "NO"))
     
     ### new obj for the test data & set idents with the info
-    classifier_seurat_obj <- subset(Seurat_Obj_Total, cells = samps2)
+    classifier_seurat_obj <- subset(Given_Seurat_Obj, cells = samps2)
     classifier_seurat_obj <- SetIdent(object = classifier_seurat_obj,
                                       cells = rownames(classifier_seurat_obj@meta.data),
                                       value = classifier_seurat_obj@meta.data$GMP_CARpos_Persister)
@@ -2186,7 +2294,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     
     # 2
     ### new obj for the training data
-    classifier_seurat_obj <- subset(Seurat_Obj_Total, cells = samps1)
+    classifier_seurat_obj <- subset(Given_Seurat_Obj, cells = samps1)
     
     ### normalize the read counts
     input_data <- normalizeRNASEQwithVST(readCount = data.frame(classifier_seurat_obj@assays$RNA@counts[rownames(de_result2)[1:featureSelectionNum],] + log_trans_add,
@@ -2199,7 +2307,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                                levels = c("YES", "NO"))
     
     ### new obj for the test data
-    classifier_seurat_obj <- subset(Seurat_Obj_Total, cells = samps2)
+    classifier_seurat_obj <- subset(Given_Seurat_Obj, cells = samps2)
     
     ### normalize the read counts
     test_data <- normalizeRNASEQwithVST(readCount = data.frame(classifier_seurat_obj@assays$RNA@counts[rownames(de_result2)[1:featureSelectionNum],] + log_trans_add,
@@ -2257,6 +2365,10 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     
   }
   
+  ### set classification methods
+  methodTypes <- c("svmLinear", "svmRadial", "gbm", "parRF", "glmboost", "knn")
+  methodNames <- c("SVMLinear", "SVMRadial", "GBM", "RandomForest", "Linear_Model", "KNN")
+  
   ### divide the patients into two groups
   #
   ### GMP_Persister_CD8_Cell_#
@@ -2282,9 +2394,14 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                                                                      "SJCAR19-10"))] <- "G2"
   
   ### perform classification
-  two_group_classifier(Group_Info = Seurat_Obj_Total$Classifier_Group,
+  two_group_classifier(Given_Seurat_Obj = Seurat_Obj_Total,
+                       Given_gmp_last_idx = all_gmp_last,
+                       Given_gmp_not_last_idx = all_gmp_not_last,
+                       Group_Info = Seurat_Obj_Total$Classifier_Group,
                        seed.k = 1234,
                        featureSelectionNum = 100,
+                       methodTypes = methodTypes,
+                       methodNames = methodNames,
                        file_nums = c(1,2),
                        output_dir = outputDir2)
   
@@ -2310,9 +2427,14 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                                                                      "SJCAR19-09"))] <- "G2"
   
   ### perform classification
-  two_group_classifier(Group_Info = Seurat_Obj_Total$Classifier_Group,
+  two_group_classifier(Given_Seurat_Obj = Seurat_Obj_Total,
+                       Given_gmp_last_idx = all_gmp_last,
+                       Given_gmp_not_last_idx = all_gmp_not_last,
+                       Group_Info = Seurat_Obj_Total$Classifier_Group,
                        seed.k = 1234,
                        featureSelectionNum = 100,
+                       methodTypes = methodTypes,
+                       methodNames = methodNames,
                        file_nums = c(3,4),
                        output_dir = outputDir2)
   
@@ -2338,9 +2460,14 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                                                                      "SJCAR19-13"))] <- "G2"
   
   ### perform classification
-  two_group_classifier(Group_Info = Seurat_Obj_Total$Classifier_Group,
+  two_group_classifier(Given_Seurat_Obj = Seurat_Obj_Total,
+                       Given_gmp_last_idx = all_gmp_last,
+                       Given_gmp_not_last_idx = all_gmp_not_last,
+                       Group_Info = Seurat_Obj_Total$Classifier_Group,
                        seed.k = 1234,
                        featureSelectionNum = 100,
+                       methodTypes = methodTypes,
+                       methodNames = methodNames,
                        file_nums = c(5,6),
                        output_dir = outputDir2)
   
@@ -2366,9 +2493,14 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                                                                      "SJCAR19-13"))] <- "G2"
   
   ### perform classification
-  two_group_classifier(Group_Info = Seurat_Obj_Total$Classifier_Group,
+  two_group_classifier(Given_Seurat_Obj = Seurat_Obj_Total,
+                       Given_gmp_last_idx = all_gmp_last,
+                       Given_gmp_not_last_idx = all_gmp_not_last,
+                       Group_Info = Seurat_Obj_Total$Classifier_Group,
                        seed.k = 1234,
                        featureSelectionNum = 100,
+                       methodTypes = methodTypes,
+                       methodNames = methodNames,
                        file_nums = c(7,8),
                        output_dir = outputDir2)
   
@@ -2392,9 +2524,14 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                                                                      "SJCAR19-05"))] <- "G2"
   
   ### perform classification
-  two_group_classifier(Group_Info = Seurat_Obj_Total$Classifier_Group,
+  two_group_classifier(Given_Seurat_Obj = Seurat_Obj_Total,
+                       Given_gmp_last_idx = all_gmp_last,
+                       Given_gmp_not_last_idx = all_gmp_not_last,
+                       Group_Info = Seurat_Obj_Total$Classifier_Group,
                        seed.k = 1234,
                        featureSelectionNum = 100,
+                       methodTypes = methodTypes,
+                       methodNames = methodNames,
                        file_nums = c(9,10),
                        output_dir = outputDir2)
   
@@ -2418,9 +2555,14 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                                                                      "SJCAR19-05"))] <- "G2"
   
   ### perform classification
-  two_group_classifier(Group_Info = Seurat_Obj_Total$Classifier_Group,
+  two_group_classifier(Given_Seurat_Obj = Seurat_Obj_Total,
+                       Given_gmp_last_idx = all_gmp_last,
+                       Given_gmp_not_last_idx = all_gmp_not_last,
+                       Group_Info = Seurat_Obj_Total$Classifier_Group,
                        seed.k = 1234,
                        featureSelectionNum = 100,
+                       methodTypes = methodTypes,
+                       methodNames = methodNames,
                        file_nums = c(11,12),
                        output_dir = outputDir2)
   
@@ -2436,9 +2578,14 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   Seurat_Obj_Total$Classifier_Group[which(is.na(Seurat_Obj_Total$Classifier_Group))] <- "G2"
   
   ### perform classification
-  two_group_classifier(Group_Info = Seurat_Obj_Total$Classifier_Group,
+  two_group_classifier(Given_Seurat_Obj = Seurat_Obj_Total,
+                       Given_gmp_last_idx = all_gmp_last,
+                       Given_gmp_not_last_idx = all_gmp_not_last,
+                       Group_Info = Seurat_Obj_Total$Classifier_Group,
                        seed.k = 1234,
                        featureSelectionNum = 100,
+                       methodTypes = methodTypes,
+                       methodNames = methodNames,
                        file_nums = c(13,14),
                        output_dir = outputDir2)
   
@@ -2454,26 +2601,153 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   ### extract GMP cells only
   Seurat_Obj_GMP <- subset(Seurat_Obj_Total, idents = c("YES", "NO"))
   
+  ### normalization
+  Seurat_Obj_GMP <- NormalizeData(Seurat_Obj_GMP,
+                                  normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### find variable genes
+  Seurat_Obj_GMP <- FindVariableFeatures(Seurat_Obj_GMP,
+                                         selection.method = "vst", nfeatures = 2000)
+  
   ### scaling
   Seurat_Obj_GMP <- ScaleData(Seurat_Obj_GMP,
                               vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
   
   ### PCA
   Seurat_Obj_GMP <- RunPCA(Seurat_Obj_GMP,
-                           features = VariableFeatures(object = Seurat_Obj_GMP))
+                           features = VariableFeatures(object = Seurat_Obj_GMP),
+                           npcs = 15)
   
   ### UMAP
   Seurat_Obj_GMP <- RunUMAP(Seurat_Obj_GMP, dims = 1:15)
   
-  ###
+  ### UMAP with GMP
   DimPlot(object = Seurat_Obj_GMP, reduction = "umap",
           group.by = "GMP_CARpos_Persister", split.by = NULL,
           pt.size = 1) +
     ggtitle("UMAP of SJCAR19 Data") +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30))
-  ggsave(paste0(outputDir, "/", "UMAP_Plot.png"), plot = p, width = 20, height = 12, dpi = 300)
+  ggsave(paste0(outputDir2, "/", "UMAP_Plot_GMP1.png"), plot = p, width = 20, height = 12, dpi = 300)
+  
+  ### UMAP with GMP by each patient
+  DimPlot(object = Seurat_Obj_GMP, reduction = "umap",
+          group.by = "GMP_CARpos_Persister", split.by = "px",
+          pt.size = 1) +
+    ggtitle("UMAP of SJCAR19 Data") +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30))
+  ggsave(paste0(outputDir2, "/", "UMAP_Plot_GMP2.png"), plot = p, width = 20, height = 12, dpi = 300)
   
   
+  ### divide the patients into two groups BUT REMOVE NON-RESPONDERS THIS TIME
+  #
+  ### GMP Persister CD8 Cell Num
+  ### 966 (6) + 63 (4) + 19 (12) + 16 (2)
+  ### 254 (11) + 118 (8) + 89 (10) + 57 (5) + 32 (3) + 8 (13)
+  
+  Seurat_Obj_Total$Classifier_Group <- NA
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-06",
+                                                                     "SJCAR19-04",
+                                                                     "SJCAR19-12",
+                                                                     "SJCAR19-02"))] <- "G1"
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-11",
+                                                                     "SJCAR19-08",
+                                                                     "SJCAR19-10",
+                                                                     "SJCAR19-05",
+                                                                     "SJCAR19-03",
+                                                                     "SJCAR19-13"))] <- "G2"
+  
+  ### perform classification
+  two_group_classifier(Given_Seurat_Obj = Seurat_Obj_Total,
+                       Given_gmp_last_idx = all_gmp_last,
+                       Given_gmp_not_last_idx = all_gmp_not_last,
+                       Group_Info = Seurat_Obj_Total$Classifier_Group,
+                       seed.k = 1234,
+                       featureSelectionNum = 100,
+                       methodTypes = methodTypes,
+                       methodNames = methodNames,
+                       file_nums = c(15,16),
+                       output_dir = outputDir2)
+  
+  ### divide the patients into two groups BUT REMOVE NON-RESPONDERS THIS TIME
+  #
+  ### GMP Persister CD8 Cell Num
+  ### 966 (6) + 63 (4) + 19 (12) + 16 (2)
+  ### 254 (11) + 118 (8) + 89 (10) + 57 (5) + 32 (3) + 8 (13)
+  
+  Seurat_Obj_Total$Classifier_Group <- NA
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-06",
+                                                                     "SJCAR19-04",
+                                                                     "SJCAR19-12",
+                                                                     "SJCAR19-02"))] <- "G1"
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-11",
+                                                                     "SJCAR19-08",
+                                                                     "SJCAR19-10",
+                                                                     "SJCAR19-05",
+                                                                     "SJCAR19-03",
+                                                                     "SJCAR19-13"))] <- "G2"
+  
+  ### perform classification
+  two_group_classifier(Given_Seurat_Obj = Seurat_Obj_Total,
+                       Given_gmp_last_idx = all_gmp_last,
+                       Given_gmp_not_last_idx = all_gmp_not_last,
+                       Group_Info = Seurat_Obj_Total$Classifier_Group,
+                       seed.k = 4321,
+                       featureSelectionNum = 100,
+                       methodTypes = methodTypes,
+                       methodNames = methodNames,
+                       file_nums = c(17,18),
+                       output_dir = outputDir2)
+  
+  
+  ### set classification methods
+  methodTypes <- c("svmLinear", "svmRadial", "svmLinearWeights", "parRF", "glmboost", "knn")
+  methodNames <- c("SVMLinear", "SVMRadial", "SVMLinearWeights", "RandomForest", "Linear_Model", "KNN")
+  
+  ### If you take each patient’s data and split it 50/50 test and training, does the accuracy/AUC look as bad
+  set.seed(1234)
+  Seurat_Obj_Total <- SetIdent(object = Seurat_Obj_Total,
+                         cells = rownames(Seurat_Obj_Total@meta.data),
+                         value = Seurat_Obj_Total@meta.data$px)
+  outputDir3 <- paste0(outputDir2, "50_50_by_each_patient/")
+  dir.create(outputDir3, showWarnings = FALSE, recursive = TRUE)
+  for(px in unique(Seurat_Obj_Total@meta.data$px[which(Seurat_Obj_Total@meta.data$GMP_CARpos_Persister == "YES")])) {
+    ### get patient's seurat object
+    Seurat_Obj_px <- subset(Seurat_Obj_Total, idents = px)
+    
+    ### the indicies of the persisters
+    px_gmp_last <- which(Seurat_Obj_px@meta.data$GMP_CARpos_Persister == "YES")
+    px_gmp_not_last <- which(Seurat_Obj_px@meta.data$GMP_CARpos_Persister == "NO")
+    
+    ### only use the CD8 cells
+    px_gmp_last <- intersect(px_gmp_last,
+                             which(Seurat_Obj_px@meta.data$CD4_CD8_by_Consensus == "CD8"))
+    px_gmp_not_last <- intersect(px_gmp_not_last,
+                                 which(Seurat_Obj_px@meta.data$CD4_CD8_by_Consensus == "CD8"))
+    
+    ### calculate the number of one condition in one group
+    half_gmp_last_num <- floor(length(px_gmp_last) / 2)
+    
+    ### set groups
+    Seurat_Obj_px$Classifier_Group <- NA
+    Seurat_Obj_px$Classifier_Group[sample(px_gmp_last, half_gmp_last_num)] <- "G1"
+    Seurat_Obj_px$Classifier_Group[sample(setdiff(px_gmp_last,
+                                                  which(Seurat_Obj_px$Classifier_Group == "G1")), half_gmp_last_num)] <- "G2"
+    Seurat_Obj_px$Classifier_Group[sample(px_gmp_not_last, half_gmp_last_num)] <- "G1"
+    Seurat_Obj_px$Classifier_Group[sample(setdiff(px_gmp_not_last,
+                                                  which(Seurat_Obj_px$Classifier_Group == "G2")), half_gmp_last_num)] <- "G2"
+    
+    ### perform classification
+    two_group_classifier(Given_Seurat_Obj = Seurat_Obj_px,
+                         Given_gmp_last_idx = px_gmp_last,
+                         Given_gmp_not_last_idx = px_gmp_not_last,
+                         Group_Info = Seurat_Obj_px$Classifier_Group,
+                         seed.k = 1234,
+                         featureSelectionNum = 100,
+                         methodTypes = methodTypes,
+                         methodNames = methodNames,
+                         file_nums = c(paste0(px, "1"), paste0(px, "2")),
+                         output_dir = outputDir3)
+  }
   
   
 }
