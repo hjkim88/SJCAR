@@ -2622,20 +2622,24 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   Seurat_Obj_GMP <- RunUMAP(Seurat_Obj_GMP, dims = 1:15)
   
   ### UMAP with GMP
-  DimPlot(object = Seurat_Obj_GMP, reduction = "umap",
-          group.by = "GMP_CARpos_Persister", split.by = NULL,
-          pt.size = 1) +
-    ggtitle("UMAP of SJCAR19 Data") +
-    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30))
-  ggsave(paste0(outputDir2, "/", "UMAP_Plot_GMP1.png"), plot = p, width = 20, height = 12, dpi = 300)
+  p <- DimPlot(object = Seurat_Obj_GMP, reduction = "umap",
+               group.by = "GMP_CARpos_Persister", split.by = NULL,
+               pt.size = 2) +
+       ggtitle("UMAP of SJCAR19 Data") +
+       theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30)) +
+       labs(color="Is Persistent")
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir, "/", "UMAP_Plot_GMP1.png"), plot = p, width = 20, height = 12, dpi = 300)
   
   ### UMAP with GMP by each patient
-  DimPlot(object = Seurat_Obj_GMP, reduction = "umap",
-          group.by = "GMP_CARpos_Persister", split.by = "px",
-          pt.size = 1) +
-    ggtitle("UMAP of SJCAR19 Data") +
-    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30))
-  ggsave(paste0(outputDir2, "/", "UMAP_Plot_GMP2.png"), plot = p, width = 20, height = 12, dpi = 300)
+  p <- DimPlot(object = Seurat_Obj_GMP, reduction = "umap",
+               group.by = "GMP_CARpos_Persister", split.by = "px",
+               pt.size = 2, ncol = 3) +
+       ggtitle("UMAP of SJCAR19 Data") +
+       theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30)) +
+       labs(color="Is Persistent")
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir, "/", "UMAP_Plot_GMP2.png"), plot = p, width = 20, height = 12, dpi = 300)
   
   
   ### divide the patients into two groups BUT REMOVE NON-RESPONDERS THIS TIME
@@ -2734,7 +2738,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                                                   which(Seurat_Obj_px$Classifier_Group == "G1")), half_gmp_last_num)] <- "G2"
     Seurat_Obj_px$Classifier_Group[sample(px_gmp_not_last, half_gmp_last_num)] <- "G1"
     Seurat_Obj_px$Classifier_Group[sample(setdiff(px_gmp_not_last,
-                                                  which(Seurat_Obj_px$Classifier_Group == "G2")), half_gmp_last_num)] <- "G2"
+                                                  which(Seurat_Obj_px$Classifier_Group == "G1")), half_gmp_last_num)] <- "G2"
     
     ### perform classification
     two_group_classifier(Given_Seurat_Obj = Seurat_Obj_px,
@@ -2745,7 +2749,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                          featureSelectionNum = 100,
                          methodTypes = methodTypes,
                          methodNames = methodNames,
-                         file_nums = c(paste0(px, "1"), paste0(px, "2")),
+                         file_nums = c(paste0(px, "-1"), paste0(px, "-2")),
                          output_dir = outputDir3)
   }
   
