@@ -111,6 +111,10 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     install.packages("uwot")
     require(uwot, quietly = TRUE)
   }
+  if(!require(ggbeeswarm, quietly = TRUE)) {
+    install.packages("ggbeeswarm")
+    require(ggbeeswarm, quietly = TRUE)
+  }
   
   # ******************************************************************************************
   # Pathway Analysis with clusterProfiler package
@@ -2134,6 +2138,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                                    Group_Info,
                                    seed.k=1234,
                                    featureSelectionNum=100,
+                                   second_condition_multiplier=1,
                                    methodTypes = c("svmLinear", "svmRadial", "gbm", "parRF", "glmboost", "knn"),
                                    methodNames = NULL,
                                    file_nums = c(1,2),
@@ -2160,7 +2165,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     not_last_pool <- intersect(which(Group_Info == "G1"),
                                Given_gmp_not_last_idx)
     pxs <- unique(Given_Seurat_Obj@meta.data$px[which(Group_Info == "G1")])
-    samps1_last_num <- length(samps1)
+    samps1_last_num <- length(samps1) * second_condition_multiplier
     sampleNum_per_px <- round(samps1_last_num / length(pxs))
     for(px in pxs) {
       target_pool <- intersect(not_last_pool,
@@ -2172,9 +2177,10 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
         samps1 <- c(samps1, rownames(Given_Seurat_Obj@meta.data)[target_pool])
       }
     }
-    if(length(samps1) < (samps1_last_num*2)) {
+    set_num <- samps1_last_num*(second_condition_multiplier+1)/second_condition_multiplier
+    if(samps1_last_num < length(not_last_pool) && length(samps1) < set_num) {
       samps1 <- c(samps1, sample(setdiff(rownames(Given_Seurat_Obj@meta.data)[not_last_pool], samps1),
-                                 ((samps1_last_num*2)-length(samps1))))
+                                 (set_num-length(samps1))))
     }
     
     samps2 <- rownames(Given_Seurat_Obj@meta.data)[intersect(which(Group_Info == "G2"),
@@ -2182,7 +2188,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     not_last_pool <- intersect(which(Group_Info == "G2"),
                                Given_gmp_not_last_idx)
     pxs <- unique(Given_Seurat_Obj@meta.data$px[which(Group_Info == "G2")])
-    samps2_last_num <- length(samps2)
+    samps2_last_num <- length(samps2) * second_condition_multiplier
     sampleNum_per_px <- round(samps2_last_num / length(pxs))
     for(px in pxs) {
       target_pool <- intersect(not_last_pool,
@@ -2194,9 +2200,10 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
         samps2 <- c(samps2, rownames(Given_Seurat_Obj@meta.data)[target_pool])
       }
     }
-    if(length(samps2) < (samps2_last_num*2)) {
+    set_num <- samps2_last_num*(second_condition_multiplier+1)/second_condition_multiplier
+    if(samps2_last_num < length(not_last_pool) && length(samps2) < set_num) {
       samps2 <- c(samps2, sample(setdiff(rownames(Given_Seurat_Obj@meta.data)[not_last_pool], samps2),
-                                 ((samps2_last_num*2)-length(samps2))))
+                                 (set_num-length(samps2))))
     }
     
     #
@@ -2215,6 +2222,13 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                              min.pct = 0.1,
                              logfc.threshold = 0.1,
                              test.use = "wilcox")
+    
+    ### write out the DE result
+    write.xlsx2(data.frame(Gene=rownames(de_result),
+                           de_result,
+                           stringsAsFactors = FALSE, check.names = FALSE),
+                file = paste0(output_dir, "/GMP_CD8_CARpos_Persisters_vs_NonPersisters_", file_nums[1], ".xlsx"),
+                sheetName = "GMP_CD8_CARpos_DE_Result", row.names = FALSE)
     
     ### normalize the read counts
     input_data <- normalizeRNASEQwithVST(readCount = data.frame(classifier_seurat_obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],] + log_trans_add,
@@ -2239,6 +2253,13 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                               min.pct = 0.1,
                               logfc.threshold = 0.1,
                               test.use = "wilcox")
+    
+    ### write out the DE result
+    write.xlsx2(data.frame(Gene=rownames(de_result2),
+                           de_result2,
+                           stringsAsFactors = FALSE, check.names = FALSE),
+                file = paste0(output_dir, "/GMP_CD8_CARpos_Persisters_vs_NonPersisters_", file_nums[2], ".xlsx"),
+                sheetName = "GMP_CD8_CARpos_DE_Result", row.names = FALSE)
     
     ### normalize the read counts
     test_data <- normalizeRNASEQwithVST(readCount = data.frame(classifier_seurat_obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],] + log_trans_add,
@@ -2728,6 +2749,32 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     px_gmp_not_last <- intersect(px_gmp_not_last,
                                  which(Seurat_Obj_px@meta.data$CD4_CD8_by_Consensus == "CD8"))
     
+    #
+    ### DE genes
+    #
+    ### set idents
+    Seurat_Obj_px@meta.data$GMP_CD8_CARpos_Persister <- NA
+    Seurat_Obj_px@meta.data$GMP_CD8_CARpos_Persister[px_gmp_last] <- "YES"
+    Seurat_Obj_px@meta.data$GMP_CD8_CARpos_Persister[px_gmp_not_last] <- "NO"
+    Seurat_Obj_px <- SetIdent(object = Seurat_Obj_px,
+                              cells = rownames(Seurat_Obj_px@meta.data),
+                              value = Seurat_Obj_px@meta.data$GMP_CD8_CARpos_Persister)
+    
+    ### DE analysis
+    de_result <- FindMarkers(Seurat_Obj_px,
+                             ident.1 = "YES",
+                             ident.2 = "NO",
+                             min.pct = 0.1,
+                             logfc.threshold = 0.2,
+                             test.use = "wilcox")
+    
+    ### write out the DE result
+    write.xlsx2(data.frame(Gene=rownames(de_result),
+                           de_result,
+                           stringsAsFactors = FALSE, check.names = FALSE),
+                file = paste0(outputDir3, px, "_GMP_CD8_CARpos_Persisters_vs_NonPersisters.xlsx"),
+                sheetName = "GMP_CD8_CARpos_DE_Result", row.names = FALSE)
+    
     ### calculate the number of one condition in one group
     half_gmp_last_num <- floor(length(px_gmp_last) / 2)
     
@@ -2752,6 +2799,285 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                          file_nums = c(paste0(px, "-1"), paste0(px, "-2")),
                          output_dir = outputDir3)
   }
+  
+  
+  #
+  ### Kaity's request - dot plot
+  #
+  
+  ### the indicies of the persisters
+  all_gmp_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES")
+  all_gmp_not_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "NO")
+  
+  ### only use the CD8 cells
+  all_gmp_last <- intersect(all_gmp_last,
+                            which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  all_gmp_not_last <- intersect(all_gmp_not_last,
+                                which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  
+  ### GMP CD8 CARpos persisters
+  Seurat_Obj@meta.data$GMP_CD8_CARpos_Persister <- NA
+  Seurat_Obj@meta.data$GMP_CD8_CARpos_Persister[all_gmp_last] <- "YES"
+  Seurat_Obj@meta.data$GMP_CD8_CARpos_Persister[all_gmp_not_last] <- "NO"
+  
+  ### set idents
+  Seurat_Obj <- SetIdent(object = Seurat_Obj,
+                         cells = rownames(Seurat_Obj@meta.data),
+                         value = Seurat_Obj@meta.data$GMP_CD8_CARpos_Persister)
+  
+  ### DE analysis
+  de_result <- FindMarkers(Seurat_Obj,
+                           ident.1 = "YES",
+                           ident.2 = "NO",
+                           min.pct = 0.1,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/GMP_CD8_CARpos_Persisters_vs_NonPersisters.xlsx"),
+              sheetName = "GMP_CD8_CARpos_DE_Result", row.names = FALSE)
+  
+  ### pathway analysis
+  pathway_result_GO <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db,
+                                                            rownames(de_result)[which(de_result$p_val_adj < 0.05)],
+                                                            "ENTREZID", "SYMBOL"),
+                                          org = "human", database = "GO",
+                                          title = paste0("Pathway_Result_GMP_CD8_CARpos_Persisters_vs_NonPersisters"),
+                                          displayNum = 30, imgPrint = TRUE,
+                                          dir = paste0(outputDir))
+  pathway_result_KEGG <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db,
+                                                              rownames(de_result)[which(de_result$p_val_adj < 0.05)],
+                                                              "ENTREZID", "SYMBOL"),
+                                            org = "human", database = "KEGG",
+                                            title = paste0("Pathway_Result_GMP_CD8_CARpos_Persisters_vs_NonPersisters"),
+                                            displayNum = 30, imgPrint = TRUE,
+                                            dir = paste0(outputDir))
+  if(!is.null(pathway_result_GO) && nrow(pathway_result_GO) > 0) {
+    write.xlsx2(pathway_result_GO, file = paste0(outputDir, "GO_Pathway_Result_GMP_CD8_CARpos_Persisters_vs_NonPersisters.xlsx"),
+                row.names = FALSE, sheetName = paste0("GO_Result"))
+  }
+  if(!is.null(pathway_result_KEGG) && nrow(pathway_result_KEGG) > 0) {
+    write.xlsx2(pathway_result_KEGG, file = paste0(outputDir, "KEGG_Pathway_Result_GMP_CD8_CARpos_Persisters_vs_NonPersisters.xlsx"),
+                row.names = FALSE, sheetName = paste0("KEGG_Result"))
+  }
+  
+  ### beeswarm to compare gene expressions between p & np
+  set.seed(1234)
+  iter <- 10
+  for(i in 1:iter) {
+    target_data <- data.frame(Seurat_Obj@assays$RNA@counts[rownames(de_result)[1:25],
+                                                           c(sample(which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES"), 50),
+                                                             sample(which(Seurat_Obj@meta.data$GMP_CARpos_Persister== "NO"), 50))],
+                              stringsAsFactors = FALSE, check.names = FALSE)
+    plot_df <- data.frame(matrix(NA, 2500, 4),
+                          stringsAsFactors = FALSE, check.names = FALSE)
+    colnames(plot_df) <- c("Gene_Name", "Cell_Name", "GEX", "Persistency")
+    for(j in 1:nrow(target_data)) {
+      for(k in 1:ncol(target_data)) {
+        plot_df[100*(j-1)+k,"Gene_Name"] <- rownames(target_data)[j]
+        plot_df[100*(j-1)+k,"Cell_Name"] <- colnames(target_data)[k]
+        plot_df[100*(j-1)+k,"GEX"] <- as.numeric(target_data[j,k])
+      }
+      plot_df[(100*(j-1)+1):(100*j),"Persistency"] <- c(rep("YES", 50), rep("NO", 50))
+    }
+    
+    p <- vector("list", length = 25)
+    names(p) <- rownames(de_result)[1:25]
+    for(j in 1:length(p)) {
+      temp_plot_df <- plot_df[which(plot_df$Gene_Name == names(p)[j]),]
+      p[[j]] <- ggplot(temp_plot_df, aes_string(x="Persistency", y="GEX")) +
+        geom_boxplot() +
+        geom_beeswarm(aes_string(col="Persistency"), na.rm = TRUE) +
+        stat_compare_means() +
+        xlab("") + ylab("Gene Expression") +
+        labs(col="Is_Persistent") +
+        ggtitle(paste0(names(p)[j])) +
+        theme_classic(base_size = 16)
+    }
+    
+    g <- arrangeGrob(grobs = p,
+                     nrow = 5,
+                     ncol = 5,
+                     top = paste0("GMP_CD8_CARpos_Persisters_vs_NonPersisters"))
+    ggsave(file = paste0(outputDir, "/GMP_CD8_CARpos_Persisters_vs_NonPersisters(", i, ").png"), g,
+           width = 30, height = 20, dpi = 300)
+  }
+  
+  
+  #
+  ### build a classifier with Px6 and use other patients' samples for testing
+  #
+  Seurat_Obj_Total$Classifier_Group <- NA
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-06"))] <- "G1"
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-02",
+                                                                     "SJCAR19-03",
+                                                                     "SJCAR19-04",
+                                                                     "SJCAR19-05",
+                                                                     "SJCAR19-08",
+                                                                     "SJCAR19-10",
+                                                                     "SJCAR19-11",
+                                                                     "SJCAR19-12",
+                                                                     "SJCAR19-13"))] <- "G2"
+  
+  ### perform classification
+  two_group_classifier(Given_Seurat_Obj = Seurat_Obj_Total,
+                       Given_gmp_last_idx = all_gmp_last,
+                       Given_gmp_not_last_idx = all_gmp_not_last,
+                       Group_Info = Seurat_Obj_Total$Classifier_Group,
+                       seed.k = 1234,
+                       featureSelectionNum = 100,
+                       methodTypes = methodTypes,
+                       methodNames = methodNames,
+                       file_nums = c(19,20),
+                       output_dir = outputDir2)
+  
+  #
+  ### build a classifier with Px6 and use other patients' samples for testing
+  #
+  Seurat_Obj_Total$Classifier_Group <- NA
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-06"))] <- "G1"
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-11"))] <- "G2"
+  
+  ### perform classification
+  two_group_classifier(Given_Seurat_Obj = Seurat_Obj_Total,
+                       Given_gmp_last_idx = all_gmp_last,
+                       Given_gmp_not_last_idx = all_gmp_not_last,
+                       Group_Info = Seurat_Obj_Total$Classifier_Group,
+                       seed.k = 1234,
+                       featureSelectionNum = 100,
+                       methodTypes = methodTypes,
+                       methodNames = methodNames,
+                       file_nums = c(21,22),
+                       output_dir = outputDir2)
+  
+  #
+  ### build a classifier with Px6 and use other patients' samples for testing
+  #
+  Seurat_Obj_Total$Classifier_Group <- NA
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-06"))] <- "G1"
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-08"))] <- "G2"
+  
+  ### perform classification
+  two_group_classifier(Given_Seurat_Obj = Seurat_Obj_Total,
+                       Given_gmp_last_idx = all_gmp_last,
+                       Given_gmp_not_last_idx = all_gmp_not_last,
+                       Group_Info = Seurat_Obj_Total$Classifier_Group,
+                       seed.k = 1234,
+                       featureSelectionNum = 100,
+                       methodTypes = methodTypes,
+                       methodNames = methodNames,
+                       file_nums = c(23,24),
+                       output_dir = outputDir2)
+  
+  #
+  ### build a classifier with Px6 and use other patients' samples for testing
+  #
+  Seurat_Obj_Total$Classifier_Group <- NA
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-06"))] <- "G1"
+  Seurat_Obj_Total$Classifier_Group[which(Seurat_Obj_Total$px %in% c("SJCAR19-10"))] <- "G2"
+  
+  ### perform classification
+  two_group_classifier(Given_Seurat_Obj = Seurat_Obj_Total,
+                       Given_gmp_last_idx = all_gmp_last,
+                       Given_gmp_not_last_idx = all_gmp_not_last,
+                       Group_Info = Seurat_Obj_Total$Classifier_Group,
+                       seed.k = 1234,
+                       featureSelectionNum = 100,
+                       methodTypes = methodTypes,
+                       methodNames = methodNames,
+                       file_nums = c(25,26),
+                       output_dir = outputDir2)
+  
+  #
+  ### What if you double the number of non-persisters sampled?
+  #
+  
+  ### set classification methods
+  methodTypes <- c("svmLinear", "svmRadial", "svmLinearWeights", "parRF", "glmboost", "knn")
+  methodNames <- c("SVMLinear", "SVMRadial", "SVMLinearWeights", "RandomForest", "Linear_Model", "KNN")
+  
+  ### If you take each patient’s data and split it 50/50 test and training, does the accuracy/AUC look as bad
+  set.seed(1234)
+  Seurat_Obj_Total <- SetIdent(object = Seurat_Obj_Total,
+                               cells = rownames(Seurat_Obj_Total@meta.data),
+                               value = Seurat_Obj_Total@meta.data$px)
+  outputDir3 <- paste0(outputDir2, "50_100_by_each_patient/")
+  dir.create(outputDir3, showWarnings = FALSE, recursive = TRUE)
+  for(px in unique(Seurat_Obj_Total@meta.data$px[which(Seurat_Obj_Total@meta.data$GMP_CARpos_Persister == "YES")])) {
+    ### get patient's seurat object
+    Seurat_Obj_px <- subset(Seurat_Obj_Total, idents = px)
+    
+    ### the indicies of the persisters
+    px_gmp_last <- which(Seurat_Obj_px@meta.data$GMP_CARpos_Persister == "YES")
+    px_gmp_not_last <- which(Seurat_Obj_px@meta.data$GMP_CARpos_Persister == "NO")
+    
+    ### only use the CD8 cells
+    px_gmp_last <- intersect(px_gmp_last,
+                             which(Seurat_Obj_px@meta.data$CD4_CD8_by_Consensus == "CD8"))
+    px_gmp_not_last <- intersect(px_gmp_not_last,
+                                 which(Seurat_Obj_px@meta.data$CD4_CD8_by_Consensus == "CD8"))
+    
+    #
+    ### DE genes
+    #
+    ### set idents
+    Seurat_Obj_px@meta.data$GMP_CD8_CARpos_Persister <- NA
+    Seurat_Obj_px@meta.data$GMP_CD8_CARpos_Persister[px_gmp_last] <- "YES"
+    Seurat_Obj_px@meta.data$GMP_CD8_CARpos_Persister[px_gmp_not_last] <- "NO"
+    Seurat_Obj_px <- SetIdent(object = Seurat_Obj_px,
+                              cells = rownames(Seurat_Obj_px@meta.data),
+                              value = Seurat_Obj_px@meta.data$GMP_CD8_CARpos_Persister)
+    
+    ### DE analysis
+    de_result <- FindMarkers(Seurat_Obj_px,
+                             ident.1 = "YES",
+                             ident.2 = "NO",
+                             min.pct = 0.1,
+                             logfc.threshold = 0.2,
+                             test.use = "wilcox")
+    
+    ### write out the DE result
+    write.xlsx2(data.frame(Gene=rownames(de_result),
+                           de_result,
+                           stringsAsFactors = FALSE, check.names = FALSE),
+                file = paste0(outputDir3, px, "_GMP_CD8_CARpos_Persisters_vs_NonPersisters.xlsx"),
+                sheetName = "GMP_CD8_CARpos_DE_Result", row.names = FALSE)
+    
+    ### calculate the number of one condition in one group
+    half_gmp_last_num <- floor(length(px_gmp_last) / 2)
+    
+    ### set groups
+    Seurat_Obj_px$Classifier_Group <- NA
+    Seurat_Obj_px$Classifier_Group[sample(px_gmp_last, half_gmp_last_num)] <- "G1"
+    Seurat_Obj_px$Classifier_Group[sample(setdiff(px_gmp_last,
+                                                  which(Seurat_Obj_px$Classifier_Group == "G1")), half_gmp_last_num)] <- "G2"
+    Seurat_Obj_px$Classifier_Group[sample(px_gmp_not_last, floor(length(px_gmp_not_last)/2))] <- "G1"
+    Seurat_Obj_px$Classifier_Group[sample(setdiff(px_gmp_not_last,
+                                                  which(Seurat_Obj_px$Classifier_Group == "G1")), floor(length(px_gmp_not_last)/2))] <- "G2"
+    
+    ### perform classification
+    two_group_classifier(Given_Seurat_Obj = Seurat_Obj_px,
+                         Given_gmp_last_idx = px_gmp_last,
+                         Given_gmp_not_last_idx = px_gmp_not_last,
+                         Group_Info = Seurat_Obj_px$Classifier_Group,
+                         seed.k = 1234,
+                         featureSelectionNum = 100,
+                         methodTypes = methodTypes,
+                         methodNames = methodNames,
+                         second_condition_multiplier = 2,
+                         file_nums = c(paste0(px, "-1"), paste0(px, "-2")),
+                         output_dir = outputDir3)
+  }
+  
+  ### If you change SJCAR19-08 to k=5 cross validation, does anything change?
+  
+  
+  
+  
+  
   
   
 }
