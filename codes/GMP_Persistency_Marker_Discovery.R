@@ -3072,12 +3072,155 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                          output_dir = outputDir3)
   }
   
+  #
   ### If you change SJCAR19-08 to k=5 cross validation, does anything change?
+  #
   
+  ### If you take each patient’s data and split it 50/50 test and training, does the accuracy/AUC look as bad
+  Seurat_Obj_Total <- SetIdent(object = Seurat_Obj_Total,
+                               cells = rownames(Seurat_Obj_Total@meta.data),
+                               value = Seurat_Obj_Total@meta.data$px)
+  outputDir3 <- paste0(outputDir2, "5k_CV_Px08/")
+  dir.create(outputDir3, showWarnings = FALSE, recursive = TRUE)
+  px <- "SJCAR19-08"
   
+  ### get patient's seurat object
+  Seurat_Obj_px <- subset(Seurat_Obj_Total, idents = px)
   
+  ### the indicies of the persisters
+  px_gmp_last <- which(Seurat_Obj_px@meta.data$GMP_CARpos_Persister == "YES")
+  px_gmp_not_last <- which(Seurat_Obj_px@meta.data$GMP_CARpos_Persister == "NO")
   
+  ### only use the CD8 cells
+  px_gmp_last <- intersect(px_gmp_last,
+                           which(Seurat_Obj_px@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  px_gmp_not_last <- intersect(px_gmp_not_last,
+                               which(Seurat_Obj_px@meta.data$CD4_CD8_by_Consensus == "CD8"))
   
+  ### set options
+  set.seed(1234)
+  featureSelectionNum = 100
+  log_trans_add <- 1
+  methodTypes <- c("svmLinear", "svmRadial", "svmLinearWeights", "parRF", "glmboost", "knn")
+  methodNames <- c("SVMLinear", "SVMRadial", "SVMLinearWeights", "RandomForest", "Linear_Model", "KNN")
   
+  ### set 5k CV cell list
+  cv_sample_num <- round(length(px_gmp_last)/5)
+  cv_cell_list <- vector("list", 5)
+  gmp_last_so_far <- NULL
+  gmp_not_last_so_far <- NULL
+  for(i in 1:5) {
+    ### get random cells
+    cv_cell_list[[i]] <- vector("list", 2)
+    names(cv_cell_list[[i]]) <- c("GMP_Last", "GMP_Not_Last")
+    
+    if(i != 5) {
+      cv_cell_list[[i]][["GMP_Last"]] <- sample(setdiff(px_gmp_last, gmp_last_so_far), cv_sample_num)
+      cv_cell_list[[i]][["GMP_Not_Last"]] <- sample(setdiff(px_gmp_not_last, gmp_not_last_so_far), cv_sample_num)
+    } else {
+      cv_cell_list[[i]][["GMP_Last"]] <- setdiff(px_gmp_last, gmp_last_so_far)
+      cv_cell_list[[i]][["GMP_Not_Last"]] <- sample(setdiff(px_gmp_not_last, gmp_not_last_so_far), length(cv_cell_list[[i]][["GMP_Last"]]))
+    }
+    gmp_last_so_far <- c(gmp_last_so_far, cv_cell_list[[i]][["GMP_Last"]])
+    gmp_not_last_so_far <- c(gmp_not_last_so_far, cv_cell_list[[i]][["GMP_Not_Last"]])
+  }
+  
+  ### perform classification
+  all_samps <- rownames(Seurat_Obj_px@meta.data)[c(gmp_last_so_far, gmp_not_last_so_far)]
+  eval_acc <- vector("list", 5)
+  eval_roc <- vector("list", 5)
+  for(i in 1:5) {
+    ### set samples for cv
+    ts_samps <- rownames(Seurat_Obj_px@meta.data)[c(cv_cell_list[[i]][[1]], cv_cell_list[[i]][[2]])]
+    tr_samps <- setdiff(all_samps, ts_samps)
+    
+    ### new obj for the training data & set idents with the info - TR SAMPS
+    classifier_seurat_obj <- subset(Seurat_Obj_px, cells = tr_samps)
+    classifier_seurat_obj <- SetIdent(object = classifier_seurat_obj,
+                                      cells = rownames(classifier_seurat_obj@meta.data),
+                                      value = classifier_seurat_obj@meta.data$GMP_CARpos_Persister)
+    
+    ### DE analysis
+    de_result <- FindMarkers(classifier_seurat_obj,
+                             ident.1 = "YES",
+                             ident.2 = "NO",
+                             min.pct = 0.1,
+                             logfc.threshold = 0.1,
+                             test.use = "wilcox")
+    
+    ### normalize the read counts
+    input_data <- normalizeRNASEQwithVST(readCount = data.frame(classifier_seurat_obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],] + log_trans_add,
+                                                                stringsAsFactors = FALSE, check.names = FALSE),
+                                         filter_thresh = 0)
+    
+    ### annotate class for the input data
+    input_data <- data.frame(t(input_data), stringsAsFactors = FALSE, check.names = FALSE)
+    input_data$Class <- factor(classifier_seurat_obj@meta.data[rownames(input_data),"GMP_CARpos_Persister"],
+                               levels = c("YES", "NO"))
+    
+    ### new obj for the test data & set idents with the info - TS SAMPS
+    classifier_seurat_obj <- subset(Seurat_Obj_px, cells = ts_samps)
+    
+    ### normalize the read counts
+    test_data <- normalizeRNASEQwithVST(readCount = data.frame(classifier_seurat_obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],] + log_trans_add,
+                                                               stringsAsFactors = FALSE, check.names = FALSE),
+                                        filter_thresh = 0)
+    
+    ### annotate class for the test data
+    test_data <- data.frame(t(test_data), stringsAsFactors = FALSE, check.names = FALSE)
+    test_data$Class <- factor(classifier_seurat_obj@meta.data[rownames(test_data),"GMP_CARpos_Persister"],
+                              levels = c("YES", "NO"))
+    
+    ### train control options
+    train_control <- trainControl(method="none", classProbs = TRUE, savePredictions = TRUE, verboseIter = FALSE)
+    
+    ### lists for acc & auc
+    eval_acc[[i]] <- vector("list", length(methodTypes))
+    eval_roc[[i]] <- vector("list", length(methodTypes))
+    names(eval_acc[[i]]) <- methodTypes
+    names(eval_roc[[i]]) <- methodTypes
+    
+    for(j in 1:length(methodTypes)) {
+      model <- train(Class~., data=input_data, method=methodTypes[j], trControl = train_control)
+      pred_result <- predict(model, newdata = test_data)
+      eval_acc[[i]][[j]] <- round((sum(pred_result == test_data$Class) / nrow(test_data)), 3)
+      pred_result <- predict(model, newdata = test_data, type = "prob")
+      eval_roc[[i]][[j]] <- roc(test_data$Class, pred_result$YES)
+      gc()
+    }
+  }
+  
+  ### create a ROC Curve from the 5k CV
+  p <- NULL
+  for(i in 1:length(methodTypes)) {
+    temp_roc_list <- vector("list", 5)
+    temp_acc <- NULL
+    temp_auc <- NULL
+    for(j in 1:5) {
+      temp_roc_list[[j]] <- eval_roc[[j]][[i]]
+      temp_acc <- c(temp_acc, eval_acc[[j]][[i]])
+      temp_auc <- c(temp_auc, temp_roc_list[[j]]$auc)
+      names(temp_roc_list)[j] <- paste0(j, " (ACC = ", round(temp_acc[j], digits = 3),
+                                        ", AUC = ", round(temp_auc[j], digits = 3), ")")
+    }
+    p[[i]] <- ggroc(temp_roc_list, legacy.axes = TRUE, aes=c("linetype", "color"), size = 2) +
+      ggtitle(paste0(methodNames[i], " (Avg ACC = ", round(mean(temp_acc), digits = 3),
+                     ", Avg AUC = ", round(mean(temp_auc), digits = 3), ")")) +
+      geom_abline(intercept=0, slope=1, color="black", size=1) +
+      scale_color_npg() +
+      labs(color="Iteration (k=5)", linetype="Iteration (k=5)") +
+      theme_classic(base_size = 16) +
+      theme(plot.title = element_text(hjust = 0.5))
+  }
+  
+  ### arrange the plots and save
+  fName <- paste0("Px08_Classifier_5k_Cross_Validation")
+  rowNum <- 3
+  colNum <- 2
+  g <- arrangeGrob(grobs = p,
+                   nrow = rowNum,
+                   ncol = colNum,
+                   top = textGrob(paste0(fName, "\n"), gp=gpar(fontsize=25)))
+  ggsave(file = paste0(outputDir3, fName, ".png"), g, width = 20, height = 12, dpi = 300)
   
 }
