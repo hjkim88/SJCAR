@@ -3223,4 +3223,79 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                    top = textGrob(paste0(fName, "\n"), gp=gpar(fontsize=25)))
   ggsave(file = paste0(outputDir3, fName, ".png"), g, width = 20, height = 12, dpi = 300)
   
+  #
+  ### Best Predictor Patient's GMP CAR+ CD8 cells vs those of every others
+  #
+  
+  ### the indicies of the persisters
+  all_gmp_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES")
+  all_gmp_not_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "NO")
+  
+  ### only use the CD8 cells
+  all_gmp_last <- intersect(all_gmp_last,
+                            which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  all_gmp_not_last <- intersect(all_gmp_not_last,
+                                which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  
+  ### only get the cells of interests
+  target_Seurat_Obj <- subset(Seurat_Obj, cells = rownames(Seurat_Obj@meta.data)[c(all_gmp_last, all_gmp_not_last)])
+  
+  ### set new column for DE analysis comparison
+  target_Seurat_Obj@meta.data$New_Group <- paste0(target_Seurat_Obj@meta.data$ALL_CARpos_Persister,
+                                                  "_",
+                                                  target_Seurat_Obj@meta.data$px)
+  
+  ### set idents with the new info
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$New_Group)
+  
+  ### DE analysis for all the comparisons
+  for(px in setdiff(unique(target_Seurat_Obj@meta.data$px), "SJCAR19-06")) {
+    
+    ### DE analysis for persisters
+    de_result <- FindMarkers(target_Seurat_Obj,
+                             ident.1 = "YES_SJCAR19-06",
+                             ident.2 = paste0("YES_", px),
+                             min.pct = 0.1,
+                             logfc.threshold = 0.1,
+                             test.use = "wilcox")
+    
+    ### write out the DE result
+    write.xlsx2(data.frame(Gene=rownames(de_result),
+                           de_result,
+                           stringsAsFactors = FALSE, check.names = FALSE),
+                file = paste0(outputDir, "/GMP_CARpos_CD8_Persister_Best_vs_Others.xlsx"),
+                sheetName = paste0("SJCAR19-06_vs_", px), row.names = FALSE, append = TRUE)
+    
+    ### DE analysis for persisters
+    de_result <- FindMarkers(target_Seurat_Obj,
+                             ident.1 = "NO_SJCAR19-06",
+                             ident.2 = paste0("NO_", px),
+                             min.pct = 0.1,
+                             logfc.threshold = 0.1,
+                             test.use = "wilcox")
+    
+    ### write out the DE result
+    write.xlsx2(data.frame(Gene=rownames(de_result),
+                           de_result,
+                           stringsAsFactors = FALSE, check.names = FALSE),
+                file = paste0(outputDir, "/GMP_CARpos_CD8_Non-Persister_Best_vs_Others.xlsx"),
+                sheetName = paste0("SJCAR19-06_vs_", px), row.names = FALSE, append = TRUE)
+    
+  }
+  
+  ### write out the number of cells in each comparison
+  for(px in unique(target_Seurat_Obj@meta.data$px)) {
+    writeLines(paste(px, "\n# Persisters: ", length(which(target_Seurat_Obj@meta.data$New_Group == paste0("YES_", px))),
+                     "# Non-Persisters:", length(which(target_Seurat_Obj@meta.data$New_Group == paste0("NO_", px))), "\n"))
+  }
+  
+  
+  
+  
+  
+  
+  
+  
 }
