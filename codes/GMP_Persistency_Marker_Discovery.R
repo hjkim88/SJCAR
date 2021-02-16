@@ -115,6 +115,10 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     install.packages("ggbeeswarm")
     require(ggbeeswarm, quietly = TRUE)
   }
+  if(!require(ggthemes, quietly = TRUE)) {
+    install.packages("ggthemes")
+    require(ggthemes, quietly = TRUE)
+  }
   
   # ******************************************************************************************
   # Pathway Analysis with clusterProfiler package
@@ -2906,6 +2910,38 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
            width = 30, height = 20, dpi = 300)
   }
   
+  ### only get the cells of interests
+  target_Seurat_Obj <- subset(Seurat_Obj, idents = c("YES", "NO"))
+  
+  ### Dotplot2
+  p <- NULL
+  p[[1]] <- DotPlot(target_Seurat_Obj,
+          features = rownames(de_result)[30:1],
+          cols = c("skyblue", "pink"),
+          group.by = "GMP_CD8_CARpos_Persister") +
+    coord_flip() +
+    # ggtitle("Persisters vs Non-Persisters Avg Gene Exp") +
+    xlab("Top 1:30 DE Genes") +
+    ylab("Is_Persistent") +
+    theme_calc() +
+    theme(plot.title = element_text(hjust = 0.5))
+  p[[2]] <- DotPlot(target_Seurat_Obj,
+                    features = rownames(de_result)[60:31],
+                    cols = c("skyblue", "pink"),
+                    group.by = "GMP_CD8_CARpos_Persister") +
+    coord_flip() +
+    # ggtitle("Persisters vs Non-Persisters Avg Gene Exp") +
+    xlab("Top 31:60 DE Genes") +
+    ylab("Is_Persistent") +
+    theme_calc() +
+    theme(plot.title = element_text(hjust = 0.5))
+  g <- arrangeGrob(grobs = p,
+                   nrow = 1,
+                   ncol = 2,
+                   top = paste0("GMP CD8 CARpos Persisters vs Non-Persisters Avg Gene Exp"))
+  ggsave(file = paste0(outputDir, "GMP_CD8_CARpos_Persisters_vs_NonPersisters.png"),
+         g, width = 20, height = 12, dpi = 300)
+  
   
   #
   ### build a classifier with Px6 and use other patients' samples for testing
@@ -3288,7 +3324,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   ### write out the number of cells in each comparison
   for(px in unique(target_Seurat_Obj@meta.data$px)) {
     writeLines(paste(px, "\n# Persisters: ", length(which(target_Seurat_Obj@meta.data$New_Group == paste0("YES_", px))),
-                     "# Non-Persisters:", length(which(target_Seurat_Obj@meta.data$New_Group == paste0("NO_", px))), "\n"))
+                     ", # Non-Persisters:", length(which(target_Seurat_Obj@meta.data$New_Group == paste0("NO_", px))), "\n"))
   }
   
   
