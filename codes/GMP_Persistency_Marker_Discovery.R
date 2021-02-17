@@ -2942,6 +2942,21 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   ggsave(file = paste0(outputDir, "GMP_CD8_CARpos_Persisters_vs_NonPersisters.png"),
          g, width = 20, height = 12, dpi = 300)
   
+  ### Genes of interest selected by Kaity
+  genes_of_interest <- c("CD52", "SELL", "GNLY", "GZMK", "CCL5", "ID2", "GZMB", "TNFRSF18")
+  DotPlot(target_Seurat_Obj,
+          features = genes_of_interest,
+          cols = c("skyblue", "pink"),
+          group.by = "GMP_CD8_CARpos_Persister") +
+    coord_flip() +
+    # ggtitle("Persisters vs Non-Persisters Avg Gene Exp") +
+    xlab("Genes of Interest") +
+    ylab("Is_Persistent") +
+    theme_calc(base_size = 20) +
+    theme(plot.title = element_text(hjust = 0.5))
+  ggsave(file = paste0(outputDir, "GMP_CD8_CARpos_Persisters_vs_NonPersisters2.png"),
+         width = 12, height = 12, dpi = 300)
+  
   
   #
   ### build a classifier with Px6 and use other patients' samples for testing
