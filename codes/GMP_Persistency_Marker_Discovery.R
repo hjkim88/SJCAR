@@ -3274,6 +3274,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                    top = textGrob(paste0(fName, "\n"), gp=gpar(fontsize=25)))
   ggsave(file = paste0(outputDir3, fName, ".png"), g, width = 20, height = 12, dpi = 300)
   
+  
   #
   ### Best Predictor Patient's GMP CAR+ CD8 cells vs those of every others
   #
@@ -3391,9 +3392,329 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   }
   
   
+  #'****************************************************************************************
+  #' Compare different ranks of the same elements
+  #' 
+  #' It receives (1) two named numeric vectors that contain two different rank metrics
+  #' OR (2) receives two character vectors of the ordered/ranked element names
+  #' 
+  #' In case of (1), if the two given vectors are A and B,
+  #' names(A) and names(B) should have the same elements.
+  #' length(intersect(names(A), names(B))) = length(A) = length(B).
+  #' In case of (2), if the two given vectors are A and B,
+  #' A and B should have the same elements.
+  #' length(intersect(A, B)) = length(A) = length(B).
+  #' 
+  #' The function will generate 4 figures in one plot.
+  #' If the two given vectors are A and B,
+  #' 1. a barplot of ranked metric of A
+  #' 2. a line plot that shows lines connect top same elements between ranked A and ranked B
+  #' 3. a barplot of ranked metric of B
+  #' 4. a scatter plot of A and B
+  #'****************************************************************************************
+  #' @title	compare_two_different_ranks
+  #' 
+  #' @param A           A vector of named numeric vector or a character vector
+  #' @param B           A vector of named numeric vector or a character vector
+  #' @param A_name      The title of the given rank A
+  #'                    (Default = "A")      
+  #' @param B_name      The title of the given rank B
+  #'                    (Default = "B")
+  #' @param ordering    Order of the rank metric ["decreasing" or "increasing"]
+  #'                    (Default = "decreasing")
+  #' @param top         The number of top hubs from each of A and B that will be
+  #'                    presented in the line graph
+  #'                    (Default = 100)
+  #' @param alternative The alternative hypothesis for enrichment permutation ["greater" or "less"]
+  #'                    (Default = "greater")
+  #' @param permutation The number of permutation test
+  #'                    (Default = 10000)
+  #' @param fileName    The name of the plot file
+  #'                    (Default = "Comparison_of_Ranks_Between_A_and_B")
+  #' @param printPath   Print the plot in the designated path
+  #'                    (Default = "./")
+  #' @param width       The width of the plot file
+  #'                    (Default = 24)
+  #' @param height      The height of the plot file
+  #'                    (Default = 12)
+  #' 
+  #' @return 	          It does not return any objects
+  #' 
+  compare_two_different_ranks <- function(A,
+                                          B,
+                                          A_name = "A",
+                                          B_name = "B",
+                                          ordering = "decreasing",
+                                          top = 100,
+                                          alternative = "greater",
+                                          permutation = 10000,
+                                          fileName = "Comparison_of_Ranks_Between_A_and_B",
+                                          printPath = "./",
+                                          width = 24,
+                                          height = 10) {
+    
+    ### load required libraries
+    if(!require(ggplot2, quietly = TRUE)) {
+      install.packages("ggplot2")
+      require(ggplot2, quietly = TRUE)
+    }
+    if(!require(gridExtra, quietly = TRUE)) {
+      install.packages("gridExtra")
+      require(gridExtra, quietly = TRUE)
+    }
+    if(!require("checkmate", quietly = TRUE)) {
+      install.packages("checkmate")
+      require("checkmate", quietly = TRUE)
+    }
+    
+    ### argument checking
+    assertVector(A)
+    assertVector(B)
+    assertString(A_name)
+    assertString(B_name)
+    assertChoice(ordering, c("decreasing", "increasing"))
+    assertIntegerish(top)
+    assertChoice(alternative, c("greater", "less"))
+    assertIntegerish(permutation)
+    assertString(fileName)
+    assertString(printPath)
+    assertIntegerish(width)
+    assertIntegerish(height)
+    if(length(A) != length(B)) {
+      stop("ERROR: length(A) != length(B)")
+    }
+    if(class(A) == "numeric" && class(B) == "numeric") {
+      if(length(intersect(names(A), names(B))) != length(A)) {
+        stop("ERROR: A and B should have names, and names(sort(A)) and names(sort(B)) should be the same")
+      }
+      type <- "numeric"
+    } else if(class(A) == "character" && class(B) == "character") {
+      if(length(intersect(A, B)) != length(A)) {
+        stop("ERROR: sort(A) and sort(B) should be the same")
+      }
+      type <- "character"
+      names(A) <- A
+      A <- length(A):1
+      names(B) <- B
+      B <- length(B):1
+    } else {
+      stop("ERROR: A and B should be either named numeric vectors or character vectors")
+    }
+    
+    ### order the A and B
+    if(ordering == "decreasing") {
+      A <- A[order(-A)]
+      B <- B[order(-B)]
+    } else {
+      A <- A[order(A)]
+      B <- B[order(B)]
+    }
+    
+    ### data frame of A and B
+    df <- data.frame(idx=1:length(A), A=A[order(names(A))], B=B[order(names(B))],
+                     stringsAsFactors = FALSE, check.names = FALSE)
+    
+    ### give colors to the df
+    colors <- rep("lightgray", nrow(df))
+    names(colors) <- rownames(df)
+    colors[names(A)[1:top]] <- "skyblue"
+    colors[names(B)[1:top]] <- "pink"
+    colors[intersect(names(A)[1:top], names(B)[1:top])] <- "mediumpurple"
+    df$colors <- factor(colors, levels = c("skyblue", "pink", "lightgray", "mediumpurple"))
+    
+    ### data frame for the line graph
+    df2 <- data.frame(X=c(Reduce(function(x, y) {
+      return(c(x, y, which(names(B) == names(A)[y])))
+    }, 0:top)[-1],
+    Reduce(function(x, y) {
+      return(c(x, y, which(names(A) == names(B)[y])))
+    }, 0:top)[-1]),
+    Y=c(rep(c(1,0), top),
+        rep(c(0,1), top)),
+    Element=paste0("e", c(rbind(1:(top*2), 1:(top*2)))),
+    Collection=c(rep("A", top*2),
+                 rep("B", top*2)),
+    stringsAsFactors = FALSE, check.names = FALSE)
+    
+    ### add top and bottom x-axis to the df2
+    df2 <- rbind(df2, data.frame(X=c(0, length(A), 0, length(B)),
+                                 Y=c(1, 1, 0, 0),
+                                 Element=paste0("e", c(rbind((top*2+1):(top*2+2),(top*2+1):(top*2+2)))),
+                                 Collection=rep("C", 4)))
+    
+    ### permutation test for getting a p-value (1-tail)
+    set.seed(1234)
+    permu_result <- sapply(1:(permutation-1), function(x) {
+      random_hubs <- names(A)[sample(length(A), top)]
+      return(sum(B[random_hubs]))
+    })
+    if(alternative == "greater") {
+      pVal_A <- (length(which(permu_result > sum(B[names(A)[1:top]])))+1) / permutation
+    } else {
+      pVal_A <- (length(which(permu_result < sum(B[names(A)[1:top]])))+1) / permutation
+    }
+    permu_result <- sapply(1:(permutation-1), function(x) {
+      random_hubs <- names(B)[sample(length(B), top)]
+      return(sum(A[random_hubs]))
+    })
+    if(alternative == "greater") {
+      pVal_B <- (length(which(permu_result > sum(A[names(B)[1:top]])))+1) / permutation
+    } else {
+      pVal_B <- (length(which(permu_result < sum(A[names(B)[1:top]])))+1) / permutation
+    }
+    
+    if(ordering == "decreasing") {
+      ### 1. a barplot of ranked metric of A
+      p1 <- ggplot(data = df, aes(x = reorder(idx, -A), y = A, width = 1)) +
+        ylab(paste(A_name, "(A)")) +
+        theme(axis.title.x=element_blank(),
+              axis.text.x=element_blank(),
+              axis.ticks.x=element_blank(),
+              plot.margin = margin(t = 0, r = 115, b = 0, l = 5)) +
+        geom_bar(stat = "identity", color = "skyblue")
+      
+      ### 3. a barplot of ranked metric of B
+      p3 <- ggplot(data = df, aes(x = reorder(idx, -B), y = B, width = 1)) +
+        ylab(paste(B_name, "(B)")) +
+        theme(axis.title.x=element_blank(),
+              axis.text.x = element_blank(),
+              axis.ticks.x=element_blank(),
+              plot.margin = margin(t = 0, r = 115, b = 0, l = 5)) +
+        geom_bar(stat = "identity", color = "pink")
+    } else {
+      ### 1. a barplot of ranked metric of A
+      p1 <- ggplot(data = df, aes(x = reorder(idx, A), y = A, width = 1)) +
+        ylab(paste(A_name, "(A)")) +
+        theme(axis.title.x=element_blank(),
+              axis.text.x=element_blank(),
+              axis.ticks.x=element_blank(),
+              plot.margin = margin(t = 0, r = 115, b = 0, l = 5)) +
+        geom_bar(stat = "identity", color = "skyblue")
+      
+      ### 3. a barplot of ranked metric of B
+      p3 <- ggplot(data = df, aes(x = reorder(idx, B), y = B, width = 1)) +
+        ylab(paste(B_name, "(B)")) +
+        theme(axis.title.x=element_blank(),
+              axis.text.x = element_blank(),
+              axis.ticks.x=element_blank(),
+              plot.margin = margin(t = 0, r = 115, b = 0, l = 5)) +
+        geom_bar(stat = "identity", color = "pink")
+    }
+    
+    ### 2. a line plot that shows lines connect top same elements between ranked A and ranked B
+    p2 <- ggplot(data = df2, aes(x = X, y = Y, group = Element, color = Collection)) +
+      geom_line() +
+      scale_color_manual(labels = c("A", "B", "C"), values = c("skyblue", "pink", "gray")) +
+      theme_void() +
+      theme(legend.position = "none", plot.margin = margin(t = 0, r = 5, b = 0, l = 5)) +
+      annotate(geom = "text", x = length(A), y = 0.1,
+               color = "skyblue", hjust = 0, vjust = 0, fontface = "bold",
+               label = paste("Top", top, "(A)\nPermutation p-value\n=", pVal_A)) +
+      annotate(geom = "text", x = length(B), y = 0.9,
+               color = "pink", hjust = 0, vjust = 1, fontface = "bold",
+               label = paste("Top", top, "(B)\nPermutation p-value\n=", pVal_B)) +
+      expand_limits(x = length(A)*1.1)
+    
+    ### 4. a scatter plot of A and B
+    p4 <- ggplot(data = df, aes(x=A, y=B)) +
+      geom_point(aes(color=colors), size = 2) +
+      labs(subtitle=paste0("Pearson Correlation = ", round(cor(df$A, df$B), 5),
+                           " (P-value = ", round(cor.test(df$A, df$B)$p.value, 5), ")"),
+           color=paste("Top", top)) +
+      xlab(A_name) +
+      ylab(B_name) +
+      geom_smooth(method = lm, color="black", se=FALSE) +
+      scale_color_manual(labels=c("A", "B", "Others", "Intersect(A, B)"), values = c("skyblue", "pink", "lightgray", "mediumpurple")) +
+      theme_classic(base_size = 16)
+    
+    ### arrange the plots and print out
+    g <- arrangeGrob(p1, p2, p3, p4, layout_matrix = rbind(c(1, 4),
+                                                           c(2, 4),
+                                                           c(3, 4)),
+                     top = fileName)
+    ggsave(file = paste0(printPath, fileName, ".png"), g, width = width, height = height)
+    
+  }
   
+  #
+  ### what are the DE genes between PS & NPS in each patient,
+  ### and are they different from each other?
+  #
   
+  ### the indicies of the persisters
+  all_gmp_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES")
+  all_gmp_not_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "NO")
   
+  ### only use the CD8 cells
+  all_gmp_last <- intersect(all_gmp_last,
+                            which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  all_gmp_not_last <- intersect(all_gmp_not_last,
+                                which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  
+  ### only get the cells of interests
+  target_Seurat_Obj <- subset(Seurat_Obj, cells = rownames(Seurat_Obj@meta.data)[c(all_gmp_last, all_gmp_not_last)])
+  
+  ### set idents with the px info
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$px)
+  
+  ### run DE analysis for each patient
+  de_results <- vector("list", length(unique(target_Seurat_Obj@meta.data$px)))
+  names(de_results) <- unique(target_Seurat_Obj@meta.data$px)
+  for(px in unique(target_Seurat_Obj@meta.data$px)) {
+    ### get the patient data
+    px_Seurat_Obj <- subset(target_Seurat_Obj, idents = px)
+    
+    ### set idents for DEA
+    px_Seurat_Obj <- SetIdent(object = px_Seurat_Obj,
+                              cells = rownames(px_Seurat_Obj@meta.data),
+                              value = px_Seurat_Obj@meta.data$ALL_CARpos_Persister)
+    
+    ### run DEA
+    de_results[[px]] <- FindMarkers(px_Seurat_Obj,
+                                    ident.1 = "YES",
+                                    ident.2 = "NO",
+                                    min.pct = 0.1,
+                                    logfc.threshold = 0.1,
+                                    test.use = "wilcox")
+    
+    ### add order
+    de_results[[px]]$rank <- rank(de_results[[px]]$p_val_adj)
+  }
+  
+  ### pairwise comparison of DE results
+  for(i in 1:(length(de_results)-1)) {
+    for(j in (i+1):length(de_results)) {
+      ### get common genes
+      common_genes <- intersect(rownames(de_results[[i]])[which(de_results[[i]]$p_val_adj < 1)],
+                                rownames(de_results[[j]])[which(de_results[[j]]$p_val_adj < 1)])
+      
+      ### get signatures - RANK
+      sig1 <- de_results[[i]][common_genes,"rank"]
+      names(sig1) <- common_genes
+      sig2 <- de_results[[j]][common_genes,"rank"]
+      names(sig2) <- common_genes
+      
+      ### compare the ranks
+      if(length(sig1) > 2 && length(sig2) > 2) {
+        compare_two_different_ranks(A = sig1,
+                                    B = sig2,
+                                    A_name = paste0("DE Gene Rank of", names(de_results)[i]),
+                                    B_name = paste0("DE Gene Rank of", names(de_results)[j]),
+                                    ordering = "decreasing",
+                                    top = length(sig1),
+                                    alternative = "greater",
+                                    permutation = 10000,
+                                    fileName = paste0("DE_Gene_Rank_Comparison_", names(de_results)[i], "_vs_", names(de_results)[j]),
+                                    printPath = outputDir,
+                                    width = 24,
+                                    height = 12)
+      } else {
+        writeLines(paste(names(de_results)[i], "&", names(de_results)[j], "does not have enough genes for the analysis."))
+      }
+    }
+  }
   
   
   
