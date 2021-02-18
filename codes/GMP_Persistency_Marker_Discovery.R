@@ -3319,7 +3319,31 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                 file = paste0(outputDir, "/GMP_CARpos_CD8_Persister_Best_vs_Others.xlsx"),
                 sheetName = paste0("SJCAR19-06_vs_", px), row.names = FALSE, append = TRUE)
     
-    ### DE analysis for persisters
+    ### pathway analysis
+    pathway_result_GO <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db,
+                                                              rownames(de_result)[which(de_result$p_val_adj < 0.05)],
+                                                              "ENTREZID", "SYMBOL"),
+                                            org = "human", database = "GO",
+                                            title = paste0("Persisters_SJCAR19-06_vs_", px),
+                                            displayNum = 30, imgPrint = TRUE,
+                                            dir = paste0(outputDir))
+    pathway_result_KEGG <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db,
+                                                                rownames(de_result)[which(de_result$p_val_adj < 0.05)],
+                                                                "ENTREZID", "SYMBOL"),
+                                              org = "human", database = "KEGG",
+                                              title = paste0("Persisters_SJCAR19-06_vs_", px),
+                                              displayNum = 30, imgPrint = TRUE,
+                                              dir = paste0(outputDir))
+    if(!is.null(pathway_result_GO) && nrow(pathway_result_GO) > 0) {
+      write.xlsx2(pathway_result_GO, file = paste0(outputDir, "GO_Persisters_SJCAR19-06_vs_", px, ".xlsx"),
+                  row.names = FALSE, sheetName = paste0("GO_Result"))
+    }
+    if(!is.null(pathway_result_KEGG) && nrow(pathway_result_KEGG) > 0) {
+      write.xlsx2(pathway_result_KEGG, file = paste0(outputDir, "KEGG_Persisters_SJCAR19-06_vs_", px, ".xlsx"),
+                  row.names = FALSE, sheetName = paste0("KEGG_Result"))
+    }
+    
+    ### DE analysis for non-persisters
     de_result <- FindMarkers(target_Seurat_Obj,
                              ident.1 = "NO_SJCAR19-06",
                              ident.2 = paste0("NO_", px),
@@ -3333,6 +3357,30 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                            stringsAsFactors = FALSE, check.names = FALSE),
                 file = paste0(outputDir, "/GMP_CARpos_CD8_Non-Persister_Best_vs_Others.xlsx"),
                 sheetName = paste0("SJCAR19-06_vs_", px), row.names = FALSE, append = TRUE)
+    
+    ### pathway analysis
+    pathway_result_GO <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db,
+                                                              rownames(de_result)[which(de_result$p_val_adj < 0.05)],
+                                                              "ENTREZID", "SYMBOL"),
+                                            org = "human", database = "GO",
+                                            title = paste0("Non-Persisters_SJCAR19-06_vs_", px),
+                                            displayNum = 30, imgPrint = TRUE,
+                                            dir = paste0(outputDir))
+    pathway_result_KEGG <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db,
+                                                                rownames(de_result)[which(de_result$p_val_adj < 0.05)],
+                                                                "ENTREZID", "SYMBOL"),
+                                              org = "human", database = "KEGG",
+                                              title = paste0("Non-Persisters_SJCAR19-06_vs_", px),
+                                              displayNum = 30, imgPrint = TRUE,
+                                              dir = paste0(outputDir))
+    if(!is.null(pathway_result_GO) && nrow(pathway_result_GO) > 0) {
+      write.xlsx2(pathway_result_GO, file = paste0(outputDir, "GO_Non-Persisters_SJCAR19-06_vs_", px, ".xlsx"),
+                  row.names = FALSE, sheetName = paste0("GO_Result"))
+    }
+    if(!is.null(pathway_result_KEGG) && nrow(pathway_result_KEGG) > 0) {
+      write.xlsx2(pathway_result_KEGG, file = paste0(outputDir, "KEGG_Non-Persisters_SJCAR19-06_vs_", px, ".xlsx"),
+                  row.names = FALSE, sheetName = paste0("KEGG_Result"))
+    }
     
   }
   
