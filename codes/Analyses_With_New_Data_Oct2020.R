@@ -82,6 +82,12 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
     install.packages("pROC")
     require(pROC, quietly = TRUE)
   }
+  if(!require(Biostrings, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("Biostrings")
+    require(Biostrings, quietly = TRUE)
+  }
   
   ### create outputDir
   dir.create(outputDir, showWarnings = FALSE, recursive = TRUE)
@@ -403,6 +409,35 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
     return(paste(px, time, tissue, sep = "_"))
     
   }, USE.NAMES = TRUE)
+  
+  #
+  ### add tcr fasta sequence to the tcr info
+  ### 02/17/2021
+  #
+  
+  ### get new TCR info file paths
+  TCR_data_dirs2 <- list.files(path = TCR_dir, pattern = "CR_consensus.fasta$",
+                               full.names = TRUE, recursive = TRUE)
+  
+  ### check if the order is the same as the previous tcr data
+  temp1 <- sapply(basename(TCR_data_dirs), function(x) strsplit(x, "TCR", fixed=TRUE)[[1]][1], USE.NAMES = FALSE)
+  temp2 <- sapply(basename(TCR_data_dirs2), function(x) strsplit(x, "TCR", fixed=TRUE)[[1]][1], USE.NAMES = FALSE)
+  identical(temp1, temp2)
+  ### GOT 'TRUE'
+  
+  ###
+  for(file_path in TCR_data_dirs2) {
+    
+    ### load fasta sequence file
+    fasta_seq <- readDNAStringSet(file_path)
+    
+    
+    
+    
+  }
+  
+  
+  
   
   ### attach TCR info to the meta.data
   Seurat_Obj@meta.data$tcr_file_name <- NA
