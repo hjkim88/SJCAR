@@ -1985,7 +1985,8 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   
   ### A function to perform 2D PCA and save a plot
   ### normalizedMat: rows are genes and columns are samples
-  ### grp: group information of the samples
+  ### grp: group information of the samples - color
+  ### grp2: group2 information of the samples - shape
   ### num: the number of top genes to be used based on variance (-1 [default]: use all the genes)
   ### component: to draw a plot with PC1 & PC2 or PC2 & PC3
   ### title: title of the plot
@@ -1993,7 +1994,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   ###             related to contributions. For example, which genes are highly contributed to
   ###             the PC1, PC2, etc.
   ### outDir: output directory for the plot
-  pca_plot <- function(normalizedMat, grp,
+  pca_plot <- function(normalizedMat, grp, grp2=NULL,
                        num = -1, component=c("PC1&PC2", "PC2&PC3"),
                        title="PCA_Plot",
                        suppliment=FALSE,
@@ -2029,19 +2030,32 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     pca_result <- PCA(t(normalizedMat[top_genes,]), graph = FALSE)
     colnames(pca_result$ind$coord) <- paste0("PC", 1:ncol(pca_result$ind$coord))
     colnames(pca_result$var$contrib) <- paste0("PC", 1:ncol(pca_result$var$contrib))
-    pca_group <- data.frame(pca_result$ind$coord, group=grp)
+    if(is.null(grp2)) {
+      pca_group <- data.frame(pca_result$ind$coord, group=grp)
+    } else {
+      pca_group <- data.frame(pca_result$ind$coord, group=grp, group2=grp2)
+    }
     
     colors = rainbow(length(unique(grp)))
     names(colors) = unique(grp)
     
     ### save as png
     if(component[1] == "PC1&PC2") {
-      ggplot(pca_group,aes(x=PC1,y=PC2,col=group)) +
-        labs(title=paste0(title, "_PC1-2")) +
-        geom_point() +
-        # geom_text(aes(label=colnames(normalizedMat)),hjust="inward", vjust="inward") +
-        scale_color_manual(values = colors) +
-        theme_classic(base_size = 16)
+      if(is.null(grp2)) {
+        ggplot(pca_group,aes(x=PC1,y=PC2,col=group)) +
+          labs(title=paste0(title, "_PC1-2")) +
+          geom_point() +
+          # geom_text(aes(label=colnames(normalizedMat)),hjust="inward", vjust="inward") +
+          scale_color_manual(values = colors) +
+          theme_classic(base_size = 16)
+      } else {
+        ggplot(pca_group,aes(x=PC1,y=PC2,col=group)) +
+          labs(title=paste0(title, "_PC1-2")) +
+          geom_point(aes(shape=group2)) +
+          # geom_text(aes(label=colnames(normalizedMat)),hjust="inward", vjust="inward") +
+          scale_color_manual(values = colors) +
+          theme_classic(base_size = 16)  
+      }
       ggsave(filename = paste0(outDir, title, "_PC1-2", ".png"), width = 10, height = 8)
       
       if(suppliment) {
@@ -2052,12 +2066,21 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
         ggsave(filename = paste0(outDir, title, "_PC2_contribution.png"), width = 12, height = 8)
       }
     } else if(component[1] == "PC2&PC3") {
-      ggplot(pca_group,aes(x=PC2,y=PC3,col=group)) +
-        labs(title=paste0(title, "_PC2-3")) +
-        geom_point() +
-        # geom_text(aes(label=colnames(normalizedMat)),hjust="inward", vjust="inward") +
-        scale_color_manual(values = colors) +
-        theme_classic(base_size = 16)
+      if(is.null(grp2)) {
+        ggplot(pca_group,aes(x=PC2,y=PC3,col=group)) +
+          labs(title=paste0(title, "_PC2-3")) +
+          geom_point() +
+          # geom_text(aes(label=colnames(normalizedMat)),hjust="inward", vjust="inward") +
+          scale_color_manual(values = colors) +
+          theme_classic(base_size = 16)
+      } else {
+        ggplot(pca_group,aes(x=PC2,y=PC3,col=group)) +
+          labs(title=paste0(title, "_PC2-3")) +
+          geom_point(aes(shape=group2)) +
+          # geom_text(aes(label=colnames(normalizedMat)),hjust="inward", vjust="inward") +
+          scale_color_manual(values = colors) +
+          theme_classic(base_size = 16)  
+      }
       ggsave(filename = paste0(outDir, title, "_PC2-3", ".png"), width = 10, height = 8)
       
       if(suppliment) {
@@ -3716,6 +3739,322 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     }
   }
   
+  #
+  ### UMAP plot of every px in one - persister vs non-persister
+  ### the purpose of it is to know how persisters and non-persisters distributed in each patient
+  ### and compre those - each patient should be distinguished by color and the persistence
+  ### should be also distinguished by shape
+  #
+  
+  ### the indicies of the persisters
+  all_gmp_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES")
+  all_gmp_not_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "NO")
+  
+  ### only use the CD8 cells
+  all_gmp_last <- intersect(all_gmp_last,
+                            which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  all_gmp_not_last <- intersect(all_gmp_not_last,
+                                which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  
+  ### only get the cells of interests
+  target_Seurat_Obj <- subset(Seurat_Obj, cells = rownames(Seurat_Obj@meta.data)[c(all_gmp_last, all_gmp_not_last)])
+  
+  ### UMAP with all those info
+  p <- DimPlot(object = target_Seurat_Obj, reduction = "umap",
+               group.by = "px", shape.by = "GMP_CARpos_Persister",
+               pt.size = 2) +
+    ggtitle("UMAP of SJCAR19 Data") +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30)) +
+    labs(color="Patient",
+         shape="Is Persistent")
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir, "/", "UMAP_Plot_Persistence_per_Px.png"), plot = p, width = 20, height = 12, dpi = 300)
+  
+  ### get the same number of samples (persister: non-persister - same ratio) and draw a UMAP plot again
+  set.seed(1234)
+  target_Seurat_Obj@meta.data$New_Persistency <- NA
+  multiplier_k <- 1
+  for(px in unique(target_Seurat_Obj@meta.data$px)) {
+    ### get specific indicies
+    px_gmp_last <- intersect(which(target_Seurat_Obj@meta.data$px == px),
+                             which(target_Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES"))
+    px_gmp_not_last <- intersect(which(target_Seurat_Obj@meta.data$px == px),
+                                 which(target_Seurat_Obj@meta.data$GMP_CARpos_Persister == "NO"))
+    
+    ### sampling
+    if((length(px_gmp_last) > 2) && (length(px_gmp_not_last) > length(px_gmp_last))) {
+      px_gmp_not_last <- sample(px_gmp_not_last, size = length(px_gmp_last)*multiplier_k)
+    }
+    
+    ### annotate new persistency info
+    target_Seurat_Obj@meta.data$New_Persistency[px_gmp_last] <- "YES"
+    target_Seurat_Obj@meta.data$New_Persistency[px_gmp_not_last] <- "NO"
+  }
+  
+  ### set idents with the new info
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$New_Persistency)
+  
+  ### temporary seurat object for umap
+  umap_seurat_obj <- subset(target_Seurat_Obj, idents = c("YES", "NO"))
+  
+  ### run pca & umap
+  umap_seurat_obj <- RunPCA(umap_seurat_obj,
+                            features = VariableFeatures(object = umap_seurat_obj),
+                            npcs = 15)
+  umap_seurat_obj <- RunUMAP(umap_seurat_obj, dims = 1:15)
+  
+  ### UMAP with all those info
+  p <- list()
+  p[[1]] <- DimPlot(object = umap_seurat_obj, reduction = "umap",
+               group.by = "px", shape.by = "New_Persistency",
+               pt.size = 3) +
+    ggtitle("UMAP of SJCAR19 Data") +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30)) +
+    labs(color="Patient",
+         shape="Is Persistent")
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  ggsave(paste0(outputDir, "/", "UMAP_Plot_Persistence_per_Px_Sampled.png"), plot = p[[1]], width = 20, height = 12, dpi = 300)
+  
+  ### umap for each px
+  umap_seurat_obj <- SetIdent(object = umap_seurat_obj,
+                              cells = rownames(umap_seurat_obj@meta.data),
+                              value = umap_seurat_obj@meta.data$px)
+  g <- ggplot_build(p[[1]])
+  color_code <- data.frame(colours = unique(g$data[[1]]["colour"]), 
+                           label = levels(g$plot$data[, "px"]),
+                           stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(color_code) <- color_code$label
+  for(i in 1:length(unique(umap_seurat_obj@meta.data$px))) {
+    temp_seurat_obj <- subset(umap_seurat_obj, idents = c(unique(umap_seurat_obj@meta.data$px)[i]))
+    p[[i+1]] <- DimPlot(object = temp_seurat_obj, reduction = "umap",
+                 cols = color_code[unique(umap_seurat_obj@meta.data$px)[i],"colour"], shape.by = "New_Persistency",
+                 pt.size = 3) +
+      ggtitle(unique(umap_seurat_obj@meta.data$px)[i]) +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 20)) +
+      labs(shape="Is Persistent")
+    p[[i+1]]$layers[[1]]$aes_params$alpha <- 0.7
+  }
+  
+  ### arrange the plots and save
+  fName <- paste0("UMAP_Plot_Persistence_per_Px_Sampled")
+  rowNum <- 3
+  colNum <- 4
+  g <- arrangeGrob(grobs = p,
+                   nrow = rowNum,
+                   ncol = colNum,
+                   top = textGrob(paste0(fName, "\n"), gp=gpar(fontsize=25)))
+  ggsave(file = paste0(outputDir, fName, "2.png"), g, width = 25, height = 15, dpi = 300)
+  
+  ### PCA with all those info
+  p <- list()
+  p[[1]] <- DimPlot(object = umap_seurat_obj, reduction = "pca",
+                    group.by = "px", shape.by = "New_Persistency",
+                    pt.size = 3) +
+    ggtitle("PCA of SJCAR19 Data") +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30)) +
+    labs(color="Patient",
+         shape="Is Persistent")
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  ggsave(paste0(outputDir, "/", "PCA_Plot_Persistence_per_Px_Sampled.png"), plot = p[[1]], width = 20, height = 12, dpi = 300)
+  
+  ### PCA function from my own
+  umap_seurat_obj <- SetIdent(object = umap_seurat_obj,
+                              cells = rownames(umap_seurat_obj@meta.data),
+                              value = umap_seurat_obj@meta.data$New_Persistency)
+  de_result <- FindMarkers(umap_seurat_obj,
+                           ident.1 = "YES",
+                           ident.2 = "NO",
+                           min.pct = 0.1,
+                           logfc.threshold = 0.1,
+                           test.use = "wilcox")
+  pca_plot(normalizedMat = normalizeRNASEQwithVST(umap_seurat_obj@assays$RNA@counts[rownames(de_result)[1:100],] + 1,
+                                                  filter_thresh = 0),
+           grp = as.character(umap_seurat_obj@meta.data$px),
+           grp2 = as.character(umap_seurat_obj@meta.data$New_Persistency),
+           title = paste0("PCA_Plot_Persistence_per_Px_Sampled_DE_100"),
+           outDir = outputDir)
+  pca_plot(normalizedMat = normalizeRNASEQwithVST(umap_seurat_obj@assays$RNA@counts[rownames(de_result)[1:100],] + 1,
+                                                  filter_thresh = 0),
+           grp = as.character(umap_seurat_obj@meta.data$New_Persistency),
+           title = paste0("PCA_Plot_Persistence_per_Px_Sampled_DE_100(2)"),
+           outDir = outputDir)
+  
+  ### pca for each px
+  umap_seurat_obj <- SetIdent(object = umap_seurat_obj,
+                              cells = rownames(umap_seurat_obj@meta.data),
+                              value = umap_seurat_obj@meta.data$px)
+  g <- ggplot_build(p[[1]])
+  color_code <- data.frame(colours = unique(g$data[[1]]["colour"]), 
+                           label = levels(g$plot$data[, "px"]),
+                           stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(color_code) <- color_code$label
+  for(i in 1:length(unique(umap_seurat_obj@meta.data$px))) {
+    temp_seurat_obj <- subset(umap_seurat_obj, idents = c(unique(umap_seurat_obj@meta.data$px)[i]))
+    p[[i+1]] <- DimPlot(object = temp_seurat_obj, reduction = "pca",
+                        cols = color_code[unique(umap_seurat_obj@meta.data$px)[i],"colour"], shape.by = "New_Persistency",
+                        pt.size = 3) +
+      ggtitle(unique(umap_seurat_obj@meta.data$px)[i]) +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 20)) +
+      labs(shape="Is Persistent")
+    p[[i+1]]$layers[[1]]$aes_params$alpha <- 0.7
+  }
+  
+  ### arrange the plots and save
+  fName <- paste0("PCA_Plot_Persistence_per_Px_Sampled")
+  rowNum <- 3
+  colNum <- 4
+  g <- arrangeGrob(grobs = p,
+                   nrow = rowNum,
+                   ncol = colNum,
+                   top = textGrob(paste0(fName, "\n"), gp=gpar(fontsize=25)))
+  ggsave(file = paste0(outputDir, fName, "2.png"), g, width = 25, height = 15, dpi = 300)
+  
+  
+  ### get the same number of samples (30) and draw a UMAP plot again
+  target_Seurat_Obj <- subset(Seurat_Obj, cells = rownames(Seurat_Obj@meta.data)[c(all_gmp_last, all_gmp_not_last)])
+  set.seed(1234)
+  target_Seurat_Obj@meta.data$New_Persistency <- NA
+  sample_num <- 30
+  for(px in unique(target_Seurat_Obj@meta.data$px)) {
+    ### get specific indicies
+    px_gmp_last <- intersect(which(target_Seurat_Obj@meta.data$px == px),
+                             which(target_Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES"))
+    px_gmp_not_last <- intersect(which(target_Seurat_Obj@meta.data$px == px),
+                                 which(target_Seurat_Obj@meta.data$GMP_CARpos_Persister == "NO"))
+    
+    ### sampling
+    if((length(px_gmp_last) > 2) && (length(px_gmp_not_last) > length(px_gmp_last))) {
+      min_num <- min(length(px_gmp_last), sample_num)
+      px_gmp_last <- sample(px_gmp_last, min_num)
+      px_gmp_not_last <- sample(px_gmp_not_last, min_num)
+    }
+    
+    ### annotate new persistency info
+    target_Seurat_Obj@meta.data$New_Persistency[px_gmp_last] <- "YES"
+    target_Seurat_Obj@meta.data$New_Persistency[px_gmp_not_last] <- "NO"
+  }
+  
+  ### set idents with the new info
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$New_Persistency)
+  
+  ### temporary seurat object for umap
+  umap_seurat_obj <- subset(target_Seurat_Obj, idents = c("YES", "NO"))
+  
+  ### run pca & umap
+  umap_seurat_obj <- RunPCA(umap_seurat_obj,
+                            features = VariableFeatures(object = umap_seurat_obj),
+                            npcs = 15)
+  umap_seurat_obj <- RunUMAP(umap_seurat_obj, dims = 1:15)
+  
+  ### UMAP with all those info
+  p <- list()
+  p[[1]] <- DimPlot(object = umap_seurat_obj, reduction = "umap",
+                    group.by = "px", shape.by = "New_Persistency",
+                    pt.size = 5) +
+    ggtitle("UMAP of SJCAR19 Data") +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30)) +
+    labs(color="Patient",
+         shape="Is Persistent")
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  ggsave(paste0(outputDir, "/", "UMAP_Plot_Persistence_per_Px_30_Sampled.png"), plot = p[[1]], width = 20, height = 12, dpi = 300)
+  
+  ### umap for each px
+  umap_seurat_obj <- SetIdent(object = umap_seurat_obj,
+                              cells = rownames(umap_seurat_obj@meta.data),
+                              value = umap_seurat_obj@meta.data$px)
+  g <- ggplot_build(p[[1]])
+  color_code <- data.frame(colours = unique(g$data[[1]]["colour"]), 
+                           label = levels(g$plot$data[, "px"]),
+                           stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(color_code) <- color_code$label
+  for(i in 1:length(unique(umap_seurat_obj@meta.data$px))) {
+    temp_seurat_obj <- subset(umap_seurat_obj, idents = c(unique(umap_seurat_obj@meta.data$px)[i]))
+    p[[i+1]] <- DimPlot(object = temp_seurat_obj, reduction = "umap",
+                        cols = color_code[unique(umap_seurat_obj@meta.data$px)[i],"colour"], shape.by = "New_Persistency",
+                        pt.size = 5) +
+      ggtitle(unique(umap_seurat_obj@meta.data$px)[i]) +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 20)) +
+      labs(shape="Is Persistent")
+    p[[i+1]]$layers[[1]]$aes_params$alpha <- 0.7
+  }
+  
+  ### arrange the plots and save
+  fName <- paste0("UMAP_Plot_Persistence_per_Px_30_Sampled")
+  rowNum <- 3
+  colNum <- 4
+  g <- arrangeGrob(grobs = p,
+                   nrow = rowNum,
+                   ncol = colNum,
+                   top = textGrob(paste0(fName, "\n"), gp=gpar(fontsize=25)))
+  ggsave(file = paste0(outputDir, fName, "2.png"), g, width = 25, height = 15, dpi = 300)
+  
+  ### PCA with all those info
+  p <- list()
+  p[[1]] <- DimPlot(object = umap_seurat_obj, reduction = "pca",
+                    group.by = "px", shape.by = "New_Persistency",
+                    pt.size = 5) +
+    ggtitle("PCA of SJCAR19 Data") +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30)) +
+    labs(color="Patient",
+         shape="Is Persistent")
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  ggsave(paste0(outputDir, "/", "PCA_Plot_Persistence_per_Px_30_Sampled.png"), plot = p[[1]], width = 20, height = 12, dpi = 300)
+  
+  ### PCA function from my own
+  umap_seurat_obj <- SetIdent(object = umap_seurat_obj,
+                              cells = rownames(umap_seurat_obj@meta.data),
+                              value = umap_seurat_obj@meta.data$New_Persistency)
+  de_result <- FindMarkers(umap_seurat_obj,
+                           ident.1 = "YES",
+                           ident.2 = "NO",
+                           min.pct = 0.1,
+                           logfc.threshold = 0.1,
+                           test.use = "wilcox")
+  pca_plot(normalizedMat = normalizeRNASEQwithVST(umap_seurat_obj@assays$RNA@counts[rownames(de_result)[1:100],] + 1,
+                                                  filter_thresh = 0),
+           grp = as.character(umap_seurat_obj@meta.data$px),
+           grp2 = as.character(umap_seurat_obj@meta.data$New_Persistency),
+           title = paste0("PCA_Plot_Persistence_per_Px_30_Sampled_DE_100"),
+           outDir = outputDir)
+  pca_plot(normalizedMat = normalizeRNASEQwithVST(umap_seurat_obj@assays$RNA@counts[rownames(de_result)[1:100],] + 1,
+                                                  filter_thresh = 0),
+           grp = as.character(umap_seurat_obj@meta.data$New_Persistency),
+           title = paste0("PCA_Plot_Persistence_per_Px_30_Sampled_DE_100(2)"),
+           outDir = outputDir)
+  
+  ### pca for each px
+  umap_seurat_obj <- SetIdent(object = umap_seurat_obj,
+                              cells = rownames(umap_seurat_obj@meta.data),
+                              value = umap_seurat_obj@meta.data$px)
+  g <- ggplot_build(p[[1]])
+  color_code <- data.frame(colours = unique(g$data[[1]]["colour"]), 
+                           label = levels(g$plot$data[, "px"]),
+                           stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(color_code) <- color_code$label
+  for(i in 1:length(unique(umap_seurat_obj@meta.data$px))) {
+    temp_seurat_obj <- subset(umap_seurat_obj, idents = c(unique(umap_seurat_obj@meta.data$px)[i]))
+    p[[i+1]] <- DimPlot(object = temp_seurat_obj, reduction = "pca",
+                        cols = color_code[unique(umap_seurat_obj@meta.data$px)[i],"colour"], shape.by = "New_Persistency",
+                        pt.size = 5) +
+      ggtitle(unique(umap_seurat_obj@meta.data$px)[i]) +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 20)) +
+      labs(shape="Is Persistent")
+    p[[i+1]]$layers[[1]]$aes_params$alpha <- 0.7
+  }
+  
+  ### arrange the plots and save
+  fName <- paste0("PCA_Plot_Persistence_per_Px_30_Sampled")
+  rowNum <- 3
+  colNum <- 4
+  g <- arrangeGrob(grobs = p,
+                   nrow = rowNum,
+                   ncol = colNum,
+                   top = textGrob(paste0(fName, "\n"), gp=gpar(fontsize=25)))
+  ggsave(file = paste0(outputDir, fName, "2.png"), g, width = 25, height = 15, dpi = 300)
   
   
 }
