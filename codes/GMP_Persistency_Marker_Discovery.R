@@ -119,6 +119,10 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     install.packages("ggthemes")
     require(ggthemes, quietly = TRUE)
   }
+  if(!require(msigdbr, quietly = TRUE)) {
+    install.packages("msigdbr")
+    library(msigdbr, quietly = TRUE)
+  }
   
   # ******************************************************************************************
   # Pathway Analysis with clusterProfiler package
@@ -3299,6 +3303,242 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   
   
   #
+  ### GSEA with the important genes of the PC1
+  #
+  
+  #'****************************************************************************************
+  #' Gene Set Enrichment Analysis function
+  #' 
+  #' It receives gene list (character vector) and signature profiles (named numeric vector)
+  #' as inputs, performs GSEA and returns a table of GSEA result table and draws
+  #' a GSEA plot. It is basically a statistical significance test to check how the
+  #' given given genes are biased on the signature profiles.
+  #' 
+  #' Whether there are multiple gene sets or multiple signatures,
+  #' multiple testing (FDR computation) is performed.
+  #' But if the input gene set and the input signature are both lists with multiple
+  #' items (The length of the two are both more than 1) then we return an error message.
+  #' 
+  #' The plot file names will be determined by names(gene_list) or names(signature)
+  #' If length(gene_list) > 1, then names(gene_list) will be used and
+  #' if length(signature) > 1, then names(signature) will be used as file names.
+  #' If there is no list names, then file names will be "GSEA_Plot_i.png".
+  #' Here, i indicates that the plot is from the i-th row of the GSEA result table.
+  #' 
+  #' * Some plot drawing codes were from Rtoolbox/R/ReplotGSEA.R written by Thomas Kuilman. 
+  #'****************************************************************************************
+  #' @title	run_gsea
+  #' 
+  #' @param gene_list   A list of character vectors containing gene names to be tested
+  #' @param signature   A list of named numeric vectors of signature values for GSEA. The gene_list
+  #'                    should be included in the names(signature)
+  #' @param printPlot   If TRUE, it also generates GSEA plot of the results
+  #'                    (Default = FALSE)
+  #' @param fdr_cutoff  When printing GSEA plots, print them with the FDR < fdr_cutoff only
+  #'                    (Default = 0.05)
+  #' @param printPath   When printing GSEA plots, print them in the designated path
+  #'                    (Default = "./")
+  #' @param width       The width of the plot file
+  #'                    (Default = 2000)
+  #' @param height      The height of the plot file
+  #'                    (Default = 1200)
+  #' @param res         The resolution of the plot file
+  #'                    (Default = 130)
+  #' 
+  #' @return 	          It tests bias of the "gene_list" on the "signature" range and
+  #'                    returns a table including p-values and FDRs (adjusted p-values)
+  #'                    If fdr_cutoff == TRUE, it also generates a GSEA plot with the result
+  #' 
+  run_gsea <- function(gene_list,
+                       signature,
+                       printPlot = FALSE,
+                       fdr_cutoff = 0.05,
+                       width = 2000,
+                       height = 1200,
+                       res = 130,
+                       printPath = "./") {
+    
+    ### load required libraries
+    if(!require("fgsea", quietly = TRUE)) {
+      if(!requireNamespace("BiocManager", quietly = TRUE))
+        install.packages("BiocManager")
+      BiocManager::install("fgsea")
+      require("fgsea", quietly = TRUE)
+    }
+    if(!require("limma", quietly = TRUE)) {
+      if(!requireNamespace("BiocManager", quietly = TRUE))
+        install.packages("BiocManager")
+      BiocManager::install("limma")
+      require("limma", quietly = TRUE)
+    } 
+    if(!require("checkmate", quietly = TRUE)) {
+      install.packages("checkmate")
+      require("checkmate", quietly = TRUE)
+    }
+    
+    ### argument checking
+    assertList(gene_list)
+    assertList(signature)
+    assertLogical(printPlot)
+    assertNumeric(fdr_cutoff)
+    assertIntegerish(width)
+    assertIntegerish(height)
+    assertIntegerish(res)
+    assertString(printPath)
+    if(length(gene_list) > 1 && length(signature) > 1) {
+      stop("ERROR: \"gene_list\" and \"signature\" cannot be both \"list\"")
+    }
+    
+    ### set random seed
+    set.seed(1234)
+    
+    ### run GSEA
+    ### if there are more than one signatures
+    if(length(signature) > 1) {
+      ### combine GSEA results of every signature inputs
+      for(i in 1:length(signature)) {
+        temp <- data.frame(fgsea(pathways = gene_list, stats = signature[[i]], nperm = 1000))
+        if(i == 1) {
+          gsea_result <- temp
+        } else {
+          gsea_result <- rbind(gsea_result, temp)
+        }
+      }
+      
+      ### compute FDRs
+      corrected_gsea_result <- gsea_result[order(gsea_result$pval),]
+      corrected_gsea_result$padj <- p.adjust(corrected_gsea_result$pval, method = "BH")
+      gsea_result <- corrected_gsea_result[rownames(gsea_result),]
+    }
+    ### if there are more than one gene sets
+    else {
+      gsea_result <- data.frame(fgsea(pathways = gene_list, stats = signature[[1]], nperm = 1000))
+    }
+    
+    ### print GSEA plot
+    sIdx <- which(gsea_result$padj < fdr_cutoff)
+    if(printPlot && length(sIdx) > 0) {
+      for(i in sIdx) {
+        ### get required values ready
+        if(length(signature) > 1) {
+          geneset <- gene_list[[1]]
+          stats <- signature[[i]]
+          stats <- stats[order(-stats)]
+          fileName <- names(signature)[i]
+        } else {
+          geneset <- gene_list[[i]]
+          stats <- signature[[1]]
+          stats <- stats[order(-stats)]
+          fileName <- names(gene_list)[i]
+        }
+        if(is.null(fileName)) {
+          fileName <- paste0("GSEA_Plot_", i)
+        }
+        stats <- stats[!is.na(stats)]
+        gsea.hit.indices <- which(names(stats) %in% geneset)
+        es.temp <- calcGseaStat(stats, gsea.hit.indices, returnAllExtremes = TRUE)
+        if(es.temp$res >= 0) {
+          gsea.es.profile <- es.temp$tops
+        } else {
+          gsea.es.profile <- es.temp$bottoms
+        }
+        enrichment.score.range <- c(min(gsea.es.profile), max(gsea.es.profile))
+        metric.range <- c(min(stats), max(stats))
+        gsea.p.value <- round(gsea_result$pval[i] ,5)
+        gsea.fdr <- round(gsea_result$padj[i] ,5)
+        gsea.enrichment.score <- round(gsea_result$ES[i], 5)
+        gsea.normalized.enrichment.score <- round(gsea_result$NES[i], 5)
+        
+        ### print GSEA result plot
+        png(paste0(printPath, fileName, ".png"), width = width, height = height, res = res)
+        
+        ### set layout
+        layout.show(layout(matrix(c(1, 2, 3, 4)), heights = c(1.7, 0.5, 0.2, 2)))
+        
+        ### draw the GSEA plot
+        par(mar = c(0, 5, 2, 2))
+        plot(c(1, gsea.hit.indices, length(stats)),
+             c(0, gsea.es.profile, 0), type = "l", col = "red", lwd = 1.5, xaxt = "n",
+             xaxs = "i", xlab = "", ylab = "Enrichment score (ES)",
+             ylim = enrichment.score.range,
+             main = list(fileName, font = 1, cex = 1),
+             panel.first = {
+               abline(h = seq(round(enrichment.score.range[1], digits = 1),
+                              enrichment.score.range[2], 0.1),
+                      col = "gray95", lty = 2)
+               abline(h = 0, col = "gray50", lty = 2)
+             }
+        )
+        
+        ### add informative text to the GSEA plot
+        plot.coordinates <- par("usr")
+        if(es.temp$res < 0) {
+          text(length(stats) * 0.01, plot.coordinates[3] * 0.98,
+               paste("P-value:", gsea.p.value, "\nFDR:", gsea.fdr, "\nES:",
+                     gsea.enrichment.score, "\nNormalized ES:",
+                     gsea.normalized.enrichment.score), adj = c(0, 0))
+        } else {
+          text(length(stats) * 0.99, plot.coordinates[4] - ((plot.coordinates[4] - plot.coordinates[3]) * 0.03),
+               paste("P-value:", gsea.p.value, "\nFDR:", gsea.fdr, "\nES:",
+                     gsea.enrichment.score, "\nNormalized ES:",
+                     gsea.normalized.enrichment.score), adj = c(1, 1))
+        }
+        
+        ### draw hit indices
+        par(mar = c(0, 5, 0, 2))
+        plot(0, type = "n", xaxt = "n", xaxs = "i", xlab = "", yaxt = "n",
+             ylab = "", xlim = c(1, length(stats)))
+        abline(v = gsea.hit.indices, lwd = 0.75)
+        
+        ### create color palette for the heatmap
+        par(mar = c(0, 5, 0, 2))
+        rank.colors <- stats - metric.range[1]
+        rank.colors <- rank.colors / (metric.range[2] - metric.range[1])
+        rank.colors <- ceiling(rank.colors * 511 + 1)
+        rank.colors <- colorRampPalette(c("blue", "white", "red"))(512)[rank.colors]
+        
+        ### draw the heatmap
+        rank.colors <- rle(rank.colors)
+        barplot(matrix(rank.colors$lengths), col = rank.colors$values,
+                border = NA, horiz = TRUE, xaxt = "n", xlim = c(1, length(stats)))
+        box()
+        text(length(stats) / 2, 0.7,
+             labels = "Signature")
+        text(length(stats) * 0.01, 0.7, "Largest", adj = c(0, NA))
+        text(length(stats) * 0.99, 0.7, "Smallest", adj = c(1, NA))
+        
+        ### draw signature values
+        par(mar = c(5, 5, 0, 2))
+        rank.metric <- rle(round(stats, digits = 2))
+        plot(stats, type = "n", xaxs = "i",
+             xlab = "Rank in ordered gene list", xlim = c(0, length(stats)),
+             ylim = metric.range, yaxs = "i",
+             ylab = "Signature values",
+             panel.first = abline(h = seq(metric.range[1] / 2,
+                                          metric.range[2] - metric.range[1] / 4,
+                                          metric.range[2] / 2), col = "gray95", lty = 2))
+        
+        barplot(rank.metric$values, col = "lightgrey", lwd = 0.1,
+                xlim = c(0, length(stats)), ylim = c(-1, 1),
+                width = rank.metric$lengths, border = NA,
+                space = 0, add = TRUE, xaxt = "n")
+        box()
+        
+        ### print out the file
+        dev.off()
+      }
+    }
+    
+    return(gsea_result)
+    
+  }
+  
+  ### db preparation
+  # MSIGDB
+  m_df <- msigdbr(species = "Homo sapiens")
+  m_list <- m_df %>% split(x = .$gene_symbol, f = .$gs_name)
+  
+  #
   ### Best Predictor Patient's GMP CAR+ CD8 cells vs those of every others
   #
   
@@ -3367,6 +3607,47 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                   row.names = FALSE, sheetName = paste0("KEGG_Result"))
     }
     
+    #
+    ### GSEA
+    #
+    output_dir <- paste0(outputDir, "Persister_SJCAR19-06_vs_", px, "/")
+    dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+    
+    ### signature preparation
+    signat <- de_result$avg_logFC
+    names(signat) <- rownames(de_result)
+    
+    ### run GSEA
+    GSEA_result <- run_gsea(gene_list = m_list, signature = list(signat), printPlot = FALSE)
+    GSEA_result <- GSEA_result[order(GSEA_result$pval),]
+    
+    ### only get pathways that have pval < 0.01 & size > 30 & up-regulating results (enriched with important) only
+    pathways <- GSEA_result$pathway[intersect(intersect(which(GSEA_result$pval < 1e-02),
+                                                        which(GSEA_result$size > 30)),
+                                              which(GSEA_result$NES > 2))]
+    if(length(pathways) < 5) {
+      pathways <- GSEA_result$pathway[intersect(intersect(which(GSEA_result$pval < 1e-02),
+                                                          which(GSEA_result$size > 30)),
+                                                which(GSEA_result$NES > 1.8))]
+    }
+    if(length(pathways) < 5) {
+      pathways <- GSEA_result$pathway[intersect(intersect(which(GSEA_result$pval < 1e-02),
+                                                          which(GSEA_result$size > 30)),
+                                                which(GSEA_result$NES > 1.6))]
+    }
+    if(length(pathways) > 30) {
+      pathways <- GSEA_result$pathway[1:30]
+    }
+    
+    ### run GSEA again with the significant result - plot printing
+    GSEA_result2 <- run_gsea(gene_list = m_list[pathways], signature = list(signat),
+                             printPlot = TRUE, printPath = output_dir)
+    
+    ### write out the result file
+    write.xlsx2(GSEA_result, file = paste0(output_dir, "/GSEA_GMP_CARpos_CD8_Persister_Best_vs_Others.xlsx"),
+                sheetName = paste0("SJCAR19-06_vs_", px), row.names = FALSE, append = TRUE)
+    
+    
     ### DE analysis for non-persisters
     de_result <- FindMarkers(target_Seurat_Obj,
                              ident.1 = "NO_SJCAR19-06",
@@ -3405,6 +3686,46 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
       write.xlsx2(pathway_result_KEGG, file = paste0(outputDir, "KEGG_Non-Persisters_SJCAR19-06_vs_", px, ".xlsx"),
                   row.names = FALSE, sheetName = paste0("KEGG_Result"))
     }
+    
+    #
+    ### GSEA
+    #
+    output_dir <- paste0(outputDir, "Non-Persister_SJCAR19-06_vs_", px, "/")
+    dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+    
+    ### signature preparation
+    signat <- de_result$avg_logFC
+    names(signat) <- rownames(de_result)
+    
+    ### run GSEA
+    GSEA_result <- run_gsea(gene_list = m_list, signature = list(signat), printPlot = FALSE)
+    GSEA_result <- GSEA_result[order(GSEA_result$pval),]
+    
+    ### only get pathways that have pval < 0.01 & size > 30 & up-regulating results (enriched with important) only
+    pathways <- GSEA_result$pathway[intersect(intersect(which(GSEA_result$pval < 1e-02),
+                                                        which(GSEA_result$size > 30)),
+                                              which(GSEA_result$NES > 2))]
+    if(length(pathways) < 5) {
+      pathways <- GSEA_result$pathway[intersect(intersect(which(GSEA_result$pval < 1e-02),
+                                                          which(GSEA_result$size > 30)),
+                                                which(GSEA_result$NES > 1.8))]
+    }
+    if(length(pathways) < 5) {
+      pathways <- GSEA_result$pathway[intersect(intersect(which(GSEA_result$pval < 1e-02),
+                                                          which(GSEA_result$size > 30)),
+                                                which(GSEA_result$NES > 1.6))]
+    }
+    if(length(pathways) > 30) {
+      pathways <- GSEA_result$pathway[1:30]
+    }
+    
+    ### run GSEA again with the significant result - plot printing
+    GSEA_result2 <- run_gsea(gene_list = m_list[pathways], signature = list(signat),
+                             printPlot = TRUE, printPath = output_dir)
+    
+    ### write out the result file
+    write.xlsx2(GSEA_result, file = paste0(output_dir, "/GSEA_GMP_CARpos_CD8_Non-Persister_Best_vs_Others.xlsx"),
+                sheetName = paste0("SJCAR19-06_vs_", px), row.names = FALSE, append = TRUE)
     
   }
   
