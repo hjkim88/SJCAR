@@ -3336,6 +3336,10 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   #'                    (Default = FALSE)
   #' @param fdr_cutoff  When printing GSEA plots, print them with the FDR < fdr_cutoff only
   #'                    (Default = 0.05)
+  #' @param heatmap_color_type  when 'relative', the heatmap of the GSEA colors the bottom half of the
+  #'                            absolute range of the signature as blue and the upper half as red
+  #'                            when 'absolute', the heatmap of GSEA colors the negative signature as blue
+  #'                            and the positives as red
   #' @param printPath   When printing GSEA plots, print them in the designated path
   #'                    (Default = "./")
   #' @param width       The width of the plot file
@@ -3353,6 +3357,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                        signature,
                        printPlot = FALSE,
                        fdr_cutoff = 0.05,
+                       heatmap_color_type = c("relative", "absolute"),
                        width = 2000,
                        height = 1200,
                        res = 130,
@@ -3409,9 +3414,8 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
       corrected_gsea_result <- gsea_result[order(gsea_result$pval),]
       corrected_gsea_result$padj <- p.adjust(corrected_gsea_result$pval, method = "BH")
       gsea_result <- corrected_gsea_result[rownames(gsea_result),]
-    }
-    ### if there are more than one gene sets
-    else {
+    } else {
+      ### if there are more than one gene sets
       gsea_result <- data.frame(fgsea(pathways = gene_list, stats = signature[[1]], nperm = 1000))
     }
     
@@ -3492,10 +3496,24 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
         
         ### create color palette for the heatmap
         par(mar = c(0, 5, 0, 2))
-        rank.colors <- stats - metric.range[1]
-        rank.colors <- rank.colors / (metric.range[2] - metric.range[1])
-        rank.colors <- ceiling(rank.colors * 511 + 1)
-        rank.colors <- colorRampPalette(c("blue", "white", "red"))(512)[rank.colors]
+        if(heatmap_color_type[1] == "relative") {
+          rank.colors <- stats - metric.range[1]
+          rank.colors <- rank.colors / (metric.range[2] - metric.range[1])
+          rank.colors <- ceiling(rank.colors * 511 + 1)
+          rank.colors <- colorRampPalette(c("blue", "white", "red"))(512)[rank.colors]
+        } else {
+          rank.colors1 <- stats[which(stats >= 0)]
+          rank.colors1 <- rank.colors1 - min(rank.colors1)
+          rank.colors1 <- rank.colors1 / (max(rank.colors1) - min(rank.colors1))
+          rank.colors1 <- ceiling(rank.colors1 * 255 + 1)
+          rank.colors1 <- colorRampPalette(c("white", "red"))(256)[rank.colors1]
+          rank.colors2 <- stats[which(stats < 0)]
+          rank.colors2 <- rank.colors2 - min(rank.colors2)
+          rank.colors2 <- rank.colors2 / (max(rank.colors2) - min(rank.colors2))
+          rank.colors2 <- ceiling(rank.colors2 * 255 + 1)
+          rank.colors2 <- colorRampPalette(c("blue", "white"))(256)[rank.colors2]
+          rank.colors <- c(rank.colors1, rank.colors2)
+        }
         
         ### draw the heatmap
         rank.colors <- rle(rank.colors)
@@ -4531,11 +4549,336 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   
   #
   ### 2. with DE genes only
-  ### temporary seurat object for umap/pca
+  #
+  ### get DE genes
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$New_Persistency)
+  de_result <- FindMarkers(target_Seurat_Obj,
+                           ident.1 = "YES",
+                           ident.2 = "NO",
+                           min.pct = 0.1,
+                           logfc.threshold = 0.1,
+                           test.use = "wilcox")
+  
+  ### retain the DE genes only
+  target_Seurat_Obj@assays$RNA@counts <- target_Seurat_Obj@assays$RNA@counts[rownames(de_result)[1:100],]
+  target_Seurat_Obj@assays$RNA@data <- target_Seurat_Obj@assays$RNA@data[rownames(de_result)[1:100],]
+  target_Seurat_Obj@assays$RNA@var.features <- rownames(de_result)[1:100]
+  
+  ### normalization
+  target_Seurat_Obj <- NormalizeData(target_Seurat_Obj,
+                                     normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### find variable genes
+  target_Seurat_Obj <- FindVariableFeatures(target_Seurat_Obj,
+                                            selection.method = "vst", nfeatures = 2000)
+  
+  ### scaling
+  target_Seurat_Obj <- ScaleData(target_Seurat_Obj,
+                                 vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  
+  ### run pca & umap
+  target_Seurat_Obj <- RunPCA(target_Seurat_Obj,
+                              features = VariableFeatures(object = target_Seurat_Obj),
+                              npcs = 15)
+  target_Seurat_Obj <- RunUMAP(target_Seurat_Obj, dims = 1:15)
+  
+  ### UMAP with all those info
+  p <- list()
+  p[[1]] <- DimPlot(object = target_Seurat_Obj, reduction = "umap",
+                    group.by = "px", shape.by = "New_Persistency",
+                    pt.size = 3) +
+    ggtitle("UMAP of SJCAR19 Data") +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30)) +
+    labs(color="Patient",
+         shape="Is Persistent")
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  
+  ### umap for each px
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$px)
+  g <- ggplot_build(p[[1]])
+  color_code <- data.frame(colours = unique(g$data[[1]]["colour"]), 
+                           label = levels(g$plot$data[, "px"]),
+                           stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(color_code) <- color_code$label
+  for(i in 1:length(unique(target_Seurat_Obj@meta.data$px))) {
+    temp_seurat_obj <- subset(target_Seurat_Obj, idents = c(unique(target_Seurat_Obj@meta.data$px)[i]))
+    p[[i+1]] <- DimPlot(object = temp_seurat_obj, reduction = "umap",
+                        # cols = color_code[unique(target_Seurat_Obj@meta.data$px)[i],"colour"],
+                        group.by = "New_Persistency",
+                        pt.size = 3) +
+      ggtitle(unique(target_Seurat_Obj@meta.data$px)[i]) +
+      lims(x = g$layout$panel_scales_x[[1]]$range$range,
+           y = g$layout$panel_scales_y[[1]]$range$range) +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 20)) +
+      labs(color="Is Persistent")
+    p[[i+1]]$layers[[1]]$aes_params$alpha <- 0.7
+  }
+  
+  ### arrange the plots and save
+  fName <- paste0("UMAP_Plot_Persistence_per_Px_Sampled_DE_Genes_Only")
+  rowNum <- 3
+  colNum <- 4
+  g <- arrangeGrob(grobs = p,
+                   nrow = rowNum,
+                   ncol = colNum,
+                   top = textGrob(paste0(fName, "\n"), gp=gpar(fontsize=25)))
+  ggsave(file = paste0(outputDir, fName, "3.png"), g, width = 25, height = 15, dpi = 300)
+  
+  ### PCA with all those info
+  p <- list()
+  p[[1]] <- DimPlot(object = target_Seurat_Obj, reduction = "pca",
+                    group.by = "px", shape.by = "New_Persistency",
+                    pt.size = 3) +
+    ggtitle("PCA of SJCAR19 Data") +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30)) +
+    labs(color="Patient",
+         shape="Is Persistent")
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  
+  ### pca for each px
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$px)
+  g <- ggplot_build(p[[1]])
+  color_code <- data.frame(colours = unique(g$data[[1]]["colour"]), 
+                           label = levels(g$plot$data[, "px"]),
+                           stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(color_code) <- color_code$label
+  for(i in 1:length(unique(target_Seurat_Obj@meta.data$px))) {
+    temp_seurat_obj <- subset(target_Seurat_Obj, idents = c(unique(target_Seurat_Obj@meta.data$px)[i]))
+    p[[i+1]] <- DimPlot(object = temp_seurat_obj, reduction = "pca",
+                        # cols = color_code[unique(target_Seurat_Obj@meta.data$px)[i],"colour"],
+                        group.by = "New_Persistency",
+                        pt.size = 3) +
+      ggtitle(unique(target_Seurat_Obj@meta.data$px)[i]) +
+      lims(x = g$layout$panel_scales_x[[1]]$range$range,
+           y = g$layout$panel_scales_y[[1]]$range$range) +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 20)) +
+      labs(color="Is Persistent")
+    p[[i+1]]$layers[[1]]$aes_params$alpha <- 0.7
+  }
+  
+  ### arrange the plots and save
+  fName <- paste0("PCA_Plot_Persistence_per_Px_Sampled_DE_Genes_Only")
+  rowNum <- 3
+  colNum <- 4
+  g <- arrangeGrob(grobs = p,
+                   nrow = rowNum,
+                   ncol = colNum,
+                   top = textGrob(paste0(fName, "\n"), gp=gpar(fontsize=25)))
+  ggsave(file = paste0(outputDir, fName, "3.png"), g, width = 25, height = 15, dpi = 300)
+  
+  
+  #
+  ### The next task
+  #
+  ### Only for the Px06 (Best Predictor) & Px08 (Worst Predictor),
+  ### run GSEA in each patient with the signature as logFC of DE genes from PS vs NPS
+  ### and compare the GSEA results with rank comparison
+  
+  ### the indicies of the persisters
+  all_gmp_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES")
+  all_gmp_not_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "NO")
+  
+  ### only use the CD8 cells
+  all_gmp_last <- intersect(all_gmp_last,
+                            which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  all_gmp_not_last <- intersect(all_gmp_not_last,
+                                which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  
+  ### only get the cells of interests
+  target_Seurat_Obj <- subset(Seurat_Obj, cells = rownames(Seurat_Obj@meta.data)[c(all_gmp_last, all_gmp_not_last)])
+  
+  ### get the same number of samples (persister: non-persister - same ratio)
+  set.seed(1234)
+  target_Seurat_Obj@meta.data$New_Persistency <- NA
+  multiplier_k <- 1
+  for(px in unique(target_Seurat_Obj@meta.data$px)) {
+    ### get specific indicies
+    px_gmp_last <- intersect(which(target_Seurat_Obj@meta.data$px == px),
+                             which(target_Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES"))
+    px_gmp_not_last <- intersect(which(target_Seurat_Obj@meta.data$px == px),
+                                 which(target_Seurat_Obj@meta.data$GMP_CARpos_Persister == "NO"))
+    
+    ### sampling
+    if((length(px_gmp_last) > 2) && (length(px_gmp_not_last) > length(px_gmp_last))) {
+      px_gmp_not_last <- sample(px_gmp_not_last, size = length(px_gmp_last)*multiplier_k)
+    }
+    
+    ### annotate new persistency info
+    target_Seurat_Obj@meta.data$New_Persistency[px_gmp_last] <- "YES"
+    target_Seurat_Obj@meta.data$New_Persistency[px_gmp_not_last] <- "NO"
+  }
+  
+  ### set idents with the new info
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$New_Persistency)
+  
+  ### remove NA and only contatin PS & NPS cells
   target_Seurat_Obj <- subset(target_Seurat_Obj, idents = c("YES", "NO"))
   
+  ### set idents with the px info
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$px)
   
+  ### Px06
+  px06_Seurat_Obj <- subset(target_Seurat_Obj, idents = c("SJCAR19-06"))
   
+  ### get DE genes
+  px06_Seurat_Obj <- SetIdent(object = px06_Seurat_Obj,
+                              cells = rownames(px06_Seurat_Obj@meta.data),
+                              value = px06_Seurat_Obj@meta.data$New_Persistency)
+  de_result <- FindMarkers(px06_Seurat_Obj,
+                           ident.1 = "YES",
+                           ident.2 = "NO",
+                           min.pct = 0.1,
+                           logfc.threshold = 0.1,
+                           test.use = "wilcox")
+  
+  ### GSEA directory
+  output_dir <- paste0(outputDir, "GSEA/")
+  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+  
+  ### signature preparation
+  signat <- de_result$avg_logFC
+  names(signat) <- rownames(de_result)
+  
+  ### run GSEA
+  GSEA_result <- run_gsea(gene_list = m_list, signature = list(signat), printPlot = FALSE)
+  GSEA_result <- GSEA_result[order(GSEA_result$pval),]
+  
+  ### only get pathways that have pval < 0.01 & size > 30 & up-regulating results (enriched with important) only
+  pathways <- GSEA_result$pathway[intersect(intersect(which(GSEA_result$pval < 1e-02),
+                                                      which(GSEA_result$size > 30)),
+                                            which(GSEA_result$NES > 2))]
+  if(length(pathways) < 5) {
+    pathways <- GSEA_result$pathway[intersect(intersect(which(GSEA_result$pval < 1e-02),
+                                                        which(GSEA_result$size > 30)),
+                                              which(GSEA_result$NES > 1.8))]
+  }
+  if(length(pathways) < 5) {
+    pathways <- GSEA_result$pathway[intersect(intersect(which(GSEA_result$pval < 1e-02),
+                                                        which(GSEA_result$size > 30)),
+                                              which(GSEA_result$NES > 1.6))]
+  }
+  if(length(pathways) > 30) {
+    pathways <- GSEA_result$pathway[1:30]
+  }
+  
+  ### run GSEA again with the significant result - plot printing
+  dir.create(paste0(output_dir, "SJCAR19-06/"), showWarnings = FALSE, recursive = TRUE)
+  GSEA_result2 <- run_gsea(gene_list = m_list[pathways], signature = list(signat),
+                           heatmap_color_type = "absolute",
+                           printPlot = TRUE, printPath = paste0(output_dir, "SJCAR19-06/"))
+  
+  ### write out the result file
+  write.xlsx2(GSEA_result, file = paste0(output_dir, "/GSEA_Px06_Persisters_vs_Non-Persisters.xlsx"),
+              sheetName = paste0("SJCAR19-06"), row.names = FALSE, append = TRUE)
+  
+  ### save the GSEA result
+  px06_GSEA_result <- GSEA_result
+  
+  ### Px08
+  px08_Seurat_Obj <- subset(target_Seurat_Obj, idents = c("SJCAR19-08"))
+  
+  ### get DE genes
+  px08_Seurat_Obj <- SetIdent(object = px08_Seurat_Obj,
+                              cells = rownames(px08_Seurat_Obj@meta.data),
+                              value = px08_Seurat_Obj@meta.data$New_Persistency)
+  de_result <- FindMarkers(px08_Seurat_Obj,
+                           ident.1 = "YES",
+                           ident.2 = "NO",
+                           min.pct = 0.1,
+                           logfc.threshold = 0.1,
+                           test.use = "wilcox")
+  
+  ### GSEA directory
+  output_dir <- paste0(outputDir, "GSEA/")
+  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+  
+  ### signature preparation
+  signat <- de_result$avg_logFC
+  names(signat) <- rownames(de_result)
+  
+  ### run GSEA
+  GSEA_result <- run_gsea(gene_list = m_list, signature = list(signat), printPlot = FALSE)
+  GSEA_result <- GSEA_result[order(GSEA_result$pval),]
+  
+  ### only get pathways that have pval < 0.01 & size > 30 & up-regulating results (enriched with important) only
+  pathways <- GSEA_result$pathway[intersect(intersect(which(GSEA_result$pval < 1e-02),
+                                                      which(GSEA_result$size > 30)),
+                                            which(GSEA_result$NES > 2))]
+  if(length(pathways) < 5) {
+    pathways <- GSEA_result$pathway[intersect(intersect(which(GSEA_result$pval < 1e-02),
+                                                        which(GSEA_result$size > 30)),
+                                              which(GSEA_result$NES > 1.8))]
+  }
+  if(length(pathways) < 5) {
+    pathways <- GSEA_result$pathway[intersect(intersect(which(GSEA_result$pval < 1e-02),
+                                                        which(GSEA_result$size > 30)),
+                                              which(GSEA_result$NES > 1.6))]
+  }
+  if(length(pathways) > 30) {
+    pathways <- GSEA_result$pathway[1:30]
+  }
+  
+  ### run GSEA again with the significant result - plot printing
+  dir.create(paste0(output_dir, "SJCAR19-08/"), showWarnings = FALSE, recursive = TRUE)
+  GSEA_result2 <- run_gsea(gene_list = m_list[pathways], signature = list(signat),
+                           heatmap_color_type = "absolute",
+                           printPlot = TRUE, printPath = paste0(output_dir, "SJCAR19-08/"))
+  
+  ### write out the result file
+  write.xlsx2(GSEA_result, file = paste0(output_dir, "/GSEA_Px08_Persisters_vs_Non-Persisters.xlsx"),
+              sheetName = paste0("SJCAR19-08"), row.names = FALSE, append = TRUE)
+  
+  ### save the GSEA result
+  px08_GSEA_result <- GSEA_result
+  
+  #
+  ### GSEA comparison between Px06 & Px08
+  #
+  ### give ranks
+  px06_GSEA_result$rank <- rank(px06_GSEA_result$padj)
+  px08_GSEA_result$rank <- rank(px08_GSEA_result$padj)
+  
+  ### set rownames
+  rownames(px06_GSEA_result) <- px06_GSEA_result$pathway
+  rownames(px08_GSEA_result) <- px08_GSEA_result$pathway
+  
+  ### get common pathways
+  common_pathways <- intersect(px06_GSEA_result$pathway[which(px06_GSEA_result$padj < 1)],
+                               px08_GSEA_result$pathway[which(px08_GSEA_result$padj < 1)])
+  
+  ### get signatures - RANK
+  sig1 <- px06_GSEA_result[common_pathways,"rank"]
+  names(sig1) <- common_pathways
+  sig2 <- px08_GSEA_result[common_pathways,"rank"]
+  names(sig2) <- common_pathways
+  
+  ### compare the ranks
+  if(length(sig1) > 2 && length(sig2) > 2) {
+    compare_two_different_ranks(A = sig1,
+                                B = sig2,
+                                A_name = paste0("GSEA Pathway Rank of Px06"),
+                                B_name = paste0("GSEA Pathway Rank of Px08"),
+                                ordering = "decreasing",
+                                top = 300,
+                                alternative = "greater",
+                                permutation = 10000,
+                                fileName = paste0("GSEA_Comparison_Px06_vs_Px08"),
+                                printPath = output_dir,
+                                width = 24,
+                                height = 12)
+  } else {
+    writeLines("There aren't enough pathways for the analysis.")
+  }
   
   
   
