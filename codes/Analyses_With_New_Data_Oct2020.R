@@ -311,7 +311,14 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
     fasta_seq <- readDNAStringSet(TCR_data_dirs2[i])
     
     ### attach real seq
-    
+    tcr_data$fasta_seq <- "None"
+    for(j in 1:nrow(tcr_data)) {
+      if(tcr_data$raw_consensus_id[j] == "None") {
+        tcr_data$fasta_seq[j] <- "None"
+      } else {
+        tcr_data$fasta_seq[j] <- as.character(fasta_seq[[tcr_data$raw_consensus_id[j]]])
+      }
+    }
     
     ### now merge different TRA & TRB info to one row
     dups <- which(duplicated(tcr_data$barcode))
@@ -329,12 +336,13 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
         tcr_data[barcode,"productive"] <- paste(c(tcr_data[barcode,"productive"], temp[idx, "productive"]), collapse = ";")
         tcr_data[barcode,"reads"] <- paste(c(tcr_data[barcode,"reads"], temp[idx, "reads"]), collapse = ";")
         tcr_data[barcode,"umis"] <- paste(c(tcr_data[barcode,"umis"], temp[idx, "umis"]), collapse = ";")
+        tcr_data[barcode,"fasta_seq"] <- paste(c(tcr_data[barcode,"fasta_seq"], temp[idx, "fasta_seq"]), collapse = ";")
       }
     }
     
     ### only retain informative columns
-    tcr_data <- tcr_data[,c("barcode", "raw_clonotype_id", "v_gene", "j_gene", "c_gene", "cdr3", "cdr3_nt", "reads", "umis", "productive")]
-    colnames(tcr_data) <- c("barcode", "raw_clonotype_id", "v_gene", "j_gene", "c_gene", "cdr3_aa", "cdr3_nt", "tcr_reads", "tcr_umis", "tcr_productive")
+    tcr_data <- tcr_data[,c("barcode", "raw_clonotype_id", "v_gene", "j_gene", "c_gene", "cdr3", "cdr3_nt", "fasta_seq", "reads", "umis", "productive")]
+    colnames(tcr_data) <- c("barcode", "raw_clonotype_id", "v_gene", "j_gene", "c_gene", "cdr3_aa", "cdr3_nt", "fasta_seq", "tcr_reads", "tcr_umis", "tcr_productive")
     
     ### add time & patient info
     temp <- strsplit(basename(TCR_data_dirs[i]), split = "_", fixed = TRUE)[[1]]
