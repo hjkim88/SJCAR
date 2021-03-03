@@ -448,6 +448,7 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
   Seurat_Obj@meta.data$c_gene <- NA
   Seurat_Obj@meta.data$cdr3_aa <- NA
   Seurat_Obj@meta.data$cdr3_nt <- NA
+  Seurat_Obj@meta.data$fasta_seq <- NA
   Seurat_Obj@meta.data$tcr_reads <- NA
   Seurat_Obj@meta.data$tcr_umis <- NA
   unique_libs <- unique(Seurat_Obj@meta.data$library)
@@ -481,6 +482,7 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
       Seurat_Obj@meta.data$c_gene[gex_idx] <- tcr[[max_lib]][shared_barcodes,"c_gene"]
       Seurat_Obj@meta.data$cdr3_aa[gex_idx] <- tcr[[max_lib]][shared_barcodes,"cdr3_aa"]
       Seurat_Obj@meta.data$cdr3_nt[gex_idx] <- tcr[[max_lib]][shared_barcodes,"cdr3_nt"]
+      Seurat_Obj@meta.data$fasta_seq[gex_idx] <- tcr[[max_lib]][shared_barcodes,"fasta_seq"]
       Seurat_Obj@meta.data$tcr_reads[gex_idx] <- tcr[[max_lib]][shared_barcodes,"tcr_reads"]
       Seurat_Obj@meta.data$tcr_umis[gex_idx] <- tcr[[max_lib]][shared_barcodes,"tcr_umis"]
     } else {
