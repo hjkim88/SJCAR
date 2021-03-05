@@ -39,12 +39,14 @@
 #               > persistency_study(Seurat_RObj_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/data/SJCAR19_Oct2020_Seurat_Obj.RDS",
 #                                   clonotype_lineage_info_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/data/SJCAR19_Clonotype_Lineages.RDS",
 #                                   lineage_in_full_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/new_results/Lineages_by_CAR/SJCAR19_Lineages_in_Full.RDS",
+#                                   vdjdb_file_path="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/data/VDJDB_Homo_Sapiens_121320.xlsx",
 #                                   outputDir="Z:/ResearchHome/ResearchHomeDirs/thomagrp/common/Hyunjin/JCC212_SJCAR19/new_results/Persistency/")
 ###
 
 persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR19_Oct2020_Seurat_Obj.RDS",
                               clonotype_lineage_info_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR19_Clonotype_Lineages.RDS",
                               lineage_in_full_path="./results/New2/Lineages_by_CAR/SJCAR19_Lineages_in_Full.RDS",
+                              vdjdb_file_path="./data/VDJDB_Homo_Sapiens_121320.xlsx",
                               outputDir="./results/New2/Persistency/") {
   
   ### load libraries
@@ -122,6 +124,12 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   if(!require(msigdbr, quietly = TRUE)) {
     install.packages("msigdbr")
     library(msigdbr, quietly = TRUE)
+  }
+  if(!require(immunarch, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("immunarch")
+    require(immunarch, quietly = TRUE)
   }
   
   # ******************************************************************************************
@@ -4879,6 +4887,20 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   } else {
     writeLines("There aren't enough pathways for the analysis.")
   }
+  
+  #
+  ### VDJDB annotation for the persister-associated clones
+  #
+  
+  ### load VDJDB
+  # vdjdb2 <- dbLoad("https://gitlab.com/immunomind/immunarch/raw/dev-0.6.4/private/vdjdb.slim.txt.gz", "vdjdb")
+  vdjdb <- read.xlsx2(file = vdjdb_file_path,
+                      sheetIndex = 1,
+                      stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### get combined CDR3 (e.g., TRA:CSVFK) and remove duplicates
+  vdjdb$Combined_CDR3 <- paste(vdjdb$Gene, vdjdb$CDR3, sep = ":")
+  vdjdb <- vdjdb[!duplicated(vdjdb$Combined_CDR3),]
   
   
   
