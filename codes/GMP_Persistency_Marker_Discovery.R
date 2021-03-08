@@ -4903,99 +4903,125 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   vdjdb <- vdjdb[!duplicated(vdjdb$Combined_CDR3),]
   
   
+  ### the indicies of the persisters
+  all_gmp_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES")
+  all_gmp_not_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "NO")
+  
+  ### only use the CD8 cells
+  all_gmp_last <- intersect(all_gmp_last,
+                            which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  all_gmp_not_last <- intersect(all_gmp_not_last,
+                                which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  
+  ### get persister-associated clones
+  persister_meta <- Seurat_Obj@meta.data[all_gmp_last,]
+  
   #
   ### annotate VDJDB
   #
-  interesting_clones[[patient]]$MHC_A <- ""
-  interesting_clones[[patient]]$MHC_B <- ""
-  interesting_clones[[patient]]$MHC_Class <- ""
-  interesting_clones[[patient]]$Epitope <- ""
-  interesting_clones[[patient]]$Epitope_Gene <- ""
-  interesting_clones[[patient]]$Epitope_Species <- ""
-  interesting_clones[[patient]]$Reference <- ""
-
-  ### get each CDR_AA sequences for each clone
-  cdr3_list <- strsplit(interesting_clones[[patient]]$CDR3_AA[i], split = ";", fixed = TRUE)[[1]]
+  persister_meta$MHC_A <- ""
+  persister_meta$MHC_B <- ""
+  persister_meta$MHC_Class <- ""
+  persister_meta$Epitope <- ""
+  persister_meta$Epitope_Gene <- ""
+  persister_meta$Epitope_Species <- ""
+  persister_meta$Reference <- ""
   
-  ### get annotation
-  for(cdr3 in cdr3_list) {
-    target_idx <- which(vdjdb$Combined_CDR3 == cdr3)
-    if(length(target_idx) > 0) {
-      if(interesting_clones[[patient]]$MHC_A[i] == "") {
-        interesting_clones[[patient]]$MHC_A[i] <- vdjdb$`MHC A`[target_idx]
-        interesting_clones[[patient]]$MHC_A[i+1] <- vdjdb$`MHC A`[target_idx]
-        interesting_clones[[patient]]$MHC_A[i+2] <- vdjdb$`MHC A`[target_idx]
-        interesting_clones[[patient]]$MHC_B[i] <- vdjdb$`MHC B`[target_idx]
-        interesting_clones[[patient]]$MHC_B[i+1] <- vdjdb$`MHC B`[target_idx]
-        interesting_clones[[patient]]$MHC_B[i+2] <- vdjdb$`MHC B`[target_idx]
-        interesting_clones[[patient]]$MHC_Class[i] <- vdjdb$`MHC class`[target_idx]
-        interesting_clones[[patient]]$MHC_Class[i+1] <- vdjdb$`MHC class`[target_idx]
-        interesting_clones[[patient]]$MHC_Class[i+2] <- vdjdb$`MHC class`[target_idx]
-        interesting_clones[[patient]]$Epitope[i] <- vdjdb$Epitope[target_idx]
-        interesting_clones[[patient]]$Epitope[i+1] <- vdjdb$Epitope[target_idx]
-        interesting_clones[[patient]]$Epitope[i+2] <- vdjdb$Epitope[target_idx]
-        interesting_clones[[patient]]$Epitope_Gene[i] <- vdjdb$`Epitope gene`[target_idx]
-        interesting_clones[[patient]]$Epitope_Gene[i+1] <- vdjdb$`Epitope gene`[target_idx]
-        interesting_clones[[patient]]$Epitope_Gene[i+2] <- vdjdb$`Epitope gene`[target_idx]
-        interesting_clones[[patient]]$Epitope_Species[i] <- vdjdb$`Epitope species`[target_idx]
-        interesting_clones[[patient]]$Epitope_Species[i+1] <- vdjdb$`Epitope species`[target_idx]
-        interesting_clones[[patient]]$Epitope_Species[i+2] <- vdjdb$`Epitope species`[target_idx]
-        interesting_clones[[patient]]$Reference[i] <- vdjdb$Reference[target_idx]
-        interesting_clones[[patient]]$Reference[i+1] <- vdjdb$Reference[target_idx]
-        interesting_clones[[patient]]$Reference[i+2] <- vdjdb$Reference[target_idx]
+  for(i in 1:nrow(persister_meta)) {
+    ### get each CDR_AA sequences for each clone
+    cdr3_list <- strsplit(persister_meta$cdr3_aa[i], split = ";", fixed = TRUE)[[1]]
+    
+    ### get annotation
+    for(cdr3 in cdr3_list) {
+      target_idx <- which(vdjdb$Combined_CDR3 == cdr3)
+      if(length(target_idx) > 0) {
+        if(persister_meta$MHC_A[i] == "") {
+          persister_meta$MHC_A[i] <- vdjdb$`MHC A`[target_idx]
+          persister_meta$MHC_B[i] <- vdjdb$`MHC B`[target_idx]
+          persister_meta$MHC_Class[i] <- vdjdb$`MHC class`[target_idx]
+          persister_meta$Epitope[i] <- vdjdb$Epitope[target_idx]
+          persister_meta$Epitope_Gene[i] <- vdjdb$`Epitope gene`[target_idx]
+          persister_meta$Epitope_Species[i] <- vdjdb$`Epitope species`[target_idx]
+          persister_meta$Reference[i] <- vdjdb$Reference[target_idx]
+        } else {
+          persister_meta$MHC_A[i] <- paste0(persister_meta$MHC_A[i], ";",
+                                            vdjdb$`MHC A`[target_idx])
+          persister_meta$MHC_B[i] <- paste0(persister_meta$MHC_B[i], ";",
+                                            vdjdb$`MHC B`[target_idx])
+          persister_meta$MHC_Class[i] <- paste0(persister_meta$MHC_Class[i], ";",
+                                                vdjdb$`MHC class`[target_idx])
+          persister_meta$Epitope[i] <- paste0(persister_meta$Epitope[i], ";",
+                                              vdjdb$Epitope[target_idx])
+          persister_meta$Epitope_Gene[i] <- paste0(persister_meta$Epitope_Gene[i], ";",
+                                                   vdjdb$`Epitope gene`[target_idx])
+          persister_meta$Epitope_Species[i] <- paste0(persister_meta$Epitope_Species[i], ";",
+                                                      vdjdb$`Epitope species`[target_idx])
+          persister_meta$Reference[i] <- paste0(persister_meta$Reference[i], ";",
+                                                vdjdb$Reference[target_idx])
+        }
       } else {
-        interesting_clones[[patient]]$MHC_A[i] <- paste0(interesting_clones[[patient]]$MHC_A[i], ";",
-                                                         vdjdb$`MHC A`[target_idx])
-        interesting_clones[[patient]]$MHC_A[i+1] <- paste0(interesting_clones[[patient]]$MHC_A[i+1], ";",
-                                                           vdjdb$`MHC A`[target_idx])
-        interesting_clones[[patient]]$MHC_A[i+2] <- paste0(interesting_clones[[patient]]$MHC_A[i+2], ";",
-                                                           vdjdb$`MHC A`[target_idx])
-        interesting_clones[[patient]]$MHC_B[i] <- paste0(interesting_clones[[patient]]$MHC_B[i], ";",
-                                                         vdjdb$`MHC B`[target_idx])
-        interesting_clones[[patient]]$MHC_B[i+1] <- paste0(interesting_clones[[patient]]$MHC_B[i+1], ";",
-                                                           vdjdb$`MHC B`[target_idx])
-        interesting_clones[[patient]]$MHC_B[i+2] <- paste0(interesting_clones[[patient]]$MHC_B[i+2], ";",
-                                                           vdjdb$`MHC B`[target_idx])
-        interesting_clones[[patient]]$MHC_Class[i] <- paste0(interesting_clones[[patient]]$MHC_Class[i], ";",
-                                                             vdjdb$`MHC class`[target_idx])
-        interesting_clones[[patient]]$MHC_Class[i+1] <- paste0(interesting_clones[[patient]]$MHC_Class[i+1], ";",
-                                                               vdjdb$`MHC class`[target_idx])
-        interesting_clones[[patient]]$MHC_Class[i+2] <- paste0(interesting_clones[[patient]]$MHC_Class[i+2], ";",
-                                                               vdjdb$`MHC class`[target_idx])
-        interesting_clones[[patient]]$Epitope[i] <- paste0(interesting_clones[[patient]]$Epitope[i], ";",
-                                                           vdjdb$Epitope[target_idx])
-        interesting_clones[[patient]]$Epitope[i+1] <- paste0(interesting_clones[[patient]]$Epitope[i+1], ";",
-                                                             vdjdb$Epitope[target_idx])
-        interesting_clones[[patient]]$Epitope[i+2] <- paste0(interesting_clones[[patient]]$Epitope[i+2], ";",
-                                                             vdjdb$Epitope[target_idx])
-        interesting_clones[[patient]]$Epitope_Gene[i] <- paste0(interesting_clones[[patient]]$Epitope_Gene[i], ";",
-                                                                vdjdb$`Epitope gene`[target_idx])
-        interesting_clones[[patient]]$Epitope_Gene[i+1] <- paste0(interesting_clones[[patient]]$Epitope_Gene[i+1], ";",
-                                                                  vdjdb$`Epitope gene`[target_idx])
-        interesting_clones[[patient]]$Epitope_Gene[i+2] <- paste0(interesting_clones[[patient]]$Epitope_Gene[i+2], ";",
-                                                                  vdjdb$`Epitope gene`[target_idx])
-        interesting_clones[[patient]]$Epitope_Species[i] <- paste0(interesting_clones[[patient]]$Epitope_Species[i], ";",
-                                                                   vdjdb$`Epitope species`[target_idx])
-        interesting_clones[[patient]]$Epitope_Species[i+1] <- paste0(interesting_clones[[patient]]$Epitope_Species[i+1], ";",
-                                                                     vdjdb$`Epitope species`[target_idx])
-        interesting_clones[[patient]]$Epitope_Species[i+2] <- paste0(interesting_clones[[patient]]$Epitope_Species[i+2], ";",
-                                                                     vdjdb$`Epitope species`[target_idx])
-        interesting_clones[[patient]]$Reference[i] <- paste0(interesting_clones[[patient]]$Reference[i], ";",
-                                                             vdjdb$Reference[target_idx])
-        interesting_clones[[patient]]$Reference[i+1] <- paste0(interesting_clones[[patient]]$Reference[i+1], ";",
-                                                               vdjdb$Reference[target_idx])
-        interesting_clones[[patient]]$Reference[i+2] <- paste0(interesting_clones[[patient]]$Reference[i+2], ";",
-                                                               vdjdb$Reference[target_idx])
+        if(persister_meta$MHC_A[i] == "") {
+          persister_meta$MHC_A[i] <- " "
+          persister_meta$MHC_B[i] <- " "
+          persister_meta$MHC_Class[i] <- " "
+          persister_meta$Epitope[i] <- " "
+          persister_meta$Epitope_Gene[i] <- " "
+          persister_meta$Epitope_Species[i] <- " "
+          persister_meta$Reference[i] <- " "
+        } else {
+          persister_meta$MHC_A[i] <- paste0(persister_meta$MHC_A[i], "; ")
+          persister_meta$MHC_B[i] <- paste0(persister_meta$MHC_B[i], "; ")
+          persister_meta$MHC_Class[i] <- paste0(persister_meta$MHC_Class[i], "; ")
+          persister_meta$Epitope[i] <- paste0(persister_meta$Epitope[i], "; ")
+          persister_meta$Epitope_Gene[i] <- paste0(persister_meta$Epitope_Gene[i], "; ")
+          persister_meta$Epitope_Species[i] <- paste0(persister_meta$Epitope_Species[i], "; ")
+          persister_meta$Reference[i] <- paste0(persister_meta$Reference[i], "; ")
+        }
       }
     }
   }
   
+  ### cleaning I
+  persister_meta$MHC_A[which(persister_meta$MHC_A == " ; ")] <- ""
+  persister_meta$MHC_B[which(persister_meta$MHC_B == " ; ")] <- ""
+  persister_meta$MHC_Class[which(persister_meta$MHC_Class == " ; ")] <- ""
+  persister_meta$Epitope[which(persister_meta$Epitope == " ; ")] <- ""
+  persister_meta$Epitope_Gene[which(persister_meta$Epitope_Gene == " ; ")] <- ""
+  persister_meta$Epitope_Species[which(persister_meta$Epitope_Species == " ; ")] <- ""
+  persister_meta$Reference[which(persister_meta$Reference == " ; ")] <- ""
+  ### cleaning II
+  persister_meta$MHC_A[which(persister_meta$MHC_A == " ; ; ")] <- ""
+  persister_meta$MHC_B[which(persister_meta$MHC_B == " ; ; ")] <- ""
+  persister_meta$MHC_Class[which(persister_meta$MHC_Class == " ; ; ")] <- ""
+  persister_meta$Epitope[which(persister_meta$Epitope == " ; ; ")] <- ""
+  persister_meta$Epitope_Gene[which(persister_meta$Epitope_Gene == " ; ; ")] <- ""
+  persister_meta$Epitope_Species[which(persister_meta$Epitope_Species == " ; ; ")] <- ""
+  persister_meta$Reference[which(persister_meta$Reference == " ; ; ")] <- ""
+  ### cleaning III
+  persister_meta$MHC_A[which(persister_meta$MHC_A == " ; ; ; ")] <- ""
+  persister_meta$MHC_B[which(persister_meta$MHC_B == " ; ; ; ")] <- ""
+  persister_meta$MHC_Class[which(persister_meta$MHC_Class == " ; ; ; ")] <- ""
+  persister_meta$Epitope[which(persister_meta$Epitope == " ; ; ; ")] <- ""
+  persister_meta$Epitope_Gene[which(persister_meta$Epitope_Gene == " ; ; ; ")] <- ""
+  persister_meta$Epitope_Species[which(persister_meta$Epitope_Species == " ; ; ; ")] <- ""
+  persister_meta$Reference[which(persister_meta$Reference == " ; ; ; ")] <- ""
+  
+  ### filter out the duplicated clonotype rows
+  persister_meta <- persister_meta[which(!duplicated(persister_meta[,c("library","clonotype_id_by_patient")])),]
+  
+  ### only keep the informative columns
+  persister_meta <- persister_meta[,c("CAR", "library", "clonotype_id_by_patient", "CD4_CD8_by_Consensus",
+                                      "v_gene", "j_gene", "c_gene", "cdr3_aa", "cdr3_nt", "tcr_reads", "tcr_umis",
+                                      "MHC_A", "MHC_B", "MHC_Class", "Epitope", "Epitope_Gene", "Epitope_Species", "Reference")]
+  persister_meta <- data.frame(Barcode=rownames(persister_meta), persister_meta,
+                               stringsAsFactors = FALSE, check.names = FALSE)
+  
   ### save the result
-  write.xlsx2(interesting_clones[[patient]],
-              file = paste0(outputDir, "Interesting_Lineages_by_CAR.xlsx"),
-              sheetName = patient,
+  write.xlsx2(persister_meta,
+              file = paste0(outputDir, "GMP_CD8_Persisters_VDJ_Annotated.xlsx"),
+              sheetName = "GMP_CD8_Persisters_VDJ_Annotated",
               row.names = FALSE,
-              append = TRUE)
+              append = FALSE)
   
   
 }
