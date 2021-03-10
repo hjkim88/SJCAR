@@ -5023,5 +5023,11 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
               row.names = FALSE,
               append = FALSE)
   
+  #
+  ### GMP persistency of the virus-associated clones
+  #
+  
+  
+  
   
 }
