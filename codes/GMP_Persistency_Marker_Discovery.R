@@ -5027,9 +5027,33 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   ### Barplots of the number of CAR+ persister cells & the TCR diversity across time
   #
   
+  ### the indicies of the persisters
+  all_last <- which(Seurat_Obj@meta.data$ALL_CARpos_Persister == "YES")
+  all_not_last <- which(Seurat_Obj@meta.data$ALL_CARpos_Persister == "NO")
   
+  ### only use the CD8 cells
+  all_last <- intersect(all_last,
+                        which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  all_not_last <- intersect(all_not_last,
+                            which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
   
+  ### get all the persister-associated clones
+  all_persister_meta <- Seurat_Obj@meta.data[all_last,]
   
+  ### set an empty data frame for the result
+  unique_tps <- unique(all_persister_meta$time)
+  unique_pxs <- unique(all_persister_meta$px)
+  df <- matrix(NA, length(unique_pxs), length(unique_tps))
+  rownames(df) <- unique_pxs
+  colnames(df) <- unique_tps
+  
+  ### compute the number of persister cells
+  for(px in unique_pxs) {
+    for(tp in unique_tps) {
+      df[px,tp] <- length(intersect(which(all_persister_meta$px == px),
+                                    which(all_persister_meta$time == tp)))
+    }
+  }
   
   
   
