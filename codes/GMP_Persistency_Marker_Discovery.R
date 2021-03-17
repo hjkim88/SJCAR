@@ -5024,6 +5024,130 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
               append = FALSE)
   
   #
+  ### VDJDB annotation for the non-persister-associated clones
+  #
+  
+  ### the indicies of the persisters
+  all_gmp_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES")
+  all_gmp_not_last <- which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "NO")
+  
+  ### only use the CD8 cells
+  all_gmp_last <- intersect(all_gmp_last,
+                            which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  all_gmp_not_last <- intersect(all_gmp_not_last,
+                                which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  
+  ### get persister-associated clones
+  non_persister_meta <- Seurat_Obj@meta.data[all_gmp_not_last,]
+  
+  #
+  ### annotate VDJDB
+  #
+  non_persister_meta$MHC_A <- ""
+  non_persister_meta$MHC_B <- ""
+  non_persister_meta$MHC_Class <- ""
+  non_persister_meta$Epitope <- ""
+  non_persister_meta$Epitope_Gene <- ""
+  non_persister_meta$Epitope_Species <- ""
+  non_persister_meta$Reference <- ""
+  
+  for(i in 1:nrow(non_persister_meta)) {
+    ### get each CDR_AA sequences for each clone
+    cdr3_list <- strsplit(non_persister_meta$cdr3_aa[i], split = ";", fixed = TRUE)[[1]]
+    
+    ### get annotation
+    for(cdr3 in cdr3_list) {
+      target_idx <- which(vdjdb$Combined_CDR3 == cdr3)
+      if(length(target_idx) > 0) {
+        if(non_persister_meta$MHC_A[i] == "") {
+          non_persister_meta$MHC_A[i] <- vdjdb$`MHC A`[target_idx]
+          non_persister_meta$MHC_B[i] <- vdjdb$`MHC B`[target_idx]
+          non_persister_meta$MHC_Class[i] <- vdjdb$`MHC class`[target_idx]
+          non_persister_meta$Epitope[i] <- vdjdb$Epitope[target_idx]
+          non_persister_meta$Epitope_Gene[i] <- vdjdb$`Epitope gene`[target_idx]
+          non_persister_meta$Epitope_Species[i] <- vdjdb$`Epitope species`[target_idx]
+          non_persister_meta$Reference[i] <- vdjdb$Reference[target_idx]
+        } else {
+          non_persister_meta$MHC_A[i] <- paste0(non_persister_meta$MHC_A[i], ";",
+                                            vdjdb$`MHC A`[target_idx])
+          non_persister_meta$MHC_B[i] <- paste0(non_persister_meta$MHC_B[i], ";",
+                                            vdjdb$`MHC B`[target_idx])
+          non_persister_meta$MHC_Class[i] <- paste0(non_persister_meta$MHC_Class[i], ";",
+                                                vdjdb$`MHC class`[target_idx])
+          non_persister_meta$Epitope[i] <- paste0(non_persister_meta$Epitope[i], ";",
+                                              vdjdb$Epitope[target_idx])
+          non_persister_meta$Epitope_Gene[i] <- paste0(non_persister_meta$Epitope_Gene[i], ";",
+                                                   vdjdb$`Epitope gene`[target_idx])
+          non_persister_meta$Epitope_Species[i] <- paste0(non_persister_meta$Epitope_Species[i], ";",
+                                                      vdjdb$`Epitope species`[target_idx])
+          non_persister_meta$Reference[i] <- paste0(non_persister_meta$Reference[i], ";",
+                                                vdjdb$Reference[target_idx])
+        }
+      } else {
+        if(non_persister_meta$MHC_A[i] == "") {
+          non_persister_meta$MHC_A[i] <- " "
+          non_persister_meta$MHC_B[i] <- " "
+          non_persister_meta$MHC_Class[i] <- " "
+          non_persister_meta$Epitope[i] <- " "
+          non_persister_meta$Epitope_Gene[i] <- " "
+          non_persister_meta$Epitope_Species[i] <- " "
+          non_persister_meta$Reference[i] <- " "
+        } else {
+          non_persister_meta$MHC_A[i] <- paste0(non_persister_meta$MHC_A[i], "; ")
+          non_persister_meta$MHC_B[i] <- paste0(non_persister_meta$MHC_B[i], "; ")
+          non_persister_meta$MHC_Class[i] <- paste0(non_persister_meta$MHC_Class[i], "; ")
+          non_persister_meta$Epitope[i] <- paste0(non_persister_meta$Epitope[i], "; ")
+          non_persister_meta$Epitope_Gene[i] <- paste0(non_persister_meta$Epitope_Gene[i], "; ")
+          non_persister_meta$Epitope_Species[i] <- paste0(non_persister_meta$Epitope_Species[i], "; ")
+          non_persister_meta$Reference[i] <- paste0(non_persister_meta$Reference[i], "; ")
+        }
+      }
+    }
+  }
+  
+  ### cleaning I
+  non_persister_meta$MHC_A[which(non_persister_meta$MHC_A == " ; ")] <- ""
+  non_persister_meta$MHC_B[which(non_persister_meta$MHC_B == " ; ")] <- ""
+  non_persister_meta$MHC_Class[which(non_persister_meta$MHC_Class == " ; ")] <- ""
+  non_persister_meta$Epitope[which(non_persister_meta$Epitope == " ; ")] <- ""
+  non_persister_meta$Epitope_Gene[which(non_persister_meta$Epitope_Gene == " ; ")] <- ""
+  non_persister_meta$Epitope_Species[which(non_persister_meta$Epitope_Species == " ; ")] <- ""
+  non_persister_meta$Reference[which(non_persister_meta$Reference == " ; ")] <- ""
+  ### cleaning II
+  non_persister_meta$MHC_A[which(non_persister_meta$MHC_A == " ; ; ")] <- ""
+  non_persister_meta$MHC_B[which(non_persister_meta$MHC_B == " ; ; ")] <- ""
+  non_persister_meta$MHC_Class[which(non_persister_meta$MHC_Class == " ; ; ")] <- ""
+  non_persister_meta$Epitope[which(non_persister_meta$Epitope == " ; ; ")] <- ""
+  non_persister_meta$Epitope_Gene[which(non_persister_meta$Epitope_Gene == " ; ; ")] <- ""
+  non_persister_meta$Epitope_Species[which(non_persister_meta$Epitope_Species == " ; ; ")] <- ""
+  non_persister_meta$Reference[which(non_persister_meta$Reference == " ; ; ")] <- ""
+  ### cleaning III
+  non_persister_meta$MHC_A[which(non_persister_meta$MHC_A == " ; ; ; ")] <- ""
+  non_persister_meta$MHC_B[which(non_persister_meta$MHC_B == " ; ; ; ")] <- ""
+  non_persister_meta$MHC_Class[which(non_persister_meta$MHC_Class == " ; ; ; ")] <- ""
+  non_persister_meta$Epitope[which(non_persister_meta$Epitope == " ; ; ; ")] <- ""
+  non_persister_meta$Epitope_Gene[which(non_persister_meta$Epitope_Gene == " ; ; ; ")] <- ""
+  non_persister_meta$Epitope_Species[which(non_persister_meta$Epitope_Species == " ; ; ; ")] <- ""
+  non_persister_meta$Reference[which(non_persister_meta$Reference == " ; ; ; ")] <- ""
+  
+  ### filter out the duplicated clonotype rows
+  non_persister_meta <- non_persister_meta[which(!duplicated(non_persister_meta[,c("library","clonotype_id_by_patient")])),]
+  
+  ### only keep the informative columns
+  non_persister_meta <- non_persister_meta[,c("CAR", "library", "clonotype_id_by_patient", "CD4_CD8_by_Consensus",
+                                      "v_gene", "j_gene", "c_gene", "cdr3_aa", "cdr3_nt", "tcr_reads", "tcr_umis",
+                                      "MHC_A", "MHC_B", "MHC_Class", "Epitope", "Epitope_Gene", "Epitope_Species", "Reference")]
+  non_persister_meta <- data.frame(Barcode=rownames(non_persister_meta), non_persister_meta,
+                               stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### save the result
+  write.xlsx2(non_persister_meta,
+              file = paste0(outputDir, "GMP_CD8_Non-Persisters_VDJ_Annotated.xlsx"),
+              sheetName = "GMP_CD8_Non-Persisters_VDJ_Annotated",
+              row.names = FALSE,
+              append = FALSE)
+  
+  #
   ### Barplots of the number of CAR+ persister cells & the TCR diversity across time
   #
   
