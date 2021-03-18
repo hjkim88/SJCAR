@@ -133,7 +133,7 @@ give_lineage_score <- function(Seurat_RObj_path="./data/JCC212_21Feb2020Aggreg_r
           ### No Clone |   Z            W
           X <- c_mat[clone, tp]
           Y <- length(intersect(intersect(target_idx,
-                                          which(Seurat_Obj@meta.data$Time == tp)),
+                                          which(Seurat_Obj@meta.data$Time == "GMP")),
                                 which(Seurat_Obj@meta.data$global_clonotype_ab_strict0 == clone)))
           Z <- length(intersect(intersect(target_idx,
                                           which(Seurat_Obj@meta.data$Time == tp)),
