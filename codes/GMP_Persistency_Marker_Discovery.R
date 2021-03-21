@@ -802,7 +802,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
         ### collect persistent clones that appeared in GMP and persist afterwards
         if(nrow(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) > 0) {
           for(j in 1:nrow(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])) {
-            for(k in last_gmp_idx:(ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])-1)) {
+            for(k in (last_gmp_idx+1):(ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])-1)) {
               if((SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,"GMP"] > 0 ||
                   SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,"GMP-redo"] > 0) &&
                  SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,k] > 0) {
@@ -819,7 +819,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
         ### collect persistent clones that appeared in GMP and persist afterwards
         if(nrow(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) > 0) {
           for(j in 1:nrow(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])) {
-            for(k in last_gmp_idx:(ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])-1)) {
+            for(k in (last_gmp_idx+1):(ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])-1)) {
               if(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,"GMP"] > 0 &&
                  SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,k] > 0) {
                 pClones <- c(pClones, rownames(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])[j])
@@ -908,30 +908,30 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   write.xlsx2(data.frame(Gene=rownames(de_result),
                          de_result,
                          stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir, "/GMP_CARpos_Persisters_vs_NonPersisters.xlsx"),
-              sheetName = "GMP_CARpos_DE_Result", row.names = FALSE)
+              file = paste0(outputDir, "/ALL_CARpos_Persisters_vs_NonPersisters.xlsx"),
+              sheetName = "ALL_CARpos_DE_Result", row.names = FALSE)
   
   ### pathway analysis
   pathway_result_GO <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db,
                                                             rownames(de_result)[which(de_result$p_val_adj < 0.05)],
                                                             "ENTREZID", "SYMBOL"),
                                           org = "human", database = "GO",
-                                          title = paste0("Pathway_Result_GMP_CARpos_Persisters_vs_NonPersisters"),
+                                          title = paste0("Pathway_Result_ALL_CARpos_Persisters_vs_NonPersisters"),
                                           displayNum = 30, imgPrint = TRUE,
                                           dir = paste0(outputDir))
   pathway_result_KEGG <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db,
                                                               rownames(de_result)[which(de_result$p_val_adj < 0.05)],
                                                               "ENTREZID", "SYMBOL"),
                                             org = "human", database = "KEGG",
-                                            title = paste0("Pathway_Result_GMP_CARpos_Persisters_vs_NonPersisters"),
+                                            title = paste0("Pathway_Result_ALL_CARpos_Persisters_vs_NonPersisters"),
                                             displayNum = 30, imgPrint = TRUE,
                                             dir = paste0(outputDir))
   if(!is.null(pathway_result_GO) && nrow(pathway_result_GO) > 0) {
-    write.xlsx2(pathway_result_GO, file = paste0(outputDir, "GO_Pathway_Result_GMP_CARpos_Persisters_vs_NonPersisters.xlsx"),
+    write.xlsx2(pathway_result_GO, file = paste0(outputDir, "GO_Pathway_Result_ALL_CARpos_Persisters_vs_NonPersisters.xlsx"),
                 row.names = FALSE, sheetName = paste0("GO_Result"))
   }
   if(!is.null(pathway_result_KEGG) && nrow(pathway_result_KEGG) > 0) {
-    write.xlsx2(pathway_result_KEGG, file = paste0(outputDir, "KEGG_Pathway_Result_GMP_CARpos_Persisters_vs_NonPersisters.xlsx"),
+    write.xlsx2(pathway_result_KEGG, file = paste0(outputDir, "KEGG_Pathway_Result_ALL_CARpos_Persisters_vs_NonPersisters.xlsx"),
                 row.names = FALSE, sheetName = paste0("KEGG_Result"))
   }
   
@@ -5116,11 +5116,41 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   }
   
   
-  
   #
-  ### GMP persistency of the virus-associated clones
+  ### some trivial analysis that is for the 03/22/21 CETI meeting
   #
   
+  ### unique clones of Px06 that are in the CAR+ lineages
+  gmp_car_clones_px06 <- unique(Seurat_Obj@meta.data$clonotype_id_by_patient[intersect(which(Seurat_Obj@meta.data$px == "SJCAR19-06"),
+                                                                                       which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES"))])
+  
+  ### how many CD4/CD8 cells are in GMP, GMP-redo, and after-infusion?
+  writeLines(paste("GMP: ", length(intersect(which(Seurat_Obj@meta.data$time == "GMP"),
+                                             which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% gmp_car_clones_px06)))))
+  writeLines(paste("GMP-redo: ", length(intersect(which(Seurat_Obj@meta.data$time == "GMP-redo"),
+                                                  which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% gmp_car_clones_px06)))))
+  writeLines(paste("After-infusion: ", length(intersect(which(Seurat_Obj@meta.data$time %in% c("Wk1", "Wk2", "Wk3", "Wk4", "Wk8", "3mo")),
+                                                        which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% gmp_car_clones_px06)))))
+  # CD4
+  writeLines(paste("GMP-CD4: ", length(intersect(intersect(which(Seurat_Obj@meta.data$time == "GMP"),
+                                                           which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% gmp_car_clones_px06)),
+                                                 which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD4")))))
+  writeLines(paste("GMP-redo-CD4: ", length(intersect(intersect(which(Seurat_Obj@meta.data$time == "GMP-redo"),
+                                                                which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% gmp_car_clones_px06)),
+                                                      which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD4")))))
+  writeLines(paste("After-infusion-CD4: ", length(intersect(intersect(which(Seurat_Obj@meta.data$time %in% c("Wk1", "Wk2", "Wk3", "Wk4", "Wk8", "3mo")),
+                                                                      which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% gmp_car_clones_px06)),
+                                                            which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD4")))))
+  # CD8
+  writeLines(paste("GMP-CD8: ", length(intersect(intersect(which(Seurat_Obj@meta.data$time == "GMP"),
+                                                           which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% gmp_car_clones_px06)),
+                                                 which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8")))))
+  writeLines(paste("GMP-redo-CD8: ", length(intersect(intersect(which(Seurat_Obj@meta.data$time == "GMP-redo"),
+                                                                which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% gmp_car_clones_px06)),
+                                                      which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8")))))
+  writeLines(paste("After-infusion-CD8: ", length(intersect(intersect(which(Seurat_Obj@meta.data$time %in% c("Wk1", "Wk2", "Wk3", "Wk4", "Wk8", "3mo")),
+                                                           which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% gmp_car_clones_px06)),
+                                                 which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8")))))
   
   
   
