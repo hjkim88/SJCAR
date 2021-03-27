@@ -547,4 +547,173 @@ epitope_spreading_investigation <- function(Seurat_RObj_path="./data/NEW_SJCAR_S
     gc()
   }
   
+  
+  #
+  ### Jeremy & Paul's request for the grant - alluvial plot of CAR- lineages
+  #
+  ### set empty interesting clones
+  interesting_clones <- vector("list", length = length(SJCAR19_Lineages_in_Full))
+  names(interesting_clones) <- names(SJCAR19_Lineages_in_Full)
+  
+  ### Px04
+  patient <- "SJCAR19-04"
+  time_points <- c("Wk1", "Wk3", "Wk8")
+  
+  ### load interesting clones
+  interesting_clones[[patient]] <- read.xlsx2(file = paste0(outputDir, "Interesting_Lineages_by_CAR.xlsx"),
+                                              sheetName = patient,
+                                              stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### get index after GMP
+  gmp_idx <- which(colnames(SJCAR19_Lineages_in_Full[[patient]]) == "GMP")
+  gmp_redo_idx <- which(colnames(SJCAR19_Lineages_in_Full[[patient]]) == "GMP-redo")
+  after_gmp_idx <- max(gmp_idx, gmp_redo_idx) + 1
+  total_idx <- which(colnames(SJCAR19_Lineages_in_Full[[patient]]) == "Total")
+  
+  if(after_gmp_idx != -Inf && after_gmp_idx < total_idx) {
+    ### get the interesting clones only & CAR- cells only
+    plot_data_table <- SJCAR19_Lineages_in_Full[[patient]][intersect(intersect(which(SJCAR19_Lineages_in_Full[[patient]]$CAR_Type == "CARneg"),
+                                                                               which(SJCAR19_Lineages_in_Full[[patient]]$CD_Type == "ALL")),
+                                                                     which(SJCAR19_Lineages_in_Full[[patient]]$Clone_ID %in% unique(interesting_clones[[patient]]$Clone_ID))),]
+    
+    ### get an input data frame for the alluvial plot
+    total_rows <- length(which(plot_data_table[,time_points] > 0))
+    plot_df <- data.frame(Time=rep("", total_rows),
+                          Clone_Size=rep(0, total_rows),
+                          Clone=rep("", total_rows),
+                          CDR3=rep("", total_rows))
+    cnt <- 1
+    for(i in 1:nrow(plot_data_table)) {
+      for(tp in time_points) {
+        if(plot_data_table[i,tp] > 0) {
+          plot_df[cnt,] <- c(tp,
+                             plot_data_table[i,tp],
+                             plot_data_table$Clone_ID[i],
+                             plot_data_table$CDR3_AA[i])
+          cnt <- cnt + 1
+        }
+      }
+    }
+    plot_df$Time <- factor(plot_df$Time, levels = time_points)
+    
+    ### numerize the clone_size column
+    plot_df$Clone_Size <- as.numeric(plot_df$Clone_Size)
+    
+    ### draw the alluvial plot
+    ggplot(plot_df,
+           aes(x = Time, stratum = Clone, alluvium = Clone,
+               y = Clone_Size,
+               fill = CDR3)) +
+      ggtitle(paste(patient, "Clonal Tracing CAR- Only")) +
+      geom_stratum(alpha = 1) +
+      geom_flow() +
+      rotate_x_text(90) +
+      theme_pubr(legend = "none") +
+      theme(axis.title.x = element_blank(),
+            text = element_text(size=24)) +
+      theme_cleveland2() +
+      scale_fill_viridis(discrete = T) +
+      scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+    ggsave(file = paste0(outputDir, patient, "/", patient, "_Interesting_Clonal_Tracing_CARneg_Only2.png"), width = 10, height = 8, dpi = 300)
+    
+    ### draw the alluvial plot - horizontal
+    ggplot(plot_df,
+           aes(x = Time, stratum = Clone, alluvium = Clone,
+               y = Clone_Size,
+               fill = CDR3)) +
+      ggtitle(paste(patient, "Clonal Tracing CAR- Only")) +
+      geom_stratum(alpha = 1) +
+      geom_flow() +
+      rotate_x_text(90) +
+      theme_pubr(legend = "none") +
+      theme(axis.title.y = element_blank(),
+            text = element_text(size=24)) +
+      theme_cleveland2() +
+      scale_fill_viridis(discrete = T) +
+      scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+      coord_flip()
+    ggsave(file = paste0(outputDir, patient, "/", patient, "_Interesting_Clonal_Tracing_CARneg_Only3.png"), width = 8, height = 10, dpi = 300)
+  }
+  
+  ### Px06
+  patient <- "SJCAR19-06"
+  time_points <- c("Wk1", "Wk4", "3mo")
+  
+  ### load interesting clones
+  interesting_clones[[patient]] <- read.xlsx2(file = paste0(outputDir, "Interesting_Lineages_by_CAR.xlsx"),
+                                              sheetName = patient,
+                                              stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### get index after GMP
+  gmp_idx <- which(colnames(SJCAR19_Lineages_in_Full[[patient]]) == "GMP")
+  gmp_redo_idx <- which(colnames(SJCAR19_Lineages_in_Full[[patient]]) == "GMP-redo")
+  after_gmp_idx <- max(gmp_idx, gmp_redo_idx) + 1
+  total_idx <- which(colnames(SJCAR19_Lineages_in_Full[[patient]]) == "Total")
+  
+  if(after_gmp_idx != -Inf && after_gmp_idx < total_idx) {
+    ### get the interesting clones only & CAR- cells only
+    plot_data_table <- SJCAR19_Lineages_in_Full[[patient]][intersect(intersect(which(SJCAR19_Lineages_in_Full[[patient]]$CAR_Type == "CARneg"),
+                                                                               which(SJCAR19_Lineages_in_Full[[patient]]$CD_Type == "ALL")),
+                                                                     which(SJCAR19_Lineages_in_Full[[patient]]$Clone_ID %in% unique(interesting_clones[[patient]]$Clone_ID))),]
+    
+    ### get an input data frame for the alluvial plot
+    total_rows <- length(which(plot_data_table[,time_points] > 0))
+    plot_df <- data.frame(Time=rep("", total_rows),
+                          Clone_Size=rep(0, total_rows),
+                          Clone=rep("", total_rows),
+                          CDR3=rep("", total_rows))
+    cnt <- 1
+    for(i in 1:nrow(plot_data_table)) {
+      for(tp in time_points) {
+        if(plot_data_table[i,tp] > 0) {
+          plot_df[cnt,] <- c(tp,
+                             plot_data_table[i,tp],
+                             plot_data_table$Clone_ID[i],
+                             plot_data_table$CDR3_AA[i])
+          cnt <- cnt + 1
+        }
+      }
+    }
+    plot_df$Time <- factor(plot_df$Time, levels = time_points)
+    
+    ### numerize the clone_size column
+    plot_df$Clone_Size <- as.numeric(plot_df$Clone_Size)
+    
+    ### draw the alluvial plot
+    ggplot(plot_df,
+           aes(x = Time, stratum = Clone, alluvium = Clone,
+               y = Clone_Size,
+               fill = CDR3)) +
+      ggtitle(paste(patient, "Clonal Tracing CAR- Only")) +
+      geom_stratum(alpha = 1) +
+      geom_flow() +
+      rotate_x_text(90) +
+      theme_pubr(legend = "none") +
+      theme(axis.title.x = element_blank(),
+            text = element_text(size=24)) +
+      theme_cleveland2() +
+      scale_fill_viridis(discrete = T) +
+      scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+    ggsave(file = paste0(outputDir, patient, "/", patient, "_Interesting_Clonal_Tracing_CARneg_Only2.png"), width = 10, height = 8, dpi = 300)
+    
+    ### draw the alluvial plot - horizontal
+    ggplot(plot_df,
+           aes(x = Time, stratum = Clone, alluvium = Clone,
+               y = Clone_Size,
+               fill = CDR3)) +
+      ggtitle(paste(patient, "Clonal Tracing CAR- Only")) +
+      geom_stratum(alpha = 1) +
+      geom_flow() +
+      rotate_x_text(90) +
+      theme_pubr(legend = "none") +
+      theme(axis.title.y = element_blank(),
+            text = element_text(size=24)) +
+      theme_cleveland2() +
+      scale_fill_viridis(discrete = T) +
+      scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+      coord_flip()
+    ggsave(file = paste0(outputDir, patient, "/", patient, "_Interesting_Clonal_Tracing_CARneg_Only3.png"), width = 8, height = 10, dpi = 300)
+  }
+  
+  
 }
