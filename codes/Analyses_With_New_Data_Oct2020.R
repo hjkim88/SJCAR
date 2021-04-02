@@ -2361,7 +2361,7 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
         ### collect persistent clones that appeared in GMP and persist afterwards
         if(nrow(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) > 0) {
           for(j in 1:nrow(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])) {
-            for(k in last_gmp_idx:(ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])-1)) {
+            for(k in (last_gmp_idx+1):(ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])-1)) {
               if((SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,"GMP"] > 0 ||
                   SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,"GMP-redo"] > 0) &&
                  SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,k] > 0) {
@@ -2378,7 +2378,7 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
         ### collect persistent clones that appeared in GMP and persist afterwards
         if(nrow(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]]) > 0) {
           for(j in 1:nrow(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])) {
-            for(k in last_gmp_idx:(ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])-1)) {
+            for(k in (last_gmp_idx+1):(ncol(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])-1)) {
               if(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,"GMP"] > 0 &&
                  SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]][j,k] > 0) {
                 pClones <- c(pClones, rownames(SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[i]])[j])
