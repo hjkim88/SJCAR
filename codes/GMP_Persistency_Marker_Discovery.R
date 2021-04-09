@@ -83,6 +83,14 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
     install.packages("ggsci")
     require(ggsci, quietly = TRUE)
   }
+  if(!require(ggupset, quietly = TRUE)) {
+    install.packages("ggupset")
+    require(ggupset, quietly = TRUE)
+  }
+  if(!require(ggnewscale, quietly = TRUE)) {
+    install.packages("ggnewscale")
+    require(ggnewscale, quietly = TRUE)
+  }
   if(!require(viridis, quietly = TRUE)) {
     install.packages("viridis")
     require(viridis, quietly = TRUE)
@@ -130,6 +138,26 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
       install.packages("BiocManager")
     BiocManager::install("immunarch")
     require(immunarch, quietly = TRUE)
+  }
+  if(!require(DOSE, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("DOSE")
+    require(DOSE, quietly = TRUE)
+  }
+  if(!require(enrichplot, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("enrichplot")
+    require(enrichplot, quietly = TRUE)
+  }
+  # install.packages("remotes")
+  # remotes::install_github("GuangchuangYu/enrichplot")
+  if(!require(clusterProfiler, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("clusterProfiler")
+    require(clusterProfiler, quietly = TRUE)
   }
   
   # ******************************************************************************************
@@ -996,7 +1024,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                          de_result,
                          stringsAsFactors = FALSE, check.names = FALSE),
               file = paste0(outputDir, "/GMP_CARpos_CD8_Persisters_vs_NonPersisters.xlsx"),
-              sheetName = "ALL_CARpos_DE_Result", row.names = FALSE)
+              sheetName = "GMP_CARpos_DE_Result", row.names = FALSE)
   
   ### pathway analysis
   pathway_result_GO <- pathwayAnalysis_CP(geneList = mapIds(org.Hs.eg.db,
@@ -1022,6 +1050,65 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                 row.names = FALSE, sheetName = paste0("KEGG_Result"))
   }
   
+  
+  #
+  ### GO & DO pathway analysis
+  #
+  ### get entrez ids
+  de_entrez_ids <- mapIds(org.Hs.eg.db,
+                          rownames(de_result)[which(de_result$p_val_adj < 0.05)],
+                          "ENTREZID", "SYMBOL")
+  de_entrez_ids <- de_entrez_ids[!is.na(de_entrez_ids)]
+  
+  ### prepare gene list with logFC
+  geneList <- de_result[names(de_entrez_ids),"avg_log2FC"]
+  names(geneList) <- de_entrez_ids
+  geneList <- geneList[order(-geneList)]
+  
+  ### enrichment analysis with DO
+  edo <- enrichDGN(de_entrez_ids)
+  edo2 <- gseDO(geneList)
+  edo3 <- enrichNCG(de_entrez_ids)
+  edo4 <- enrichGO(gene = de_entrez_ids, OrgDb = 'org.Hs.eg.db', readable = T, ont = "BP", pvalueCutoff = 0.05)
+  
+  edox <- setReadable(edo, 'org.Hs.eg.db', 'ENTREZID')
+  edox2 <- setReadable(edo2, 'org.Hs.eg.db', 'ENTREZID')
+  edox3 <- setReadable(edo3, 'org.Hs.eg.db', 'ENTREZID')
+  edox4 <- setReadable(edo4, 'org.Hs.eg.db', 'ENTREZID')
+  
+  ### draw it with dot plot
+  dotplot(edo, showCategory=30) + ggtitle("DO_pathway_Result_GMP_CARpos_CD8_Persisters_vs_NonPersisters")
+  dotplot(edo2, showCategory=30) + ggtitle("GSEA_Result_GMP_CARpos_CD8_Persisters_vs_NonPersisters")
+  dotplot(edo3, showCategory=30) + ggtitle("NCG_Result_GMP_CARpos_CD8_Persisters_vs_NonPersisters")
+  ggsave(paste0(outputDir, "/", "ncg_Result_GMP_CARpos_CD8_Persisters_vs_NonPersisters2.png"), width = 20, height = 12, dpi = 300)
+  dotplot(edo4, showCategory=30) + ggtitle("GO_Result_GMP_CARpos_CD8_Persisters_vs_NonPersisters")
+  ggsave(paste0(outputDir, "/", "go_Pathway_Result_GMP_CARpos_CD8_Persisters_vs_NonPersisters2.png"), width = 20, height = 12, dpi = 300)
+  
+  ### draw it with network
+  ### want to know which genes are involved in these significant terms
+  cnetplot(edox, foldChange=geneList)
+  cnetplot(edox2, foldChange=geneList)
+  cnetplot(edox3, foldChange=geneList)
+  ggsave(paste0(outputDir, "/", "ncg_Result_GMP_CARpos_CD8_Persisters_vs_NonPersisters3.png"), width = 20, height = 12, dpi = 300)
+  cnetplot(edox4, foldChange=geneList)
+  
+  ### draw it with heatmap
+  heatplot(edox, foldChange=geneList)
+  heatplot(edox2, foldChange=geneList)
+  heatplot(edox3, foldChange=geneList)
+  heatplot(edox4, foldChange=geneList)
+  ggsave(paste0(outputDir, "/", "go_Pathway_Result_GMP_CARpos_CD8_Persisters_vs_NonPersisters3.png"), width = 20, height = 12, dpi = 300)
+  
+  ### draw it with upset plot
+  upsetplot(edo)
+  upsetplot(edo2)
+  upsetplot(edo3)
+  p <- upsetplot(edo4, n = 30)
+  ggsave(paste0(outputDir, "/", "go_Pathway_Result_GMP_CARpos_CD8_Persisters_vs_NonPersisters4.png"), plot = p, width = 24, height = 12, dpi = 300)
+  
+  ### Enrichment map organizes enriched terms into a network with edges connecting overlapping gene sets. In this way, mutually overlapping gene sets are tend to cluster together, making it easy to identify functional module.
+  # edo <- pairwise_termsim(edo)
+  # emapplot(edo, cex_category=1.5,layout="kk")
   
   ### A function for scaling for heatmap
   scale_h <- function(data, type, na.rm=TRUE) {
@@ -5254,6 +5341,11 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
           all_meta$Reference[i] <- paste0(all_meta$Reference[i], "; ")
         }
       }
+    }
+    
+    ### progress
+    if(i %% 10000 == 0) {
+      writeLines(paste(i, "/", nrow(all_meta)))
     }
   }
   
