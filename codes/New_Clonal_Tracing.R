@@ -87,7 +87,7 @@ new_clonal_tracing <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJC
     }
     
     ### progress
-    if(i %% 10000) {
+    if(i %% 10000 == 0) {
       writeLines(paste(i, "/", nrow(Seurat_Obj@meta.data)))
     }
     
@@ -528,5 +528,9 @@ new_clonal_tracing <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJC
                    ncol = 3,
                    top = "")
   ggsave(file = paste0(outputDir, "/", fName, ".png"), g, width = 24, height = 12, dpi = 300)
+  
+  
+  ### save the Seurat object
+  saveRDS(Seurat_Obj, file = Seurat_RObj_path)
   
 }
