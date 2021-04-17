@@ -75,8 +75,9 @@ new_clonal_tracing <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJC
     Seurat_Obj@meta.data$cdr3_beta[i] <- paste(aa_split[beta_idx], collapse = ";")
     Seurat_Obj@meta.data$cdr3_beta_umis[i] <- paste(umi_split[beta_idx], collapse = ";")
     if(length(alpha_idx) > 0 && length(beta_idx) > 0) {
-      best_alpha_idx <- alpha_idx[which(umi_split[alpha_idx] == max(umi_split[alpha_idx]))]
-      best_beta_idx <- beta_idx[which(umi_split[beta_idx] == max(umi_split[beta_idx]))]
+      ### if there are multiple chains that have the same largest number of UMIs, just use the first one
+      best_alpha_idx <- alpha_idx[which(umi_split[alpha_idx] == max(umi_split[alpha_idx]))][1]
+      best_beta_idx <- beta_idx[which(umi_split[beta_idx] == max(umi_split[beta_idx]))][1]
       Seurat_Obj@meta.data$cdr3_one_alpha_beta[i] <- paste0(aa_split[best_alpha_idx], ";", aa_split[best_beta_idx])
     } else if(length(alpha_idx) > 0 && length(beta_idx) == 0) {
       best_alpha_idx <- alpha_idx[which(umi_split[alpha_idx] == max(umi_split[alpha_idx]))]
