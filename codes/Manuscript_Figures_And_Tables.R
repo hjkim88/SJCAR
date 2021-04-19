@@ -433,11 +433,150 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     for(j in 1:length(unique(Seurat_Obj@meta.data$px))) {
       
       ### fill out for each column and for each patient
-      result_table[paste(unique(Seurat_Obj@meta.data$px)[j], "CD4+/CAR+ Clonotype #"),
-                   table_colnames[i]] <- length(unique())
+      px <- unique(Seurat_Obj@meta.data$px)[j]
+      result_table[paste(px, "CD4+/CAR+ Clonotype #"),
+                   table_colnames[i]] <- length(unique(Seurat_Obj@meta.data[intersect(which(Seurat_Obj@meta.data$px == px),
+                                                                                      cd4_carpos_idx),
+                                                                            clonotype_types[i]]))
+      result_table[paste(px, "CD4+/CAR- Clonotype #"),
+                   table_colnames[i]] <- length(unique(Seurat_Obj@meta.data[intersect(which(Seurat_Obj@meta.data$px == px),
+                                                                                      cd4_carneg_idx),
+                                                                            clonotype_types[i]]))
+      result_table[paste(px, "CD8+/CAR+ Clonotype #"),
+                   table_colnames[i]] <- length(unique(Seurat_Obj@meta.data[intersect(which(Seurat_Obj@meta.data$px == px),
+                                                                                      cd8_carpos_idx),
+                                                                            clonotype_types[i]]))
+      result_table[paste(px, "CD8+/CAR- Clonotype #"),
+                   table_colnames[i]] <- length(unique(Seurat_Obj@meta.data[intersect(which(Seurat_Obj@meta.data$px == px),
+                                                                                      cd8_carneg_idx),
+                                                                            clonotype_types[i]]))
+      result_table[paste(px, "CD4+/CAR+ Lineage #"),
+                   table_colnames[i]] <- length(unique(Seurat_Obj@meta.data[intersect(lineages_idx[[i]],
+                                                                                      intersect(which(Seurat_Obj@meta.data$px == px),
+                                                                                                cd4_carpos_idx)),
+                                                                            clonotype_types[i]]))
+      result_table[paste(px, "CD4+/CAR- Lineage #"),
+                   table_colnames[i]] <- length(unique(Seurat_Obj@meta.data[intersect(lineages_idx[[i]],
+                                                                                      intersect(which(Seurat_Obj@meta.data$px == px),
+                                                                                                cd4_carneg_idx)),
+                                                                            clonotype_types[i]]))
+      result_table[paste(px, "CD8+/CAR+ Lineage #"),
+                   table_colnames[i]] <- length(unique(Seurat_Obj@meta.data[intersect(lineages_idx[[i]],
+                                                                                      intersect(which(Seurat_Obj@meta.data$px == px),
+                                                                                                cd8_carpos_idx)),
+                                                                            clonotype_types[i]]))
+      result_table[paste(px, "CD8+/CAR- Lineage #"),
+                   table_colnames[i]] <- length(unique(Seurat_Obj@meta.data[intersect(lineages_idx[[i]],
+                                                                                      intersect(which(Seurat_Obj@meta.data$px == px),
+                                                                                                cd8_carneg_idx)),
+                                                                            clonotype_types[i]]))
+      result_table[paste(px, "CD4+/CAR+ GMP Lineage #"),
+                   table_colnames[i]] <- length(unique(Seurat_Obj@meta.data[intersect(gmp_lineages_idx[[i]],
+                                                                                      intersect(which(Seurat_Obj@meta.data$px == px),
+                                                                                                cd4_carpos_idx)),
+                                                                            clonotype_types[i]]))
+      result_table[paste(px, "CD8+/CAR+ GMP Lineage #"),
+                   table_colnames[i]] <- length(unique(Seurat_Obj@meta.data[intersect(gmp_lineages_idx[[i]],
+                                                                                      intersect(which(Seurat_Obj@meta.data$px == px),
+                                                                                                cd8_carpos_idx)),
+                                                                            clonotype_types[i]]))
       
     }
   }
+  
+  ### save the result table
+  write.xlsx2(result_table,
+              sheetName = "Lineage_Statistics_Table",
+              file = paste0(outputDir2, "Lineage_Statistics_Table_Per_Px.xlsx"))
+  
+  
+  #
+  ### 4. Clone size between CAR+ lineages vs non-lineage CAR+ after infusion
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/4/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### AFTER-INFUSION - GMP SUBSISTER CAR+ VS THE REST CAR+
+  
+  ### get AI indicies
+  ai_indicies <- which(Seurat_Obj@meta.data$time2 %in% c("Wk1", "Wk2", "Wk3", "Wk4", "Wk6", "Wk8", "3mo", "6mo", "9mo"))
+  
+  ### target lineages
+  subsister_clones_ai <- unique(intersect(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "YES")],
+                                          Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[ai_indicies]))
+  rest_carpos_clones_ai <- unique(intersect(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[intersect(Seurat_Obj@meta.data$CAR == "CARpos",
+                                                                                                                  which(is.na(Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister)))],
+                                           Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[ai_indicies]))
+  
+  ### get persister vs rest carpos clone sizes in AI time points
+  subsister_clone_sizes_ai <- rep(0, length(subsister_clones_ai))
+  names(subsister_clone_sizes_ai) <- subsister_clones_ai
+  for(clone in subsister_clones_ai) {
+    subsister_clone_sizes_ai[clone] <- length(which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[ai_indicies] == clone))
+  }
+  
+  rest_carpos_clone_sizes_ai <- rep(0, length(rest_carpos_clones_ai))
+  names(rest_carpos_clone_sizes_ai) <- rest_carpos_clones_ai
+  for(clone in rest_carpos_clones_ai) {
+    rest_carpos_clone_sizes_ai[clone] <- length(which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[ai_indicies] == clone))
+  }
+  
+  ### prepare a data frame for the plot
+  plot_df <- data.frame(Clone_Size=c(subsister_clone_sizes_ai,
+                                     rest_carpos_clone_sizes_ai),
+                        Group=c(rep("Subsisters_After_Infusion", length(subsister_clone_sizes_ai)),
+                                rep("Rest_CARpos_After_Infusion", length(rest_carpos_clone_sizes_ai))),
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  plot_df$Group <- factor(plot_df$Group, levels = c("Subsisters_After_Infusion", "Rest_CARpos_After_Infusion"))
+  
+  ### draw a violin plot
+  ggplot(plot_df, aes_string(x="Group", y="Clone_Size", fill = "Group")) +
+    geom_violin(trim=FALSE)+
+    geom_boxplot(width=0.1, fill="white") +
+    ylim(c(-0.5, 2)) +
+    geom_text(data = data.frame(Group=c("Subsisters_After_Infusion", "Rest_CARpos_After_Infusion"),
+                                Median=c(median(subsister_clone_sizes_ai),
+                                         median(rest_carpos_clone_sizes_ai)),
+                                stringsAsFactors = FALSE, check.names = FALSE),
+              aes_string(x = "Group", y = "Median", label = "Median"),
+              size = 10, hjust = -2, vjust = -2) +
+    geom_text(data = data.frame(Group=c("Subsisters_After_Infusion", "Rest_CARpos_After_Infusion"),
+                                Median=c(median(subsister_clone_sizes_ai),
+                                         median(rest_carpos_clone_sizes_ai)),
+                                Length=c(paste("n =", length(subsister_clone_sizes_ai)),
+                                         paste("n =", length(rest_carpos_clone_sizes_ai))),
+                                stringsAsFactors = FALSE, check.names = FALSE),
+              aes_string(x = "Group", y = "Median", label = "Length"),
+              size = 5, hjust = 0.5, vjust = 35) +
+    labs(title="", x="", y = "Clone Size", fill = "") +
+    scale_fill_manual(values=c("#E69F00", "#56B4E9")) +
+    theme_classic(base_size = 36) +
+    theme(axis.text.x = element_text(size = 30),
+          axis.title.y = element_text(size = 30),
+          legend.text = element_text(size = 30))
+  ggsave(paste0(outputDir, "/", "Violin_After_Infusion_Clone_Size_S_vs_R.png"), width = 20, height = 12, dpi = 500)
+  
+  ### density plot
+  ggplot(plot_df, aes_string(x="Clone_Size", col="Group")) +
+    geom_density(size = 2) +
+    xlim(c(0,20)) +
+    geom_text(data = data.frame(Group=c("Subsisters_After_Infusion", "Rest_CARpos_After_Infusion"),
+                                x = c(18, 18),
+                                y = c(0.3, 0.2),
+                                Length=c(paste("n =", length(subsister_clone_sizes_ai)),
+                                         paste("n =", length(rest_carpos_clone_sizes_ai))),
+                                stringsAsFactors = FALSE, check.names = FALSE),
+              aes_string(x = "x", y = "y", label = "Length"),
+              size = 5, hjust = 0.5, vjust = 0.5) +
+    labs(title="", x="Clone Size", y = "Density", col = "") +
+    scale_fill_manual(values=c("#E69F00", "#56B4E9")) +
+    theme_classic(base_size = 36) +
+    theme(legend.text = element_text(size = 35))
+  ggsave(paste0(outputDir, "/", "Density_After_Infusion_Clone_Size_S_vs_R.png"), width = 15, height = 12, dpi = 500)
+  
+  
   
   
   
