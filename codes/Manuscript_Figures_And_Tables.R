@@ -8,8 +8,11 @@
 #                  (alpha only, beta only, one from each, strict)
 #               3. CAR+ % for each library - proportional bar graph & table - CAR+, CAR-, CD4+, CD8+
 #               4. Clone size between CAR+ lineages vs non-lineage CAR+ after infusion
-#               5. PCA plot of CAR+s over time (coloring based on time) + pseudotime on PCA
-#               6. PCA plot of lineages with size=1 vs lineages with size > 1 (coloring differently)
+#               5. a) PCA/UMAP plot of CAR+s over time (coloring based on time)
+#                  b) Clustering + UMAP 
+#                  c) Pseudotime analysis on PCA
+#                  d) PCA/UMAP plot of lineages with size=1 vs lineages with size > 1 (coloring differently)
+#               6. Time series DE analysis & pathway analysis 
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -128,7 +131,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     
     ### load the file
     target_file <- read.xlsx2(file = paste0(px_result_dir, patient, "/car_clonotype_frequency_over_time_", patient, ".xlsx"),
-                              sheetName = paste0("CARpos_Clonotype_Frequency_One_From_Each"), stringsAsFactors = FALSE, check.names = FALSE,
+                              sheetName = paste0("CARpos_Clonotype_Frequency_One_"), stringsAsFactors = FALSE, check.names = FALSE,
                               row.names = 1)
     
     ### numerize the table
@@ -179,6 +182,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     
     ### get time points except the Total
     time_points <- setdiff(time_points, c("Total"))
+    
+    ### remove before GMP time points
+    time_points <- intersect(time_points, gmp_after_time_points)
     
     ### draw when there are at least two time points
     if(length(time_points) > 1) {
@@ -291,7 +297,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                        "clonotype_id_by_patient_one_alpha_beta", "clonotype_id_by_patient")
   names(table_colnames) <- clonotype_types
   names(clonotype_types) <- table_colnames
-  table_rownames <- c("CD4+/CAR+ Clonotype #", "CD4+/CAR- Clonotype #",
+  table_rownames <- c("CD4+/CAR+ Cell #", "CD4+/CAR- Cell #",
+                      "CD8+/CAR+ Cell #", "CD8+/CAR- Cell #",
+                      "CD4+/CAR+ Clonotype #", "CD4+/CAR- Clonotype #",
                       "CD8+/CAR+ Clonotype #", "CD8+/CAR- Clonotype #",
                       "CD4+/CAR+ Lineage #", "CD4+/CAR- Lineage #",
                       "CD8+/CAR+ Lineage #", "CD8+/CAR- Lineage #",
@@ -319,7 +327,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       
       ### load the file
       target_file <- read.xlsx2(file = paste0(px_result_dir, patient, "/car_clonotype_frequency_over_time_", patient, ".xlsx"),
-                                sheetName = paste0("CARpos_Clonotype_Frequency_", type), stringsAsFactors = FALSE, check.names = FALSE,
+                                sheetName = paste0("CARpos_Clonotype_Frequency_", substr(type, 1, 4)), stringsAsFactors = FALSE, check.names = FALSE,
                                 row.names = 1)
       
       ### numerize the table
@@ -434,6 +442,18 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       
       ### fill out for each column and for each patient
       px <- unique(Seurat_Obj@meta.data$px)[j]
+      result_table[paste(px, "CD4+/CAR+ Cell #"),
+                   table_colnames[i]] <- length(intersect(which(Seurat_Obj@meta.data$px == px),
+                                                          cd4_carpos_idx))
+      result_table[paste(px, "CD4+/CAR- Cell #"),
+                   table_colnames[i]] <- length(intersect(which(Seurat_Obj@meta.data$px == px),
+                                                          cd4_carneg_idx))
+      result_table[paste(px, "CD8+/CAR+ Cell #"),
+                   table_colnames[i]] <- length(intersect(which(Seurat_Obj@meta.data$px == px),
+                                                          cd8_carpos_idx))
+      result_table[paste(px, "CD8+/CAR- Cell #"),
+                   table_colnames[i]] <- length(intersect(which(Seurat_Obj@meta.data$px == px),
+                                                          cd8_carneg_idx))
       result_table[paste(px, "CD4+/CAR+ Clonotype #"),
                    table_colnames[i]] <- length(unique(Seurat_Obj@meta.data[intersect(which(Seurat_Obj@meta.data$px == px),
                                                                                       cd4_carpos_idx),
@@ -489,6 +509,83 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
               sheetName = "Lineage_Statistics_Table",
               file = paste0(outputDir2, "Lineage_Statistics_Table_Per_Px.xlsx"))
   
+  ### make a px-combined table
+  specific_pxs <- c("SJCAR19-02", "SJCAR19-04", "SJCAR19-05",
+                    "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
+                    "SJCAR19-09", "SJCAR19-10", "SJCAR19-11")
+  specifix_pxs_idx <- as.vector(sapply(specific_pxs, function(x) grep(x, rownames(result_table), fixed = TRUE)))
+  total_result_table <- matrix(0, length(table_rownames), length(table_colnames))
+  rownames(total_result_table) <- table_rownames
+  colnames(total_result_table) <- table_colnames
+  for(r in table_rownames) {
+    for(c in table_colnames) {
+      total_result_table[r,c] <- sum(result_table[intersect(specifix_pxs_idx,
+                                                            grep(r, rownames(result_table), fixed = TRUE)),
+                                                  c])
+    }
+  }
+  
+  ### save the total result table
+  write.xlsx2(total_result_table,
+              sheetName = "Total_Lineage_Statistics_Table",
+              file = paste0(outputDir2, "Lineage_Statistics_Table_Total.xlsx"))
+  
+  
+  #
+  ### 3. CAR+ % for each library - proportional bar graph & table - CAR+, CAR-, CD4+, CD8+
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/3/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### some pre-calculated indices
+  cd4_carpos_idx <- intersect(which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD4"),
+                              which(Seurat_Obj@meta.data$CAR == "CARpos"))
+  cd4_carneg_idx <- intersect(which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD4"),
+                              which(Seurat_Obj@meta.data$CAR == "CARneg"))
+  cd8_carpos_idx <- intersect(which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"),
+                              which(Seurat_Obj@meta.data$CAR == "CARpos"))
+  cd8_carneg_idx <- intersect(which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"),
+                              which(Seurat_Obj@meta.data$CAR == "CARneg"))
+  
+  ### examine the proportion of cells in each patient - barplot 
+  plot_df <- data.frame(LIB=as.vector(sapply(unique(Seurat_Obj@meta.data$library), function(x) rep(x,4))),
+                        TYPE=rep(c("CD4+ CAR+", "CD4+ CAR-", "CD8+ CAR+", "CD8+ CAR-"),
+                                length(unique(Seurat_Obj@meta.data$library))),
+                        NUM=0,
+                        PCNT=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  for(i in 1:nrow(plot_df)) {
+    type <- strsplit(plot_df$TYPE[i], split = " ", fixed = TRUE)[[1]]
+    if(type[1] == "CD4+" && type[2] == "CAR+") {
+      target_idx <- cd4_carpos_idx
+    } else if(type[1] == "CD4+" && type[2] == "CAR-") {
+      target_idx <- cd4_carneg_idx
+    } else if(type[1] == "CD8+" && type[2] == "CAR+") {
+      target_idx <- cd8_carpos_idx
+    } else {
+      target_idx <- cd8_carneg_idx
+    }
+    plot_df$NUM[i] <- length(intersect(which(Seurat_Obj@meta.data$library == plot_df$LIB[i]),
+                                       target_idx))
+    plot_df$PCNT[i] <- round(plot_df$NUM[i]*100/length(which(Seurat_Obj@meta.data$library == plot_df$LIB[i])), digits = 0)
+  }
+  ### pcnt < 5 -> ""
+  plot_df$PCNT[which(as.numeric(plot_df$PCNT) < 5)] <- ""
+  plot_df$PCNT <- as.character(plot_df$PCNT)
+  ggplot(data=plot_df, aes_string(x="LIB", y="NUM", fill="TYPE", label="PCNT")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Cell %") +
+    geom_text(size = 3, position = position_stack(vjust = 1)) +
+    coord_flip() +
+    scale_y_continuous(expand = c(0,300)) +
+    theme_classic(base_size = 10) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 10),
+          axis.title = element_blank(),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "Cell_Distribution_In_Each_Library.png"), width = 20, height = 10, dpi = 400)
+  
   
   #
   ### 4. Clone size between CAR+ lineages vs non-lineage CAR+ after infusion
@@ -508,7 +605,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                                           Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[ai_indicies]))
   rest_carpos_clones_ai <- unique(intersect(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[intersect(Seurat_Obj@meta.data$CAR == "CARpos",
                                                                                                                   which(is.na(Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister)))],
-                                           Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[ai_indicies]))
+                                            Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[ai_indicies]))
   
   ### get persister vs rest carpos clone sizes in AI time points
   subsister_clone_sizes_ai <- rep(0, length(subsister_clones_ai))
@@ -575,6 +672,131 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme_classic(base_size = 36) +
     theme(legend.text = element_text(size = 35))
   ggsave(paste0(outputDir, "/", "Density_After_Infusion_Clone_Size_S_vs_R.png"), width = 15, height = 12, dpi = 500)
+  
+  
+  #
+  ### 5. a) PCA/UMAP plot of CAR+s over time (coloring based on time)
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/5/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### get CARpos-only seurat object
+  Seurat_Obj <- SetIdent(object = Seurat_Obj,
+                         cells = rownames(Seurat_Obj@meta.data),
+                         value = Seurat_Obj@meta.data$CAR)
+  sub_seurat_obj <- subset(Seurat_Obj, idents = c("CARpos"))
+  
+  ### after gmp time points only
+  after_gmp_time_points <- c("Wk1", "Wk2", "Wk3", "Wk4", "Wk6",
+                             "Wk8", "3mo", "6mo", "9mo")
+  sub_seurat_obj <- SetIdent(object = sub_seurat_obj,
+                             cells = rownames(sub_seurat_obj@meta.data),
+                             value = sub_seurat_obj@meta.data$time2)
+  sub_seurat_obj <- subset(sub_seurat_obj, idents = intersect(after_gmp_time_points,
+                                                              unique(sub_seurat_obj@meta.data$time2)))
+  
+  #
+  ### run pca on the sub_seurat_obj
+  #
+  ### normalization
+  sub_seurat_obj <- NormalizeData(sub_seurat_obj,
+                                  normalization.method = "LogNormalize", scale.factor = 10000)
+  ### find variable genes
+  sub_seurat_obj <- FindVariableFeatures(sub_seurat_obj,
+                                         selection.method = "vst", nfeatures = 2000)
+  ### scaling
+  sub_seurat_obj <- ScaleData(sub_seurat_obj,
+                              vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  ### PCA
+  sub_seurat_obj <- RunPCA(sub_seurat_obj,
+                           features = VariableFeatures(object = sub_seurat_obj),
+                           npcs = 15)
+  ### UMAP
+  sub_seurat_obj <- RunUMAP(sub_seurat_obj, dims = 1:15)
+  
+  ### get seurat object for some specific patients
+  sub_seurat_obj <- SetIdent(object = sub_seurat_obj,
+                             cells = rownames(sub_seurat_obj@meta.data),
+                             value = sub_seurat_obj@meta.data$px)
+  sub_seurat_obj2 <- subset(sub_seurat_obj, idents = c("SJCAR19-02", "SJCAR19-04", "SJCAR19-05",
+                                                       "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
+                                                       "SJCAR19-09", "SJCAR19-10", "SJCAR19-11"))
+  
+  ### factorize the time2 column
+  sub_seurat_obj2@meta.data$time2 <- factor(sub_seurat_obj2@meta.data$time2,
+                                            levels = intersect(total_time_points, sub_seurat_obj2@meta.data$time2))
+  
+  ### PCA with time by each patient
+  p <- DimPlot(object = sub_seurat_obj2, reduction = "pca",
+               group.by = "time2", split.by = "px",
+               pt.size = 3, ncol = 3) +
+    ggtitle("") +
+    labs(color="Time") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.text.x = element_text(size = 30),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 30)) +
+    scale_colour_brewer(palette = "OrRd")
+  # p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir2, "PCA_CARpos_Time.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### PCA with time with all patients
+  p <- DimPlot(object = sub_seurat_obj2, reduction = "pca",
+               group.by = "time2",
+               pt.size = 5) +
+    ggtitle("") +
+    labs(color="Time") +
+    scale_colour_brewer(palette = "OrRd") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 36))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  ggsave(paste0(outputDir2, "PCA_CARpos_Time_ALL.png"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### UMAP with time by each patient
+  p <- DimPlot(object = sub_seurat_obj2, reduction = "umap",
+               group.by = "time2", split.by = "px",
+               pt.size = 3, ncol = 3) +
+    ggtitle("") +
+    labs(color="Time") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.text.x = element_text(size = 30),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 30)) +
+    scale_colour_brewer(palette = "OrRd")
+  # p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Time.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### UMAP with time with all patients
+  p <- DimPlot(object = sub_seurat_obj2, reduction = "umap",
+               group.by = "time2",
+               pt.size = 5) +
+    ggtitle("") +
+    labs(color="Time") +
+    scale_colour_brewer(palette = "OrRd") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 36))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Time_ALL.png"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  
+  
+  
+  
+  
   
   
   
