@@ -621,6 +621,11 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
   }
   
   ### for each patient, make a statistics table
+  clonotype_types <- c("clonotype_id_by_patient_alpha", "clonotype_id_by_patient_beta",
+                       "clonotype_id_by_patient_one_alpha_beta", "clonotype_id_by_patient")
+  names(clonotype_types) <- c("Alpha", "Beta", "One_From_Each", "Strict")
+  cdr3_types <- c("cdr3_alpha", "cdr3_beta", "cdr3_one_alpha_beta", "cdr3_aa")
+  names(cdr3_types) <- clonotype_types
   for(patient in unique(Seurat_Obj@meta.data$px)) {
     
     ### print progress
@@ -629,141 +634,150 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
     ### indicies that assign to the given patient
     px_idx <- which(Seurat_Obj@meta.data$px == patient)
     
-    ### remove NA, "NA", and ""
-    px_idx <- intersect(px_idx, intersect(intersect(which(!is.na(Seurat_Obj@meta.data$cdr3_aa)),
-                                                    which(Seurat_Obj@meta.data$cdr3_aa != "NA")),
-                                          which(Seurat_Obj@meta.data$cdr3_aa != "")))
-    
-    if(length(px_idx) > 0) {
+    ### for each clonotype type
+    for(type in clonotype_types) {
       
-      ### output directory for each patient
-      outputDir2 <- paste0(outputDir, "/", patient, "/")
-      dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+      ### remove NA, "NA", and ""
+      px_idx <- intersect(px_idx, intersect(intersect(which(!is.na(Seurat_Obj@meta.data[,cdr3_types[type]])),
+                                                      which(Seurat_Obj@meta.data[,cdr3_types[type]] != "NA")),
+                                            which(Seurat_Obj@meta.data[,cdr3_types[type]] != "")))
       
-      ### set target indicies
-      target_idx <- intersect(px_idx, which(!is.na(Seurat_Obj@meta.data$clonotype_id_by_patient)))
-      
-      ### get unique clonotypes
-      dups <- Seurat_Obj@meta.data$clonotype_id_by_patient[target_idx][which(duplicated(Seurat_Obj@meta.data$clonotype_id_by_patient[target_idx]))]
-      unique_clonotypes <- unique(dups)
-      unique_clonotypes <- unique_clonotypes[intersect(intersect(which(!is.na(unique_clonotypes)),
-                                                                 which(unique_clonotypes != "NA")),
-                                                       which(unique_clonotypes != ""))]
-      
-      ### get unique time points
-      unique_time_points <- unique(intersect(total_time_points, Seurat_Obj@meta.data$time[target_idx]))
-      
-      ### empty frequency table
-      frequency_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
-      rownames(frequency_over_time) <- unique_clonotypes
-      colnames(frequency_over_time) <- unique_time_points
-      
-      ### empty CAR+ frequency table
-      car_frequency_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
-      rownames(car_frequency_over_time) <- unique_clonotypes
-      colnames(car_frequency_over_time) <- unique_time_points
-      
-      ### empty frequency proportion table
-      proportion_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
-      rownames(proportion_over_time) <- unique_clonotypes
-      colnames(proportion_over_time) <- unique_time_points
-      
-      ### empty CAR+ frequency proportion table
-      car_proportion_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
-      rownames(car_proportion_over_time) <- unique_clonotypes
-      colnames(car_proportion_over_time) <- unique_time_points
-      
-      ### start time
-      start_time <- Sys.time()
-      
-      ### set progress bar
-      pb <- txtProgressBar(min = 0, max = length(unique_clonotypes)*length(unique_time_points), style = 3)
-      
-      ### fill out the frequency tables
-      cnt <- 0
-      for(time in unique_time_points) {
-        for(clonotype in unique_clonotypes) {
-          ### indicies for the specific patient, time, and clonotype
-          target_idx <- intersect(intersect(px_idx,
-                                            which(Seurat_Obj@meta.data$time == time)),
-                                  which(Seurat_Obj@meta.data$clonotype_id_by_patient == clonotype))
-          
-          frequency_over_time[clonotype,time] <- length(target_idx)
-          car_frequency_over_time[clonotype,time] <- length(intersect(target_idx,
-                                                                      which(Seurat_Obj@meta.data$CAR == "CARpos")))
-          
-          ### update the progress bar
-          cnt <- cnt + 1
-          setTxtProgressBar(pb, cnt)
-        }
+      if(length(px_idx) > 0) {
         
-        ### fill out the proportion tables
-        cells_time_num <- length(intersect(px_idx,
-                                           which(Seurat_Obj@meta.data$time == time)))
-        car_cells_time_num <- length(intersect(intersect(px_idx,
-                                                         which(Seurat_Obj@meta.data$time == time)),
-                                               which(Seurat_Obj@meta.data$CAR == "CARpos")))
-        if(car_cells_time_num > 0) {
-          proportion_over_time[,time] <- signif(100*frequency_over_time[,time]/cells_time_num, digits = 4)
-          car_proportion_over_time[,time] <- signif(100*car_frequency_over_time[,time]/car_cells_time_num, digits = 4)
-        } else if(cells_time_num > 0) {
-          proportion_over_time[,time] <- signif(100*frequency_over_time[,time]/cells_time_num, digits = 4)
-        } else {
-          proportion_over_time[,time] <- 0
-          car_proportion_over_time[,time] <- 0
+        ### output directory for each patient
+        outputDir2 <- paste0(outputDir, "/", patient, "/")
+        dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+        
+        ### set target indicies
+        target_idx <- intersect(px_idx, which(!is.na(Seurat_Obj@meta.data[,type])))
+        
+        ### get unique clonotypes
+        dups <- Seurat_Obj@meta.data[,type][target_idx][which(duplicated(Seurat_Obj@meta.data[,type][target_idx]))]
+        unique_clonotypes <- unique(dups)
+        unique_clonotypes <- unique_clonotypes[intersect(intersect(which(!is.na(unique_clonotypes)),
+                                                                   which(unique_clonotypes != "NA")),
+                                                         which(unique_clonotypes != ""))]
+        
+        ### get unique time points
+        unique_time_points <- unique(intersect(total_time_points, Seurat_Obj@meta.data$time2[target_idx]))
+        
+        ### empty frequency table
+        frequency_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
+        rownames(frequency_over_time) <- unique_clonotypes
+        colnames(frequency_over_time) <- unique_time_points
+        
+        ### empty CAR+ frequency table
+        car_frequency_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
+        rownames(car_frequency_over_time) <- unique_clonotypes
+        colnames(car_frequency_over_time) <- unique_time_points
+        
+        ### empty frequency proportion table
+        proportion_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
+        rownames(proportion_over_time) <- unique_clonotypes
+        colnames(proportion_over_time) <- unique_time_points
+        
+        ### empty CAR+ frequency proportion table
+        car_proportion_over_time <- matrix(0, length(unique_clonotypes), length(unique_time_points))
+        rownames(car_proportion_over_time) <- unique_clonotypes
+        colnames(car_proportion_over_time) <- unique_time_points
+        
+        ### start time
+        start_time <- Sys.time()
+        
+        ### set progress bar
+        pb <- txtProgressBar(min = 0, max = length(unique_clonotypes)*length(unique_time_points), style = 3)
+        
+        ### fill out the frequency tables
+        cnt <- 0
+        for(time in unique_time_points) {
+          for(clonotype in unique_clonotypes) {
+            ### indicies for the specific patient, time, and clonotype
+            target_idx <- intersect(intersect(px_idx,
+                                              which(Seurat_Obj@meta.data$time2 == time)),
+                                    which(Seurat_Obj@meta.data[,type] == clonotype))
+            
+            frequency_over_time[clonotype,time] <- length(target_idx)
+            car_frequency_over_time[clonotype,time] <- length(intersect(target_idx,
+                                                                        which(Seurat_Obj@meta.data$CAR == "CARpos")))
+            
+            ### update the progress bar
+            cnt <- cnt + 1
+            setTxtProgressBar(pb, cnt)
+          }
+          
+          ### fill out the proportion tables
+          cells_time_num <- length(intersect(px_idx,
+                                             which(Seurat_Obj@meta.data$time2 == time)))
+          car_cells_time_num <- length(intersect(intersect(px_idx,
+                                                           which(Seurat_Obj@meta.data$time2 == time)),
+                                                 which(Seurat_Obj@meta.data$CAR == "CARpos")))
+          if(car_cells_time_num > 0) {
+            proportion_over_time[,time] <- signif(100*frequency_over_time[,time]/cells_time_num, digits = 4)
+            car_proportion_over_time[,time] <- signif(100*car_frequency_over_time[,time]/car_cells_time_num, digits = 4)
+          } else if(cells_time_num > 0) {
+            proportion_over_time[,time] <- signif(100*frequency_over_time[,time]/cells_time_num, digits = 4)
+          } else {
+            proportion_over_time[,time] <- 0
+            car_proportion_over_time[,time] <- 0
+          }
         }
+        close(pb)
+        
+        ### end time
+        end_time <- Sys.time()
+        
+        ### print out the running time
+        cat(paste("Running Time:",
+                  signif(as.numeric(difftime(end_time, start_time, units = "mins")), digits = 3),
+                  "mins"))
+        
+        ### add total column
+        frequency_over_time <- data.frame(Clonotype=unique_clonotypes,
+                                          frequency_over_time,
+                                          Total=apply(frequency_over_time, 1, sum),
+                                          stringsAsFactors = FALSE, check.names = FALSE)
+        car_frequency_over_time <- data.frame(Clonotype=unique_clonotypes,
+                                              car_frequency_over_time,
+                                              Total=apply(car_frequency_over_time, 1, sum),
+                                              stringsAsFactors = FALSE, check.names = FALSE)
+        proportion_over_time <- data.frame(Clonotype=unique_clonotypes,
+                                           proportion_over_time,
+                                           Total=apply(proportion_over_time, 1, sum),
+                                           stringsAsFactors = FALSE, check.names = FALSE)
+        car_proportion_over_time <- data.frame(Clonotype=unique_clonotypes,
+                                               car_proportion_over_time,
+                                               Total=apply(car_proportion_over_time, 1, sum),
+                                               stringsAsFactors = FALSE, check.names = FALSE)
+        
+        ### order the data frames by the Total column
+        frequency_over_time <- frequency_over_time[order(-frequency_over_time[,"Total"]),]
+        proportion_over_time <- proportion_over_time[order(-proportion_over_time[,"Total"]),]
+        car_frequency_over_time <- car_frequency_over_time[order(-car_frequency_over_time[,"Total"]),]
+        car_proportion_over_time <- car_proportion_over_time[order(-car_proportion_over_time[,"Total"]),]
+        
+        ### trim the car tables
+        car_proportion_over_time <- car_proportion_over_time[which(car_frequency_over_time[,"Total"] > 1),]
+        car_frequency_over_time <- car_frequency_over_time[which(car_frequency_over_time[,"Total"] > 1),]
+        
+        ### save the tables in Excel format
+        write.xlsx2(frequency_over_time, file = paste0(outputDir2, "clonotype_frequency_over_time_", patient, ".xlsx"),
+                    sheetName = paste0("Clonotype_Frequency_", names(clonotype_types)[which(clonotype_types == type)]),
+                    row.names = FALSE, append = TRUE)
+        gc()
+        write.xlsx2(proportion_over_time, file = paste0(outputDir2, "clonotype_proportion_over_time_", patient, ".xlsx"),
+                    sheetName = paste0("Clonotype_Proportion_", names(clonotype_types)[which(clonotype_types == type)]),
+                    row.names = FALSE, append = TRUE)
+        gc()
+        write.xlsx2(car_frequency_over_time, file = paste0(outputDir2, "car_clonotype_frequency_over_time_", patient, ".xlsx"),
+                    sheetName = paste0("CARpos_Clonotype_Frequency_", names(clonotype_types)[which(clonotype_types == type)]),
+                    row.names = FALSE, append = TRUE)
+        gc()
+        write.xlsx2(car_proportion_over_time, file = paste0(outputDir2, "car_clonotype_proportion_over_time_", patient, ".xlsx"),
+                    sheetName = paste0("CARpos_Clonotype_Proportion_", names(clonotype_types)[which(clonotype_types == type)]),
+                    row.names = FALSE, append = TRUE)
+        gc()
+        
       }
-      close(pb)
-      
-      ### end time
-      end_time <- Sys.time()
-      
-      ### print out the running time
-      cat(paste("Running Time:",
-                signif(as.numeric(difftime(end_time, start_time, units = "mins")), digits = 3),
-                "mins"))
-      
-      ### add total column
-      frequency_over_time <- data.frame(Clonotype=unique_clonotypes,
-                                        frequency_over_time,
-                                        Total=apply(frequency_over_time, 1, sum),
-                                        stringsAsFactors = FALSE, check.names = FALSE)
-      car_frequency_over_time <- data.frame(Clonotype=unique_clonotypes,
-                                            car_frequency_over_time,
-                                            Total=apply(car_frequency_over_time, 1, sum),
-                                            stringsAsFactors = FALSE, check.names = FALSE)
-      proportion_over_time <- data.frame(Clonotype=unique_clonotypes,
-                                         proportion_over_time,
-                                         Total=apply(proportion_over_time, 1, sum),
-                                         stringsAsFactors = FALSE, check.names = FALSE)
-      car_proportion_over_time <- data.frame(Clonotype=unique_clonotypes,
-                                             car_proportion_over_time,
-                                             Total=apply(car_proportion_over_time, 1, sum),
-                                             stringsAsFactors = FALSE, check.names = FALSE)
-      
-      ### order the data frames by the Total column
-      frequency_over_time <- frequency_over_time[order(-frequency_over_time[,"Total"]),]
-      proportion_over_time <- proportion_over_time[order(-proportion_over_time[,"Total"]),]
-      car_frequency_over_time <- car_frequency_over_time[order(-car_frequency_over_time[,"Total"]),]
-      car_proportion_over_time <- car_proportion_over_time[order(-car_proportion_over_time[,"Total"]),]
-      
-      ### trim the car tables
-      car_proportion_over_time <- car_proportion_over_time[which(car_frequency_over_time[,"Total"] > 1),]
-      car_frequency_over_time <- car_frequency_over_time[which(car_frequency_over_time[,"Total"] > 1),]
-      
-      ### save the tables in Excel format
-      write.xlsx2(frequency_over_time, file = paste0(outputDir2, "clonotype_frequency_over_time_", patient, ".xlsx"),
-                  sheetName = "Clonotype_Frequency", row.names = FALSE)
-      gc()
-      write.xlsx2(proportion_over_time, file = paste0(outputDir2, "clonotype_proportion_over_time_", patient, ".xlsx"),
-                  sheetName = "Clonotype_Proportion", row.names = FALSE)
-      gc()
-      write.xlsx2(car_frequency_over_time, file = paste0(outputDir2, "car_clonotype_frequency_over_time_", patient, ".xlsx"),
-                  sheetName = "CARpos_Clonotype_Frequency", row.names = FALSE)
-      gc()
-      write.xlsx2(car_proportion_over_time, file = paste0(outputDir2, "car_clonotype_proportion_over_time_", patient, ".xlsx"),
-                  sheetName = "CARpos_Clonotype_Proportion", row.names = FALSE)
-      gc()
       
     }
     
@@ -1172,7 +1186,7 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
     
     ### load the file
     SJCAR19_Clonotype_Frequency[["CARPOSONLY"]][[patient]] <- read.xlsx2(file = paste0(outputDir, patient, "/car_clonotype_frequency_over_time_", patient, ".xlsx"),
-                                                                         sheetIndex = 1, stringsAsFactors = FALSE, check.names = FALSE,
+                                                                         sheetName = "CARpos_Clonotype_Frequency_One_", stringsAsFactors = FALSE, check.names = FALSE,
                                                                          row.names = 1)
     
     ### numerize the table
@@ -1183,13 +1197,15 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
     ### NOW IT'S NOT CAR+ ONLY BUT WITH ALL THE TCR CELLS!
     ### load the file
     SJCAR19_Clonotype_Frequency[["ALL"]][[patient]] <- read.xlsx2(file = paste0(outputDir, patient, "/clonotype_frequency_over_time_", patient, ".xlsx"),
-                                                                  sheetIndex = 1, stringsAsFactors = FALSE, check.names = FALSE,
+                                                                  sheetName = "Clonotype_Frequency_One_From_Ea", stringsAsFactors = FALSE, check.names = FALSE,
                                                                   row.names = 1)
     
     ### numerize the table
     for(i in 1:ncol(SJCAR19_Clonotype_Frequency[["ALL"]][[patient]])) {
       SJCAR19_Clonotype_Frequency[["ALL"]][[patient]][,i] <- as.numeric(SJCAR19_Clonotype_Frequency[["ALL"]][[patient]][,i])
     }
+    
+    gc()
   }
   
   ### Save the clonotype lineage info
@@ -1393,7 +1409,7 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
   }
   
   ### GMP CAR+ persistent cells
-  pIdx <- intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% pClones),
+  pIdx <- intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% pClones),
                     intersect(union(which(Seurat_Obj@meta.data$time == "GMP"),
                                     which(Seurat_Obj@meta.data$time == "GMP-redo")),
                               which(Seurat_Obj@meta.data$CAR == "CARpos")))
@@ -1405,13 +1421,13 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
   npIdx <- setdiff(intersect(union(which(Seurat_Obj@meta.data$time == "GMP"),
                                    which(Seurat_Obj@meta.data$time == "GMP-redo")),
                              which(Seurat_Obj@meta.data$CAR == "CARpos")),
-                   which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% pClones))
+                   which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% pClones))
   
   ### what are the patients that have less than 3 after-infusion time points?
   npIdx <- setdiff(npIdx, which(Seurat_Obj@meta.data$px %in% indeterminate_patient_pool))
   
   ### remove cells which do not have TCR info (we don't know about those cells yet)
-  npIdx <- setdiff(npIdx, which(is.na(Seurat_Obj@meta.data$cdr3_aa)))
+  npIdx <- setdiff(npIdx, which(is.na(Seurat_Obj@meta.data$cdr3_one_alpha_beta)))
   
   ### check whether the orders are the same
   print(identical(names(Idents(object = Seurat_Obj)), rownames(Seurat_Obj@meta.data)))
@@ -2392,7 +2408,7 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
   }
   
   ### GMP CAR+ persistent cells
-  pIdx <- intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% pClones),
+  pIdx <- intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% pClones),
                     intersect(union(which(Seurat_Obj@meta.data$time == "GMP"),
                                     which(Seurat_Obj@meta.data$time == "GMP-redo")),
                               which(Seurat_Obj@meta.data$CAR == "CARpos")))
@@ -2401,7 +2417,7 @@ analyses_with_new_data <- function(Seurat_RObj_path="./data/SJCAR19_Oct2020_Seur
   npIdx <- setdiff(intersect(union(which(Seurat_Obj@meta.data$time == "GMP"),
                                    which(Seurat_Obj@meta.data$time == "GMP-redo")),
                              which(Seurat_Obj@meta.data$CAR == "CARpos")),
-                   which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% pClones))
+                   which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% pClones))
   
   ### check whether the orders are the same
   print(identical(names(Idents(object = Seurat_Obj)), rownames(Seurat_Obj@meta.data)))
