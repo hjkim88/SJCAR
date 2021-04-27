@@ -867,7 +867,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   }
   
   ### All the CAR+ persistent cells
-  pIdx <- intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% pClones),
+  pIdx <- intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% pClones),
                     which(Seurat_Obj@meta.data$CAR == "CARpos"))
   
   ### All the CAR+ non-persistent cells
@@ -875,7 +875,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   ### even if there is no lineage found - e.g., Px00 & Px01
   ### there should be at least 3 after-infusion time points to determine non-persisters
   npIdx <- setdiff(which(Seurat_Obj@meta.data$CAR == "CARpos"),
-                   which(Seurat_Obj@meta.data$clonotype_id_by_patient %in% pClones))
+                   which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% pClones))
   
   ### what are the patients that have less than 3 after-infusion time points?
   npIdx <- setdiff(npIdx, which(Seurat_Obj@meta.data$px %in% indeterminate_patient_pool))
@@ -886,7 +886,7 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
   ### check whether the orders are the same
   print(identical(names(Idents(object = Seurat_Obj)), rownames(Seurat_Obj@meta.data)))
   
-  ### annotate GMP CAR+ persisters
+  ### annotate All CAR+ persisters
   Seurat_Obj@meta.data$ALL_CARpos_Persister <- NA
   Seurat_Obj@meta.data$ALL_CARpos_Persister[pIdx] <- "YES"
   Seurat_Obj@meta.data$ALL_CARpos_Persister[npIdx] <- "NO"
