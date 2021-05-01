@@ -12,12 +12,15 @@
 #                  b) Clustering + UMAP
 #                  c) Cluster 0,1,4,8 vs others
 #                  d) After infusion CAR+ subsister vs non-subsisters to find CAR is differentially expressed
-#                  e) Where are the subsisters that close to non-subsister located in the after infusion CAR+ UMAP? 
-#                  f) Pseudotime analysis on PCA
-#                  g) PCA/UMAP plot of lineages with size=1 vs lineages with size > 1 (coloring differently)
+#                  e) Where are the subsisters that close to non-subsisters located in the after infusion CAR+ UMAP?
+#                  f) Where are the outliers in the after infusion CAR+ UMAP located in the GMP PCA?
+#                  g) Where are the CD4+ CAR+ subsister cells lie in the UMAP?
+#                  h) Pseudotime analysis on PCA
+#                  i) PCA/UMAP plot of lineages with size=1 vs lineages with size > 1 (coloring differently)
 #               6. Visualize some interesting genes on UMAP
-#               7. CAR+ (>0, >1, >2, etc.) numbers for each patient between "From Sorting" and "From scRNA-Seq"   
-#               8. Time series DE analysis & pathway analysis
+#               7. CAR+ (>0, >1, >2, etc.) numbers for each patient between "From Sorting" and "From scRNA-Seq"
+#               8. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#               9. Time series DE analysis & pathway analysis
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -75,6 +78,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       install.packages("BiocManager")
     BiocManager::install("slingshot")
     require(slingshot, quietly = TRUE)
+  }
+  if(!require(org.Hs.eg.db, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("org.Hs.eg.db")
+    require(org.Hs.eg.db, quietly = TRUE)
   }
   
   ### create outputDir
@@ -923,6 +932,140 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     
   }
   
+  # ******************************************************************************************
+  # Pathway Analysis with clusterProfiler package
+  # Input: geneList     = a vector of gene Entrez IDs for pathway analysis [numeric or character]
+  #        org          = organism that will be used in the analysis ["human" or "mouse"]
+  #                       should be either "human" or "mouse"
+  #        database     = pathway analysis database (KEGG or GO) ["KEGG" or "GO"]
+  #        title        = title of the pathway figure [character]
+  #        pv_threshold = pathway analysis p-value threshold (not DE analysis threshold) [numeric]
+  #        displayNum   = the number of pathways that will be displayed [numeric]
+  #                       (If there are many significant pathways show the few top pathways)
+  #        imgPrint     = print a plot of pathway analysis [TRUE/FALSE]
+  #        dir          = file directory path of the output pathway figure [character]
+  #
+  # Output: Pathway analysis results in figure - using KEGG and GO pathways
+  #         The x-axis represents the number of DE genes in the pathway
+  #         The y-axis represents pathway names
+  #         The color of a bar indicates adjusted p-value from the pathway analysis
+  #         For Pathview Result, all colored genes are found DE genes in the pathway,
+  #         and the color indicates log2(fold change) of the DE gene from DE analysis
+  # ******************************************************************************************
+  pathwayAnalysis_CP <- function(geneList,
+                                 org,
+                                 database,
+                                 title="Pathway_Results",
+                                 pv_threshold=0.05,
+                                 displayNum=Inf,
+                                 imgPrint=TRUE,
+                                 dir="./") {
+    
+    ### load library
+    if(!require(clusterProfiler, quietly = TRUE)) {
+      if (!requireNamespace("BiocManager", quietly = TRUE))
+        install.packages("BiocManager")
+      BiocManager::install("clusterProfiler")
+      require(clusterProfiler, quietly = TRUE)
+    }
+    if(!require(ggplot2)) {
+      install.packages("ggplot2")
+      library(ggplot2)
+    }
+    
+    
+    ### collect gene list (Entrez IDs)
+    geneList <- geneList[which(!is.na(geneList))]
+    
+    if(!is.null(geneList)) {
+      ### make an empty list
+      p <- list()
+      
+      if(database == "KEGG") {
+        ### KEGG Pathway
+        kegg_enrich <- enrichKEGG(gene = geneList, organism = org, pvalueCutoff = pv_threshold)
+        
+        if(is.null(kegg_enrich)) {
+          writeLines("KEGG Result does not exist")
+          return(NULL)
+        } else {
+          kegg_enrich@result <- kegg_enrich@result[which(kegg_enrich@result$p.adjust < pv_threshold),]
+          
+          if(imgPrint == TRUE) {
+            if((displayNum == Inf) || (nrow(kegg_enrich@result) <= displayNum)) {
+              result <- kegg_enrich@result
+              description <- kegg_enrich@result$Description
+            } else {
+              result <- kegg_enrich@result[1:displayNum,]
+              description <- kegg_enrich@result$Description[1:displayNum]
+            }
+            
+            if(nrow(kegg_enrich) > 0) {
+              p[[1]] <- ggplot(result, aes(x=Description, y=Count)) + labs(x="", y="Gene Counts") + 
+                theme_classic(base_size = 30) + geom_bar(aes(fill = p.adjust), stat="identity") + coord_flip() +
+                scale_x_discrete(limits = rev(description)) +
+                guides(fill = guide_colorbar(ticks=FALSE, title="P.Val", barheight=10)) +
+                ggtitle(paste0("KEGG ", title)) +
+                theme(axis.text = element_text(size = 30))
+              
+              ggsave(file = paste0(dir, "KEGG_", title, "_CB.png"), plot = p[[1]], width = 35, height = 10, dpi = 350)
+            } else {
+              writeLines("KEGG Result does not exist")
+            }
+          }
+          
+          return(kegg_enrich@result)
+        }
+      } else if(database == "GO") {
+        ### GO Pathway
+        if(org == "human") {
+          go_enrich <- enrichGO(gene = geneList, OrgDb = 'org.Hs.eg.db', readable = T, ont = "BP", pvalueCutoff = pv_threshold)
+        } else if(org == "mouse") {
+          go_enrich <- enrichGO(gene = geneList, OrgDb = 'org.Mm.eg.db', readable = T, ont = "BP", pvalueCutoff = pv_threshold)
+        } else {
+          go_enrich <- NULL
+          writeLines(paste("Unknown org variable:", org))
+        }
+        
+        if(is.null(go_enrich)) {
+          writeLines("GO Result does not exist")
+          return(NULL)
+        } else {
+          go_enrich@result <- go_enrich@result[which(go_enrich@result$p.adjust < pv_threshold),]
+          
+          if(imgPrint == TRUE) {
+            if((displayNum == Inf) || (nrow(go_enrich@result) <= displayNum)) {
+              result <- go_enrich@result
+              description <- go_enrich@result$Description
+            } else {
+              result <- go_enrich@result[1:displayNum,]
+              description <- go_enrich@result$Description[1:displayNum]
+            }
+            
+            if(nrow(go_enrich) > 0) {
+              p[[2]] <- ggplot(result, aes(x=Description, y=Count)) + labs(x="", y="Gene Counts") + 
+                theme_classic(base_size = 30) + geom_bar(aes(fill = p.adjust), stat="identity") + coord_flip() +
+                scale_x_discrete(limits = rev(description)) +
+                guides(fill = guide_colorbar(ticks=FALSE, title="P.Val", barheight=10)) +
+                ggtitle(paste0("GO ", title)) +
+                theme(axis.text = element_text(size = 30))
+              
+              ggsave(file = paste0(dir, "GO_", title, "_CB.png"), plot = p[[2]], width = 35, height = 10, dpi = 350)
+            } else {
+              writeLines("GO Result does not exist")
+            }
+          }
+          
+          return(go_enrich@result)
+        }
+      } else {
+        stop("database prameter should be \"GO\" or \"KEGG\"")
+      }
+    } else {
+      writeLines("geneList = NULL")
+    }
+  }
+  
   
   #
   ### 1. Alluvial plots of lineages - CAR+ a) all patients into one b) separated by patient
@@ -1748,6 +1891,46 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
               file = paste0(outputDir2, "/CARpos_After_Infusion_Subsister_vs_Non-Subsisters.xlsx"),
               sheetName = "CARpos_AI_S_vs_NS", row.names = FALSE)
   
+  ### now after infusion CAR+ subsister vs cluster (2,3,5,6,7,9,10)
+  
+  ### perform clustering
+  sub_seurat_obj2 <- FindNeighbors(sub_seurat_obj2, dims = 1:10)
+  sub_seurat_obj2 <- FindClusters(sub_seurat_obj2, resolution = 0.5)
+  
+  ### save the clustering result to meta.data
+  sub_seurat_obj2@meta.data$clusters <- Idents(sub_seurat_obj2)
+  
+  ### set column for cluster 0,1,4,8 and the others
+  sub_seurat_obj2@meta.data$Cluster0148 <- "NO"
+  sub_seurat_obj2@meta.data$Cluster0148[which(as.character(sub_seurat_obj2@meta.data$clusters) %in% c("0", "1", "4", "8"))] <- "YES"
+  
+  ### combine subsister column and the cluster0148 column
+  ### if overlapped, overwirte it with Cluster23567910
+  ### 317 vs 24,534
+  sub_seurat_obj2@meta.data$new_group <- NA
+  sub_seurat_obj2@meta.data$new_group[which(sub_seurat_obj2@meta.data$CD8_Persisters == "Subsisters")] <- "Subsisters"
+  sub_seurat_obj2@meta.data$new_group[which(sub_seurat_obj2@meta.data$Cluster0148 == "NO")] <- "Cluster23567910"
+  
+  ### set ident with the persistency info
+  sub_seurat_obj2 <- SetIdent(object = sub_seurat_obj2,
+                              cells = rownames(sub_seurat_obj2@meta.data),
+                              value = sub_seurat_obj2@meta.data$new_group)
+  
+  ### DE analysis
+  de_result <- FindMarkers(sub_seurat_obj2,
+                           ident.1 = "Subsisters",
+                           ident.2 = "Cluster23567910",
+                           min.pct = 0.5,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/CARpos_After_Infusion_Subsister_vs_C23567910.xlsx"),
+              sheetName = "CARpos_AI_S_vs_C23567910", row.names = FALSE)
+  
   
   #
   ### 5. e) Where are the subsisters that close to non-subsister located in the after infusion CAR+ UMAP?
@@ -1761,6 +1944,14 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   target_Seurat_Obj <- subset(Seurat_Obj, cells = rownames(Seurat_Obj@meta.data)[union(which(Seurat_Obj$GMP_CARpos_CD8_Persister == "YES"),
                                                                                        which(Seurat_Obj$GMP_CARpos_CD8_Persister == "NO"))])
   
+  ### only the patients we are interested
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$px)
+  target_Seurat_Obj <- subset(target_Seurat_Obj, idents = c("SJCAR19-02", "SJCAR19-04", "SJCAR19-05",
+                                                            "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
+                                                            "SJCAR19-09", "SJCAR19-10", "SJCAR19-11"))
+  
   ### get the same number of samples (persister: non-persister - same ratio) and draw a UMAP plot again
   set.seed(1234)
   target_Seurat_Obj@meta.data$New_Persistency <- NA
@@ -1773,7 +1964,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                                  which(target_Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "NO"))
     
     ### sampling
-    if((length(px_gmp_last) > 2) && (length(px_gmp_not_last) > length(px_gmp_last))) {
+    if((length(px_gmp_last) > 0) && (length(px_gmp_not_last) > length(px_gmp_last))) {
       px_gmp_not_last <- sample(px_gmp_not_last, size = length(px_gmp_last)*multiplier_k)
     }
     
@@ -1798,14 +1989,15 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   de_result <- FindMarkers(target_Seurat_Obj,
                            ident.1 = "YES",
                            ident.2 = "NO",
-                           min.pct = 0.1,
-                           logfc.threshold = 0.1,
+                           min.pct = 0.5,
+                           logfc.threshold = 0.2,
                            test.use = "wilcox")
   
   ### retain the DE genes only
-  target_Seurat_Obj@assays$RNA@counts <- target_Seurat_Obj@assays$RNA@counts[rownames(de_result)[1:100],]
-  target_Seurat_Obj@assays$RNA@data <- target_Seurat_Obj@assays$RNA@data[rownames(de_result)[1:100],]
-  target_Seurat_Obj@assays$RNA@var.features <- rownames(de_result)[1:100]
+  de_genes <- rownames(de_result)[which(de_result$p_val_adj < 0.01)]
+  target_Seurat_Obj@assays$RNA@counts <- target_Seurat_Obj@assays$RNA@counts[de_genes,]
+  target_Seurat_Obj@assays$RNA@data <- target_Seurat_Obj@assays$RNA@data[de_genes,]
+  target_Seurat_Obj@assays$RNA@var.features <- de_genes
   
   ### normalization
   target_Seurat_Obj <- NormalizeData(target_Seurat_Obj,
@@ -1826,56 +2018,76 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   target_Seurat_Obj <- RunUMAP(target_Seurat_Obj, dims = 1:15)
   
   ### PCA with all those info
-  p <- list()
-  p[[1]] <- DimPlot(object = target_Seurat_Obj, reduction = "pca",
-                    group.by = "px", shape.by = "New_Persistency",
-                    pt.size = 3) +
-    ggtitle("PCA of SJCAR19 Data") +
-    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30)) +
-    labs(color="Patient",
-         shape="Is Persistent")
-  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  # p <- list()
+  # p[[1]] <- DimPlot(object = target_Seurat_Obj, reduction = "pca",
+  #                   group.by = "px", shape.by = "New_Persistency",
+  #                   pt.size = 3, order = c("YES", "NO")) +
+  #   ggtitle("PCA of SJCAR19 Data") +
+  #   theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30)) +
+  #   labs(color="Patient",
+  #        shape="Is Persistent")
+  # p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  # 
+  # ### pca for each px
+  # target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+  #                               cells = rownames(target_Seurat_Obj@meta.data),
+  #                               value = target_Seurat_Obj@meta.data$px)
+  # g <- ggplot_build(p[[1]])
+  # color_code <- data.frame(colours = unique(g$data[[1]]["colour"]), 
+  #                          label = levels(g$plot$data[, "px"]),
+  #                          stringsAsFactors = FALSE, check.names = FALSE)
+  # rownames(color_code) <- color_code$label
+  # unique_px <- c("SJCAR19-02", "SJCAR19-04", "SJCAR19-05",
+  #                "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
+  #                "SJCAR19-09", "SJCAR19-10", "SJCAR19-11")
   
-  ### pca for each px
-  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
-                                cells = rownames(target_Seurat_Obj@meta.data),
-                                value = target_Seurat_Obj@meta.data$px)
-  g <- ggplot_build(p[[1]])
-  color_code <- data.frame(colours = unique(g$data[[1]]["colour"]), 
-                           label = levels(g$plot$data[, "px"]),
-                           stringsAsFactors = FALSE, check.names = FALSE)
-  rownames(color_code) <- color_code$label
-  unique_px <- c("SJCAR19-02", "SJCAR19-04", "SJCAR19-05",
-                 "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
-                 "SJCAR19-09", "SJCAR19-10", "SJCAR19-11")
-  for(i in 1:length(unique_px)) {
-    temp_seurat_obj <- subset(target_Seurat_Obj, idents = c(unique_px[i]))
-    p[[i+1]] <- DimPlot(object = temp_seurat_obj, reduction = "pca",
-                        group.by = "New_Persistency",
-                        pt.size = 3, cols = c("YES" = "red", "NO" = "lightgray"),
-                        order = c("YES", "NO")) +
-      ggtitle(unique_px[i]) +
-      lims(x = g$layout$panel_scales_x[[1]]$range$range,
-           y = g$layout$panel_scales_y[[1]]$range$range) +
-      theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 20)) +
-      labs(color="Is Persistent")
-    # p[[i+1]]$layers[[1]]$aes_params$alpha <- 0.7
-  }
+  # for(i in 1:length(unique_px)) {
+  #   temp_seurat_obj <- subset(target_Seurat_Obj, idents = c(unique_px[i]))
+  #   p[[i+1]] <- DimPlot(object = temp_seurat_obj, reduction = "pca",
+  #                       group.by = "New_Persistency",
+  #                       pt.size = 3, cols = c("YES" = "red", "NO" = "lightgray"),
+  #                       order = c("YES", "NO")) +
+  #     ggtitle(unique_px[i]) +
+  #     lims(x = g$layout$panel_scales_x[[1]]$range$range,
+  #          y = g$layout$panel_scales_y[[1]]$range$range) +
+  #     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 20)) +
+  #     labs(color="Is Persistent")
+  #   # p[[i+1]]$layers[[1]]$aes_params$alpha <- 0.7
+  # }
   
-  ### arrange the plots and save
-  fName <- paste0("PCA_Plot_Persistence_per_Px_Sampled_DE_Genes_Only")
-  rowNum <- 3
-  colNum <- 3
-  g <- arrangeGrob(grobs = p[2:length(p)],
-                   nrow = rowNum,
-                   ncol = colNum,
-                   top = textGrob(paste0(fName, "\n"), gp=gpar(fontsize=25)))
-  ggsave(file = paste0(outputDir2, fName, ".png"), g, width = 25, height = 15, dpi = 300)
+  # ### arrange the plots and save
+  # fName <- paste0("PCA_Plot_Persistence_per_Px_Sampled_DE_Genes_Only")
+  # rowNum <- 3
+  # colNum <- 3
+  # g <- arrangeGrob(grobs = p[2:length(p)],
+  #                  nrow = rowNum,
+  #                  ncol = colNum,
+  #                  top = textGrob(paste0(fName, "\n"), gp=gpar(fontsize=25)))
+  # ggsave(file = paste0(outputDir2, fName, ".png"), g, width = 25, height = 15, dpi = 300)
   
-  ### get subsister cells with PC1 < 5
+  ### draw PCA with GMP time point only
+  p <- DimPlot(object = target_Seurat_Obj, reduction = "pca",
+               group.by = "New_Persistency", split.by = "px",
+               cols = c("NO" = "lightgray", "YES" = "red"),
+               order = c("NO", "YES"),
+               pt.size = 5, ncol = 3) +
+    ggtitle("") +
+    labs(color="") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 36)) +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.8
+  ggsave(paste0(outputDir2, "PCA_Plot_Persistence_per_Px_Sampled_DE_Genes_Only.png"), plot = p, width = 30, height = 20, dpi = 350)
+  
+  ### get subsister cells with PC1 < 0
   pca_map <- Embeddings(target_Seurat_Obj, reduction = "pca")[rownames(target_Seurat_Obj@meta.data), 1:10]
   target_idx <- intersect(which(target_Seurat_Obj@meta.data$New_Persistency == "YES"),
-                          which(pca_map[,"PC_1"] < 5))
+                          which(pca_map[,"PC_1"] < 0))
   target_cells <- rownames(target_Seurat_Obj@meta.data)[target_idx]
   target_clonotypes <- unique(target_Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[target_idx])
   
@@ -1885,31 +2097,51 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### re-define the subsisters
   target_Seurat_Obj@meta.data$New_Persistency[target_idx] <- "MID"
   
-  ### redraw the pca plots
-  g <- ggplot_build(p[[1]])
-  for(i in 1:length(unique_px)) {
-    temp_seurat_obj <- subset(target_Seurat_Obj, idents = c(unique_px[i]))
-    p[[i+1]] <- DimPlot(object = temp_seurat_obj, reduction = "pca",
-                        group.by = "New_Persistency",
-                        pt.size = 3, cols = c("YES" = "red", "NO" = "lightgray", "MID" = "orange"),
-                        order = c("YES", "MID", "NO")) +
-      ggtitle(unique_px[i]) +
-      lims(x = g$layout$panel_scales_x[[1]]$range$range,
-           y = g$layout$panel_scales_y[[1]]$range$range) +
-      theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 20)) +
-      labs(color="Is Persistent")
-    p[[i+1]]$layers[[1]]$aes_params$alpha <- 0.7
-  }
+  # ### redraw the pca plots
+  # g <- ggplot_build(p[[1]])
+  # for(i in 1:length(unique_px)) {
+  #   temp_seurat_obj <- subset(target_Seurat_Obj, idents = c(unique_px[i]))
+  #   p[[i+1]] <- DimPlot(object = temp_seurat_obj, reduction = "pca",
+  #                       group.by = "New_Persistency",
+  #                       pt.size = 3, cols = c("YES" = "red", "NO" = "lightgray", "MID" = "orange"),
+  #                       order = c("YES", "MID", "NO")) +
+  #     ggtitle(unique_px[i]) +
+  #     lims(x = g$layout$panel_scales_x[[1]]$range$range,
+  #          y = g$layout$panel_scales_y[[1]]$range$range) +
+  #     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 20)) +
+  #     labs(color="Is Persistent")
+  #   p[[i+1]]$layers[[1]]$aes_params$alpha <- 0.7
+  # }
+  # 
+  # ### arrange the plots and save
+  # fName <- paste0("PCA_Plot_Persistence_per_Px_Sampled_DE_Genes_Only")
+  # rowNum <- 3
+  # colNum <- 3
+  # g <- arrangeGrob(grobs = p[2:length(p)],
+  #                  nrow = rowNum,
+  #                  ncol = colNum,
+  #                  top = textGrob(paste0(fName, "\n"), gp=gpar(fontsize=25)))
+  # ggsave(file = paste0(outputDir2, fName, "2.png"), g, width = 25, height = 15, dpi = 300)
   
-  ### arrange the plots and save
-  fName <- paste0("PCA_Plot_Persistence_per_Px_Sampled_DE_Genes_Only")
-  rowNum <- 3
-  colNum <- 3
-  g <- arrangeGrob(grobs = p[2:length(p)],
-                   nrow = rowNum,
-                   ncol = colNum,
-                   top = textGrob(paste0(fName, "\n"), gp=gpar(fontsize=25)))
-  ggsave(file = paste0(outputDir2, fName, "2.png"), g, width = 25, height = 15, dpi = 300)
+  ### draw PCA with GMP time point only
+  p <- DimPlot(object = target_Seurat_Obj, reduction = "pca",
+               group.by = "New_Persistency", split.by = "px",
+               cols = c("YES" = "red", "NO" = "lightgray", "MID" = "orange"),
+               order = c("NO", "MID", "YES"),
+               pt.size = 5, ncol = 3) +
+    ggtitle("") +
+    labs(color="") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 36)) +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.8
+  ggsave(paste0(outputDir2, "PCA_Plot_Persistence_per_Px_Sampled_DE_Genes_Only2.png"), plot = p, width = 30, height = 20, dpi = 350)
+  
   
   ### add MID annotation to after infusion CAR+ object
   sub_seurat_obj2@meta.data$CD8_Persisters[which(sub_seurat_obj2@meta.data$clonotype_id_by_patient_one_alpha_beta %in% target_clonotypes)] <- "MID"
@@ -1930,8 +2162,77 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 36)) +
     guides(colour = guide_legend(override.aes = list(size=10)))
-  p[[1]]$layers[[1]]$aes_params$alpha <- 1
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.8
   ggsave(paste0(outputDir2, "UMAP_CARpos_Subsister_MID.png"), plot = p, width = 30, height = 20, dpi = 350)
+  
+  #
+  ### 5. f) Where are the outliers (those not overlapping with Cluster 0 & 1) in the after infusion CAR+ UMAP located in the GMP PCA?
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/5/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### lineages
+  persister_clones <- unique(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "YES")])
+  non_persister_clones <- unique(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "NO")])
+  
+  ### define persisters
+  sub_seurat_obj2@meta.data$CD8_Persisters <- "Non-subsisters"
+  sub_seurat_obj2@meta.data$CD8_Persisters[which(sub_seurat_obj2@meta.data$clonotype_id_by_patient_one_alpha_beta %in% persister_clones)] <- "Subsisters"
+  
+  ### get the outlier clones
+  outlier_idx <- intersect(which(sub_seurat_obj2@meta.data$CD8_Persisters == "Subsisters"),
+                           which(!sub_seurat_obj2@meta.data$clusters %in% c("0", "1", "4")))
+  outlier_clones <- unique(sub_seurat_obj2@meta.data$clonotype_id_by_patient_one_alpha_beta[outlier_idx])
+  
+  ### make outlier column
+  sub_seurat_obj2@meta.data$CD8_Persisters2 <- sub_seurat_obj2@meta.data$CD8_Persisters
+  sub_seurat_obj2@meta.data$CD8_Persisters2[outlier_idx] <- "Outliers"
+  
+  ### draw UMAP only with after infusion CAR+ cells coloring with subsisters vs non-subsisters
+  p <- DimPlot(object = sub_seurat_obj2, reduction = "umap",
+               group.by = "CD8_Persisters2", split.by = "px",
+               cols = c("Non-subsisters" = "lightgray", "Subsisters" = "red", "Outliers" = "black"),
+               order = c("Outliers", "Subsisters", "Non-subsisters"),
+               pt.size = 5, ncol = 3) +
+  ggtitle("") +
+  labs(color="") +
+  theme_classic(base_size = 64) +
+  theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+        axis.text.x = element_text(size = 48),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 48),
+        legend.title = element_text(size = 36),
+        legend.text = element_text(size = 36)) +
+  guides(colour = guide_legend(override.aes = list(size=10)))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.8
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsister_Outliers.png"), plot = p, width = 30, height = 20, dpi = 350)
+  
+  ### look at the PCA now
+  ### set new column for the outliers
+  target_Seurat_Obj@meta.data$New_Persistency2 <- as.character(target_Seurat_Obj@meta.data$New_Persistency)
+  target_Seurat_Obj@meta.data$New_Persistency2[which(target_Seurat_Obj@meta.data$New_Persistency2 == "MID")] <- "YES"
+  target_Seurat_Obj@meta.data$New_Persistency2[which(target_Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% outlier_clones)] <- "Outliers"
+  
+  ### draw PCA with GMP time point only
+  p <- DimPlot(object = target_Seurat_Obj, reduction = "pca",
+               group.by = "New_Persistency2", split.by = "px",
+               cols = c("NO" = "lightgray", "YES" = "red", "Outliers" = "black"),
+               order = c("NO", "Outliers", "YES"),
+               pt.size = 5, ncol = 3) +
+    ggtitle("") +
+    labs(color="") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 36)) +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.8
+  ggsave(paste0(outputDir2, "PCA_GMP_CARpos_Subsister_Outliers.png"), plot = p, width = 30, height = 20, dpi = 350)
   
   
   #
@@ -2011,6 +2312,13 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### define persisters
   sub_seurat_obj2@meta.data$CD8_Persisters <- "Non-subsisters"
   sub_seurat_obj2@meta.data$CD8_Persisters[which(sub_seurat_obj2@meta.data$clonotype_id_by_patient_one_alpha_beta %in% persister_clones)] <- "Subsisters"
+  
+  ### perform clustering
+  sub_seurat_obj2 <- FindNeighbors(sub_seurat_obj2, dims = 1:10)
+  sub_seurat_obj2 <- FindClusters(sub_seurat_obj2, resolution = 0.5)
+  
+  ### save the clustering result to meta.data
+  sub_seurat_obj2@meta.data$clusters <- Idents(sub_seurat_obj2)
   
   ### UMAP with subsister info
   p <- DimPlot(object = sub_seurat_obj2, reduction = "umap",
@@ -2110,6 +2418,70 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   p <- FeaturePlot(sub_seurat_obj2, features = rownames(de_result)[37:45], cols = c("lightgray", "red"))
   ggsave(paste0(outputDir2, "CARpos_Cluster0148_GEXP_9_DE_Genes(5).png"), plot = p, width = 15, height = 10, dpi = 350)
   
+  ### set column for cluster 0,1 and the others
+  sub_seurat_obj2@meta.data$Cluster01 <- "NO"
+  sub_seurat_obj2@meta.data$Cluster01[which(as.character(sub_seurat_obj2@meta.data$clusters) %in% c("0", "1"))] <- "YES"
+  
+  ### DE analysis
+  sub_seurat_obj2 <- SetIdent(object = sub_seurat_obj2,
+                              cells = rownames(sub_seurat_obj2@meta.data),
+                              value = sub_seurat_obj2@meta.data$Cluster01)
+  de_result <- FindMarkers(sub_seurat_obj2,
+                           ident.1 = "YES",
+                           ident.2 = "NO",
+                           min.pct = 0.5,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/CARpos_Cluster01_vs_Others.xlsx"),
+              sheetName = "CARpos_Cluster01_DE_Result", row.names = FALSE)
+  
+  ### get entrez ids for the genes
+  de_entrez_ids <- mapIds(org.Hs.eg.db,
+                          rownames(de_result)[which(de_result$p_val_adj < 0.01)],
+                          "ENTREZID", "SYMBOL")
+  de_entrez_ids <- de_entrez_ids[!is.na(de_entrez_ids)]
+  
+  ### GO & KEGG
+  pathway_result_GO <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                          org = "human", database = "GO",
+                                          title = paste0("Pathways_with_DE_Genes_Cluster01"),
+                                          displayNum = 10, imgPrint = TRUE,
+                                          dir = outputDir2)
+  pathway_result_KEGG <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                            org = "human", database = "KEGG",
+                                            title = paste0("Pathways_with_DE_Genes_Cluster01"),
+                                            displayNum = 10, imgPrint = TRUE,
+                                            dir = outputDir2)
+  write.xlsx2(pathway_result_GO, file = paste0(outputDir2, "GO_Pathways_with_DE_genes_Cluster01.xlsx"),
+              row.names = FALSE, sheetName = paste0("GO_Results"))
+  write.xlsx2(pathway_result_KEGG, file = paste0(outputDir2, "KEGG_Pathways_with_DE_genes_Cluster01.xlsx"),
+              row.names = FALSE, sheetName = paste0("KEGG_Results"))
+  
+  ### See gene expressions on UMAP with the top 1:9 DE genes
+  p <- FeaturePlot(sub_seurat_obj2, features = rownames(de_result)[1:9], cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "CARpos_Cluster01_GEXP_9_DE_Genes(1).png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### See gene expressions on UMAP with the top 10:18 DE genes
+  p <- FeaturePlot(sub_seurat_obj2, features = rownames(de_result)[10:18], cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "CARpos_Cluster01_GEXP_9_DE_Genes(2).png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### See gene expressions on UMAP with the top 19:27 DE genes
+  p <- FeaturePlot(sub_seurat_obj2, features = rownames(de_result)[19:27], cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "CARpos_Cluster01_GEXP_9_DE_Genes(3).png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### See gene expressions on UMAP with the top 28:36 DE genes
+  p <- FeaturePlot(sub_seurat_obj2, features = rownames(de_result)[28:36], cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "CARpos_Cluster01_GEXP_9_DE_Genes(4).png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### See gene expressions on UMAP with the top 37:45 DE genes
+  p <- FeaturePlot(sub_seurat_obj2, features = rownames(de_result)[37:45], cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "CARpos_Cluster01_GEXP_9_DE_Genes(5).png"), plot = p, width = 15, height = 10, dpi = 350)
+  
   # CD3D - t cells
   # CD4 - cd4 t cells
   # CD8A - cd8 t cells
@@ -2175,6 +2547,126 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     p[[i]]$labels$title <- paste(gene_set[i], "-", names(gene_set)[i])
   }
   ggsave(paste0(outputDir2, "CARpos_9_Interesting_Genes(2).png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  
+  #
+  ### 7. CAR+ (>0, >1, >2, etc.) numbers for each patient between "From Sorting" and "From scRNA-Seq"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/7/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### set some indicies
+  gmp_idx <- which(Seurat_Obj@meta.data$time2 == "GMP")
+  after_infusion_idx <- which(Seurat_Obj@meta.data$time2 %in% c("Wk1", "Wk2", "Wk3", "Wk4", 
+                                                                "Wk6", "Wk8", "3mo", "6mo", "9mo"))
+  
+  print(identical(rownames(Seurat_Obj@meta.data), colnames(Seurat_Obj@assays$RNA@counts)))
+  
+  ### change the CAR exp threshold
+  n <- 9
+  car_num_mat <- matrix(0, length(unique(Seurat_Obj@meta.data$px))+1, n)
+  rownames(car_num_mat) <- c(unique(Seurat_Obj@meta.data$px), "Total")
+  colnames(car_num_mat) <- paste0("CAR_TRANSCRIPT>", 0:(n-1))
+  gmp_car_num_mat <- car_num_mat
+  for(i in 1:n) {
+    ### get the indicies for CAR+ cells based on the threshold
+    car_idx <- which(Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",] > (i-1))
+    gmp_car_idx <- intersect(which(Seurat_Obj@meta.data$time2 == "GMP"), car_idx)
+    
+    ### get CAR+ numbers for each patient
+    for(px in unique(Seurat_Obj@meta.data$px)) {
+      ### indicies for the given patient
+      px_idx <- which(Seurat_Obj@meta.data$px == px)
+      
+      ### get CAR+ numbers
+      car_num_mat[px, i] <- length(intersect(car_idx, px_idx))
+      gmp_car_num_mat[px, i] <- length(intersect(gmp_car_idx, px_idx))
+    }
+    
+    ### get total numbers
+    car_num_mat["Total", i] <- sum(car_num_mat[1:(nrow(car_num_mat)-1),i])
+    gmp_car_num_mat["Total", i] <- sum(gmp_car_num_mat[1:(nrow(gmp_car_num_mat)-1),i])
+  }
+  
+  ### write out the result
+  write.xlsx2(data.frame(Px=rownames(car_num_mat),
+                         car_num_mat,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/CAR_Numbers_per_px.xlsx"),
+              sheetName = "CAR_Numbers_per_px", row.names = FALSE)
+  
+  ### write out the result
+  write.xlsx2(data.frame(Px=rownames(gmp_car_num_mat),
+                         gmp_car_num_mat,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/GMP_CAR_Numbers_per_px.xlsx"),
+              sheetName = "GMP_CAR_Numbers_per_px", row.names = FALSE)
+  
+  ### CAR+ percentages
+  car_pcnt_mat <- car_num_mat
+  gmp_car_pcnt_mat <- gmp_car_num_mat
+  for(px in unique(Seurat_Obj@meta.data$px)) {
+    car_pcnt_mat[px,] <- round(car_pcnt_mat[px,] * 100 / length(which(Seurat_Obj@meta.data$px == px)), 2)
+    gmp_car_pcnt_mat[px,] <- round(gmp_car_pcnt_mat[px,] * 100 / length(intersect(which(Seurat_Obj@meta.data$time2 == "GMP"),
+                                                                                  which(Seurat_Obj@meta.data$px == px))), 2)
+  }
+  car_pcnt_mat["Total",] <- round(car_pcnt_mat["Total",] * 100 / nrow(Seurat_Obj@meta.data), 2)
+  gmp_car_pcnt_mat["Total",] <- round(gmp_car_pcnt_mat["Total",] * 100 / length(which(Seurat_Obj@meta.data$time2 == "GMP")), 2)
+  
+  ### write out the result
+  write.xlsx2(data.frame(Px=rownames(car_pcnt_mat),
+                         car_pcnt_mat,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/CAR_Numbers_per_px.xlsx"),
+              sheetName = "CAR_Percentages_per_px", row.names = FALSE, append = TRUE)
+  
+  ### write out the result
+  write.xlsx2(data.frame(Px=rownames(gmp_car_pcnt_mat),
+                         gmp_car_pcnt_mat,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/GMP_CAR_Numbers_per_px.xlsx"),
+              sheetName = "GMP_CAR_Percentages_per_px", row.names = FALSE, append = TRUE)
+  
+  ### draw density plot for all the time points
+  plot_df <- data.frame(CAR_EXP=Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",rownames(Seurat_Obj@meta.data)],
+                        Px=Seurat_Obj@meta.data$px,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  p <- ggplot(plot_df, aes_string(x="CAR_EXP", col="Px")) +
+    geom_density(size = 2) +
+    labs(color="") +
+    ylab("") +
+    scale_x_continuous(breaks = 1:10, limits = c(1, 10)) +
+    theme_classic(base_size = 30)
+  ggsave(paste0(outputDir2, "CAR_Numbers_Density.png"), plot = p, width = 20, height = 10, dpi = 350)
+  
+  ### draw density plot for GMP only
+  plot_df <- data.frame(GMP_CAR_EXP=Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",rownames(Seurat_Obj@meta.data)[which(Seurat_Obj@meta.data$time2 == "GMP")]],
+                        Px=Seurat_Obj@meta.data$px[which(Seurat_Obj@meta.data$time2 == "GMP")],
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  p <- ggplot(plot_df, aes_string(x="GMP_CAR_EXP", col="Px")) +
+    geom_density(size = 2) +
+    labs(color="") +
+    ylab("") +
+    scale_x_continuous(breaks = 1:10, limits = c(1, 10)) +
+    theme_classic(base_size = 30)
+  ggsave(paste0(outputDir2, "GMP_CAR_Numbers_Density.png"), plot = p, width = 20, height = 10, dpi = 350)
+  
+  
+  #
+  ### 8. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/8/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  
+  
+  
+  
+  
   
   
 }
