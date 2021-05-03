@@ -17,6 +17,7 @@
 #                  g) Where are the CD4+ CAR+ subsister cells lie in the UMAP?
 #                  h) Pseudotime analysis on PCA
 #                  i) PCA/UMAP plot of lineages with size=1 vs lineages with size > 1 (coloring differently)
+#                  j) Find all markers based on the clustering
 #               6. Visualize some interesting genes on UMAP
 #               7. CAR+ (>0, >1, >2, etc.) numbers for each patient between "From Sorting" and "From scRNA-Seq"
 #               8. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
@@ -2233,6 +2234,122 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     guides(colour = guide_legend(override.aes = list(size=10)))
   p[[1]]$layers[[1]]$aes_params$alpha <- 0.8
   ggsave(paste0(outputDir2, "PCA_GMP_CARpos_Subsister_Outliers.png"), plot = p, width = 30, height = 20, dpi = 350)
+  
+  #
+  ### 5. i) PCA/UMAP plot of lineages with size=1 vs lineages with size > 1 (coloring differently)
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/5/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### get CARpos-only seurat object
+  Seurat_Obj <- SetIdent(object = Seurat_Obj,
+                         cells = rownames(Seurat_Obj@meta.data),
+                         value = Seurat_Obj@meta.data$CAR)
+  sub_seurat_obj <- subset(Seurat_Obj, idents = c("CARpos"))
+  
+  ### after gmp time points only
+  after_gmp_time_points <- c("Wk1", "Wk2", "Wk3", "Wk4", "Wk6",
+                             "Wk8", "3mo", "6mo", "9mo")
+  sub_seurat_obj <- SetIdent(object = sub_seurat_obj,
+                             cells = rownames(sub_seurat_obj@meta.data),
+                             value = sub_seurat_obj@meta.data$time2)
+  sub_seurat_obj <- subset(sub_seurat_obj, idents = intersect(after_gmp_time_points,
+                                                              unique(sub_seurat_obj@meta.data$time2)))
+  
+  #
+  ### run pca on the sub_seurat_obj
+  #
+  ### normalization
+  sub_seurat_obj <- NormalizeData(sub_seurat_obj,
+                                  normalization.method = "LogNormalize", scale.factor = 10000)
+  ### find variable genes
+  sub_seurat_obj <- FindVariableFeatures(sub_seurat_obj,
+                                         selection.method = "vst", nfeatures = 2000)
+  ### scaling
+  sub_seurat_obj <- ScaleData(sub_seurat_obj,
+                              vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  ### PCA
+  sub_seurat_obj <- RunPCA(sub_seurat_obj,
+                           features = VariableFeatures(object = sub_seurat_obj),
+                           npcs = 15)
+  ### UMAP
+  sub_seurat_obj <- RunUMAP(sub_seurat_obj, dims = 1:15)
+  
+  ### get seurat object for some specific patients
+  sub_seurat_obj <- SetIdent(object = sub_seurat_obj,
+                             cells = rownames(sub_seurat_obj@meta.data),
+                             value = sub_seurat_obj@meta.data$px)
+  sub_seurat_obj2 <- subset(sub_seurat_obj, idents = c("SJCAR19-02", "SJCAR19-04", "SJCAR19-05",
+                                                       "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
+                                                       "SJCAR19-09", "SJCAR19-10", "SJCAR19-11"))
+  
+  ### lineages
+  persister_clones <- unique(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "YES")])
+  non_persister_clones <- unique(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "NO")])
+  
+  ### define persisters
+  sub_seurat_obj2@meta.data$CD8_Persisters <- "Non-Subsisters"
+  sub_seurat_obj2@meta.data$CD8_Persisters[which(sub_seurat_obj2@meta.data$clonotype_id_by_patient_one_alpha_beta %in% persister_clones)] <- "Subsisters"
+  
+  ### define super persisters (lineage size > 1)
+  super_persister_clones <- Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "YES")]
+  super_persister_clones <- unique(super_persister_clones[which(duplicated(super_persister_clones))])
+  sub_seurat_obj2@meta.data$Super_Persisters <- sub_seurat_obj2@meta.data$CD8_Persisters
+  sub_seurat_obj2@meta.data$Super_Persisters[which(sub_seurat_obj2@meta.data$clonotype_id_by_patient_one_alpha_beta %in% super_persister_clones)] <- "Super-Subsisters"
+  
+  ### UMAP with subsister info split by each patient
+  p <- DimPlot(object = sub_seurat_obj2, reduction = "umap",
+               group.by = "Super_Persisters", split.by = "px",
+               pt.size = 5, ncol = 3,
+               cols = c("Non-Subsisters" = "lightgray", "Subsisters" = "red", "Super-Subsisters" = "magenta"),
+               order = c("Super-Subsisters", "Subsisters", "Non-Subsisters")) +
+    ggtitle("") +
+    labs(color="Is_Subsistent") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 48),
+          legend.text = element_text(size = 48)) +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 1
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Super_Subsister.png"), plot = p, width = 30, height = 20, dpi = 350)
+  
+  #
+  ### 5. j) Find all markers based on the clustering
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/5/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### perform clustering
+  sub_seurat_obj2 <- FindNeighbors(sub_seurat_obj2, dims = 1:10)
+  sub_seurat_obj2 <- FindClusters(sub_seurat_obj2, resolution = 0.5)
+  
+  ### save the clustering result to meta.data
+  sub_seurat_obj2@meta.data$clusters <- Idents(sub_seurat_obj2)
+  
+  ### set cluster info as idents
+  sub_seurat_obj2 <- SetIdent(object = sub_seurat_obj2,
+                              cells = rownames(sub_seurat_obj2@meta.data),
+                              value = sub_seurat_obj2@meta.data$clusters)
+  
+  ### DE analysis
+  de_result <- FindAllMarkers(sub_seurat_obj2,
+                              min.pct = 0.5,
+                              logfc.threshold = 0.2,
+                              test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/CARpos_Clusters_AllMarkers.xlsx"),
+              sheetName = "CARpos_Clusters_AllMarkers_DE_Result", row.names = FALSE)
   
   
   #
