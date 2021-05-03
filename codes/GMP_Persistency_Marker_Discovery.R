@@ -4645,10 +4645,11 @@ persistency_study <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCA
                                 cells = rownames(target_Seurat_Obj@meta.data),
                                 value = target_Seurat_Obj@meta.data$New_Persistency)
   
+  ### only using the specific cells
+  target_Seurat_Obj <- subset(target_Seurat_Obj, idents = c("YES", "NO"))
+  
   #
   ### 1. with all the genes
-  ### temporary seurat object for umap/pca
-  target_Seurat_Obj <- subset(target_Seurat_Obj, idents = c("YES", "NO"))
   
   ### run pca & umap
   target_Seurat_Obj <- RunPCA(target_Seurat_Obj,
