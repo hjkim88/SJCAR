@@ -20,8 +20,11 @@
 #                  j) Find all markers based on the clustering
 #               6. Visualize some interesting genes on UMAP
 #               7. CAR+ (>0, >1, >2, etc.) numbers for each patient between "From Sorting" and "From scRNA-Seq"
-#               8. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
-#               9. Time series DE analysis & pathway analysis
+#               8. If sampling from GMP and sampling from an after infusion time point, how many matches do we see?
+#                  Using GMP - clone size as a background to estimate a selection factor
+#                  And show distribution shift
+#               9. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#               10. Time series DE analysis & pathway analysis
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -2294,7 +2297,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   sub_seurat_obj2@meta.data$CD8_Persisters[which(sub_seurat_obj2@meta.data$clonotype_id_by_patient_one_alpha_beta %in% persister_clones)] <- "Subsisters"
   
   ### define super persisters (lineage size > 1)
-  super_persister_clones <- Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "YES")]
+  super_persister_clones <- sub_seurat_obj2@meta.data$clonotype_id_by_patient_one_alpha_beta[intersect(which(sub_seurat_obj2@meta.data$ALL_CARpos_Persister == "YES"),
+                                                                                                       which(sub_seurat_obj2@meta.data$CD4_CD8_by_Consensus == "CD8"))]
   super_persister_clones <- unique(super_persister_clones[which(duplicated(super_persister_clones))])
   sub_seurat_obj2@meta.data$Super_Persisters <- sub_seurat_obj2@meta.data$CD8_Persisters
   sub_seurat_obj2@meta.data$Super_Persisters[which(sub_seurat_obj2@meta.data$clonotype_id_by_patient_one_alpha_beta %in% super_persister_clones)] <- "Super-Subsisters"
@@ -2772,11 +2776,98 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   
   #
-  ### 8. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 8. If sampling from GMP and sampling from an after infusion time point, how many matches do we see?
+  #      Using GMP - clone size as a background to estimate a selection factor
+  #      And show distribution shift
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/8/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### lineages
+  persister_clones <- unique(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "YES")])
+  non_persister_clones <- unique(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "NO")])
+  
+  ### after infusion time points
+  after_gmp_time_points <- c("Wk1", "Wk2", "Wk3", "Wk4", "Wk6",
+                             "Wk8", "3mo", "6mo", "9mo")
+  
+  ### for each lineage what's the selection factor?
+  selection_table <- matrix(0, 1, 11)
+  colnames(selection_table) <- c("Clone", "Patient", "Time", "GMP CD8 CAR+ #", "GMP Clone Size",
+                                 "Given Time CD8 CAR+ #", "Given Time Expected Clone Size", "Given Time Clone size",
+                                 "Selection %", "Odds Ratio", "P-value")
+  for(lin in persister_clones) {
+    
+    ### get px info
+    px <- strsplit(lin, split = "_", fixed = TRUE)[[1]][1]
+    
+    ### get time points that the given lineage appeared
+    tps <- unique(Seurat_Obj@meta.data$time2[which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta == lin)])
+    tps <- intersect(after_gmp_time_points, tps)
+    
+    ### get GMP CD8 CAR+ # of the patient
+    gmp_cd8_carpos_numbers <- length(intersect(intersect(which(Seurat_Obj@meta.data$time2 == "GMP"),
+                                                         which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8")),
+                                               which(Seurat_Obj@meta.data$CAR == "CARpos")))
+    
+    ### get the clone size in GMP CD8 CAR+ of the patient
+    gmp_clone_size <- length(intersect(which(Seurat_Obj@meta.data$time2 == "GMP"),
+                                       which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta == lin)))
+    
+    ### for each time point
+    for(tp in tps) {
+      ### number for the given time point
+      given_tp_cd8_carpos_numbers <- length(intersect(intersect(which(Seurat_Obj@meta.data$time2 == tp),
+                                                                which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8")),
+                                                      which(Seurat_Obj@meta.data$CAR == "CARpos")))
+      given_tp_clone_size <- length(intersect(which(Seurat_Obj@meta.data$time2 == tp),
+                                              which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta == lin)))
+      
+      ### additional info (selection %, odds ratio, p-value)
+      expected_clone_size <- given_tp_cd8_carpos_numbers * gmp_clone_size / gmp_cd8_carpos_numbers
+      selection_pcnt <- round(given_tp_clone_size * 100 / expected_clone_size, 2)
+      
+      ### calculate p-value
+      ### Fisher's exact test
+      ###
+      ###           TP Clone   No TP (GMP) Clone
+      ###          ----------------------------
+      ###    Clone |   X              Y
+      ### No Clone |   Z              W
+      X <- given_tp_clone_size
+      Y <- gmp_clone_size
+      Z <- given_tp_cd8_carpos_numbers - given_tp_clone_size
+      W <- gmp_cd8_carpos_numbers - gmp_clone_size
+      
+      odds_ratio <- fisher.test(matrix(c(X, Z, Y, W), 2, 2), alternative = "greater")$estimate
+      p_value <- fisher.test(matrix(c(X, Z, Y, W), 2, 2), alternative = "greater")$p.value
+      
+      ### add new row to the table
+      selection_table <- rbind(selection_table, c(lin, px, tp, gmp_cd8_carpos_numbers, gmp_clone_size,
+                                                  given_tp_cd8_carpos_numbers, expected_clone_size,
+                                                  given_tp_clone_size, selection_pcnt, odds_ratio, p_value))
+    }
+    
+  }
+  
+  ### remove the fake (first) row
+  selection_table <- selection_table[-1,]
+  
+  ### write out the result
+  write.xlsx2(data.frame(selection_table,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/Subsister_Selection_Fator.xlsx"),
+              sheetName = "Subsister_Selection_Fator", row.names = FALSE)
+  
+  
+  #
+  ### 9. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/9/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   
