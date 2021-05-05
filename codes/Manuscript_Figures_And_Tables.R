@@ -18,6 +18,7 @@
 #                  h) Pseudotime analysis on PCA
 #                  i) PCA/UMAP plot of lineages with size=1 vs lineages with size > 1 (coloring differently)
 #                  j) Find all markers based on the clustering
+#                  k) Use the % of CD4/CD8 subsisters vs Total CD4/CD8 in GMP to estimate how many CD8 subsisters were infused
 #               6. Visualize some interesting genes on UMAP
 #               7. CAR+ (>0, >1, >2, etc.) numbers for each patient between "From Sorting" and "From scRNA-Seq"
 #               8. If sampling from GMP and sampling from an after infusion time point, how many matches do we see?
@@ -2357,6 +2358,112 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   
   #
+  ### 5. k) Use the % of CD4/CD8 subsisters vs Total CD4/CD8 in GMP to estimate how many CD8 subsisters were infused
+  #         Do not use GMP-redo here
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/5/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  # ### the percentage of CD4/CD8 in the CAR+ GMP product
+  # gmp_product_cd4_pcnt <- rep(0, length(unique(Seurat_Obj@meta.data$px)))
+  # names(gmp_product_cd4_pcnt) <- unique(Seurat_Obj@meta.data$px)
+  # gmp_product_cd8_pcnt <- rep(0, length(unique(Seurat_Obj@meta.data$px)))
+  # names(gmp_product_cd8_pcnt) <- unique(Seurat_Obj@meta.data$px)
+  
+  # gmp_product_cd4_pcnt <- c(63.7, 79.1, 49.4, 57.5, 61.7, 39.2, 89.5, 62.0, 53.2, NA, NA, NA, NA, NA, NA, NA)
+  # gmp_product_cd8_pcnt <- c(14,5, 10.2, 48.1, 22.4, 36.4, 59.8, 8.1, 7.5, 29.1, NA, NA, NA, NA, NA, NA, NA)
+  # 
+  # ### cd3 percentage of the GMP product
+  # gmp_cd3_pcnt <- c(0.962, 0.999, 0.995, 0.996, 0.990, 0.999, 0.993, 0.982, 0.983,
+  #                   0.999, 0.998, 0.993, 0.996, 0.999, 0.997, 0.996, 0.995, 0.996, 99.810)
+  
+  ### the info we've got
+  Real_GMP_CARpos_pcnt <- c(41.90, 37.00, 41.90, 59.10, 33.30, 23.20, 26.70, 14.70,
+                            58.30, 33.60, 42.10, 32.00, 27.40, 32.60, NA, NA)
+  Real_GMP_CAR_CD4_pcnt <- c(60.60, 93.60, 60.60, 75.50, 77.50, 61.40, 95.40, 85.00,
+                             66.90, 52.10, 63.50, 58.60, 70.70, 71.20, NA, NA)
+  Real_GMP_CAR_CD8_pcnt <- c(37.20, 5.50, 37.20, 23.60, 21.00, 36.80, 2.90, 2.40,
+                             30.80, 46.70, 35.00, 39.90, 28.00, 27.70, NA, NA)
+  names(Real_GMP_CARpos_pcnt) <- unique(Seurat_Obj@meta.data$px)
+  names(Real_GMP_CAR_CD4_pcnt) <- unique(Seurat_Obj@meta.data$px)
+  names(Real_GMP_CAR_CD8_pcnt) <- unique(Seurat_Obj@meta.data$px)
+  
+  ### calculate some
+  Real_GMP_CAR_CD4_pcnt2 <- Real_GMP_CARpos_pcnt * Real_GMP_CAR_CD4_pcnt / 10000
+  Real_GMP_CAR_CD8_pcnt2 <- Real_GMP_CARpos_pcnt * Real_GMP_CAR_CD8_pcnt / 10000
+  
+  ### the cell count of the GMP product
+  gmp_cell_cnt <- c(1887000000, 3920000000, 2620000000, 4000000000, 3870000000,
+                    4030000000, 3620000000, 2820000000, 2700000000, 4060000000,
+                    4180000000, 2930000000, 5150000000, 3200000000, 3010000000, 4590000000)
+  names(gmp_cell_cnt) <- unique(Seurat_Obj@meta.data$px)
+  
+  ### result_table
+  result_table <- matrix(0, length(unique(Seurat_Obj@meta.data$px)), 15)
+  rownames(result_table) <- unique(Seurat_Obj@meta.data$px)
+  colnames(result_table) <- c("GMP CAR+ Cell %", "CD4 % of CAR+", "CD8 % of CAR+", "GMP Total Cell #",
+                              "10x GMP CAR+ CD4 Cell #", "10x GMP CAR+ CD8 Cell #",
+                              "10x GMP CAR+ CD4 Subsisters #", "10x GMP CAR+ CD8 Subsisters #",
+                              "GMP CD4 Subsister %", "GMP CD8 Subsister %",
+                              "Estimated GMP CD4 Subsisters #", "Estimated GMP CD8 Subsisters #",
+                              "Dose",
+                              "Estimated Injected GMP CD4 Subsisters #", "Estimated Injected GMP CD8 Subsisters #")
+  
+  ### data frame
+  result_table <- data.frame(result_table, stringsAsFactors = FALSE, check.names = FALSE)
+  result_table$`GMP CAR+ Cell %` <- Real_GMP_CARpos_pcnt
+  result_table$`CD4 % of CAR+` <- Real_GMP_CAR_CD4_pcnt
+  result_table$`CD8 % of CAR+` <- Real_GMP_CAR_CD8_pcnt
+  result_table$`GMP Total Cell #` <- gmp_cell_cnt
+  result_table$Dose <- NA
+  result_table$`Estimated Injected GMP CD4 Subsisters #` <- NA
+  result_table$`Estimated Injected GMP CD8 Subsisters #` <- NA
+  
+  ### for each patient
+  for(px in unique(Seurat_Obj@meta.data$px)) {
+    ### some pre-computed indicies (exclude GMP-redo)
+    gmp_carpos_cd4_idx <- intersect(intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                              which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD4")),
+                                    intersect(which(Seurat_Obj@meta.data$time == "GMP"),
+                                              which(Seurat_Obj@meta.data$px == px)))
+    gmp_carpos_cd8_idx <- intersect(intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                              which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8")),
+                                    intersect(which(Seurat_Obj@meta.data$time == "GMP"),
+                                              which(Seurat_Obj@meta.data$px == px)))
+    
+    ### CD4/CD8 GMP CARpos subsister cells
+    ### the numbers can different because we are only considering GMP excluding GMP-redo
+    sc_gmp_carpos_cd4_subsister_cell_num <- length(intersect(which(Seurat_Obj@meta.data$ALL_CARpos_Persister == "YES"),
+                                                             gmp_carpos_cd4_idx))
+    sc_gmp_carpos_cd8_subsister_cell_num <- length(intersect(which(Seurat_Obj@meta.data$ALL_CARpos_Persister == "YES"),
+                                                             gmp_carpos_cd8_idx))
+    
+    ### single cell GMP CAR+ CD4/CD8 total vs CD4/CD8 subsister ratio
+    sc_cd4_subsister_ratio <- sc_gmp_carpos_cd4_subsister_cell_num / length(gmp_carpos_cd4_idx)
+    sc_cd8_subsister_ratio <- sc_gmp_carpos_cd8_subsister_cell_num / length(gmp_carpos_cd8_idx)
+    
+    ### fill the table
+    result_table[px, "10x GMP CAR+ CD4 Cell #"] <- length(gmp_carpos_cd4_idx)
+    result_table[px, "10x GMP CAR+ CD8 Cell #"] <- length(gmp_carpos_cd8_idx)
+    result_table[px, "10x GMP CAR+ CD4 Subsisters #"] <- sc_gmp_carpos_cd4_subsister_cell_num
+    result_table[px, "10x GMP CAR+ CD8 Subsisters #"] <- sc_gmp_carpos_cd8_subsister_cell_num
+    result_table[px, "Estimated GMP CD4 Subsisters #"] <- round(gmp_cell_cnt[px] * Real_GMP_CAR_CD4_pcnt2[px] * sc_cd4_subsister_ratio, 2)
+    result_table[px, "Estimated GMP CD8 Subsisters #"] <- round(gmp_cell_cnt[px] * Real_GMP_CAR_CD8_pcnt2[px] * sc_cd8_subsister_ratio, 2)
+    result_table[px, "GMP CD4 Subsister %"] <- round(Real_GMP_CAR_CD4_pcnt2[px] * sc_cd4_subsister_ratio * 100, 5)
+    result_table[px, "GMP CD8 Subsister %"] <- round(Real_GMP_CAR_CD8_pcnt2[px] * sc_cd8_subsister_ratio * 100, 5)
+  }
+  
+  ### write out the result_table
+  write.xlsx2(data.frame(Patient=rownames(result_table),
+                         result_table,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/Estimated_CD4_CD8_Subsister_#_In_GMP.xlsx"),
+              sheetName = "Estimated_CD4_CD8_Subsister_#_GMP", row.names = FALSE)
+  
+  
+  #
   ### 6. Visualize some interesting genes on UMAP
   #
   
@@ -2798,6 +2905,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   colnames(selection_table) <- c("Clone", "Patient", "Time", "GMP CD8 CAR+ #", "GMP Clone Size",
                                  "Given Time CD8 CAR+ #", "Given Time Expected Clone Size", "Given Time Clone size",
                                  "Selection %", "Odds Ratio", "P-value")
+  selection_table2 <- matrix(0, 1, 10)
+  colnames(selection_table2) <- c("Clone", "Patient", "GMP CD8 CAR+ #", "GMP Clone Size",
+                                  "Post-Infusion CD8 CAR+ #", "Post-Infusion Expected Clone Size", "Post-Infusion Clone size",
+                                  "Selection %", "Odds Ratio", "P-value")
   for(lin in persister_clones) {
     
     ### get px info
@@ -2810,11 +2921,46 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     ### get GMP CD8 CAR+ # of the patient
     gmp_cd8_carpos_numbers <- length(intersect(intersect(which(Seurat_Obj@meta.data$time2 == "GMP"),
                                                          which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8")),
-                                               which(Seurat_Obj@meta.data$CAR == "CARpos")))
+                                               intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                                         which(Seurat_Obj@meta.data$px == px))))
     
     ### get the clone size in GMP CD8 CAR+ of the patient
-    gmp_clone_size <- length(intersect(which(Seurat_Obj@meta.data$time2 == "GMP"),
-                                       which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta == lin)))
+    gmp_clone_size <- length(intersect(intersect(which(Seurat_Obj@meta.data$time2 == "GMP"),
+                                                 which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta == lin)),
+                                       intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                                 which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))))
+    
+    ### get info of all the post-infusion time points
+    pi_cd8_carpos_numbers <- length(intersect(intersect(which(Seurat_Obj@meta.data$time2 %in% tps),
+                                                        which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8")),
+                                              which(Seurat_Obj@meta.data$CAR == "CARpos")))
+    pi_clone_size <- length(intersect(intersect(which(Seurat_Obj@meta.data$time2 %in% tps),
+                                                which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta == lin)),
+                                      intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                                which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))))
+    pi_expected_clone_size <- pi_cd8_carpos_numbers * gmp_clone_size / gmp_cd8_carpos_numbers
+    pi_selection_pcnt <- round(pi_clone_size * 100 / pi_expected_clone_size, 2)
+    
+    ### calculate p-value
+    ### Fisher's exact test
+    ###
+    ###           TP Clone   No TP (GMP) Clone
+    ###          ----------------------------
+    ###    Clone |   X              Y
+    ### No Clone |   Z              W
+    X <- pi_clone_size
+    Y <- gmp_clone_size
+    Z <- pi_cd8_carpos_numbers - pi_clone_size
+    W <- gmp_cd8_carpos_numbers - gmp_clone_size
+    
+    pi_odds_ratio <- fisher.test(matrix(c(X, Z, Y, W), 2, 2), alternative = "greater")$estimate
+    pi_p_value <- fisher.test(matrix(c(X, Z, Y, W), 2, 2), alternative = "greater")$p.value
+    
+    ### add new row to the table
+    selection_table2 <- rbind(selection_table2, c(lin, px, gmp_cd8_carpos_numbers, gmp_clone_size,
+                                                  pi_cd8_carpos_numbers, pi_expected_clone_size,
+                                                  pi_clone_size, pi_selection_pcnt, pi_odds_ratio, pi_p_value))
+    
     
     ### for each time point
     for(tp in tps) {
@@ -2822,8 +2968,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       given_tp_cd8_carpos_numbers <- length(intersect(intersect(which(Seurat_Obj@meta.data$time2 == tp),
                                                                 which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8")),
                                                       which(Seurat_Obj@meta.data$CAR == "CARpos")))
-      given_tp_clone_size <- length(intersect(which(Seurat_Obj@meta.data$time2 == tp),
-                                              which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta == lin)))
+      given_tp_clone_size <- length(intersect(intersect(which(Seurat_Obj@meta.data$time2 == tp),
+                                                        which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta == lin)),
+                                              intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                                        which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))))
       
       ### additional info (selection %, odds ratio, p-value)
       expected_clone_size <- given_tp_cd8_carpos_numbers * gmp_clone_size / gmp_cd8_carpos_numbers
@@ -2854,12 +3002,108 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   ### remove the fake (first) row
   selection_table <- selection_table[-1,]
+  selection_table2 <- selection_table2[-1,]
+  
+  ### make data frame
+  selection_table <- data.frame(selection_table,
+                                stringsAsFactors = FALSE, check.names = FALSE)
+  selection_table2 <- data.frame(selection_table2,
+                                 stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### multiple testing correction
+  selection_table$FDR <- p.adjust(selection_table$`P-value`, method = "BH")
+  selection_table2$FDR <- p.adjust(selection_table2$`P-value`, method = "BH")
   
   ### write out the result
-  write.xlsx2(data.frame(selection_table,
-                         stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir2, "/Subsister_Selection_Fator.xlsx"),
-              sheetName = "Subsister_Selection_Fator", row.names = FALSE)
+  write.xlsx2(selection_table,
+              file = paste0(outputDir2, "/Subsister_Selection_Fator_Foreach_Time.xlsx"),
+              sheetName = "Subsister_Selection_Time", row.names = FALSE)
+  write.xlsx2(selection_table2,
+              file = paste0(outputDir2, "/Subsister_Selection_Fator_All_PostInfusion.xlsx"),
+              sheetName = "Subsister_Selection_All_Post_Infusion", row.names = FALSE)
+  
+  
+  #
+  ### clone based not cell based
+  #
+  
+  ### target patients
+  target_pxs <- unique(Seurat_Obj@meta.data$px[which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% persister_clones)])
+  
+  ### make an empty table
+  selection_table3 <- matrix(0, 1, 10)
+  colnames(selection_table3) <- c("Patient", "Time", "GMP CAR+ Clone #", "GMP Subsister Clone #",
+                                  "Given Time CAR+ Clone #", "Given Time Expected Subsister Clone #",
+                                  "Given Time Observed Subsister Clone #",
+                                  "Selection %", "Odds Ratio", "P-value")
+  
+  ### for each patient
+  for(patient in target_pxs) {
+    
+    ### get time points of the patients
+    tps <- unique(Seurat_Obj@meta.data$time2[which(Seurat_Obj@meta.data$px == patient)])
+    tps <- intersect(after_gmp_time_points, tps)
+    
+    ### get info of GMP
+    gmp_carpos_clones <- unique(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[intersect(intersect(which(Seurat_Obj@meta.data$px == patient),
+                                                                                                                which(Seurat_Obj@meta.data$time2 == "GMP")),
+                                                                                                      which(Seurat_Obj@meta.data$CAR == "CARpos"))])
+    gmp_carpos_clone_num <- length(gmp_carpos_clones)
+    gmp_subsister_clone_num <- length(intersect(gmp_carpos_clones,
+                                                persister_clones))
+    
+    ### for each time point
+    for(tp in tps) {
+      ### number for the given time point
+      given_time_carpos_clones <- unique(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[intersect(intersect(which(Seurat_Obj@meta.data$px == patient),
+                                                                                                                         which(Seurat_Obj@meta.data$time2 == tp)),
+                                                                                                               which(Seurat_Obj@meta.data$CAR == "CARpos"))])
+      given_time_carpos_clone_num <- length(given_time_carpos_clones)
+      given_time_subsister_clone_num <- length(intersect(given_time_carpos_clones,
+                                                         persister_clones))
+      
+      ### additional info (selection %, odds ratio, p-value)
+      expected_clone_num <- given_time_carpos_clone_num * gmp_subsister_clone_num / gmp_carpos_clone_num
+      selection_pcnt <- round(given_time_subsister_clone_num * 100 / expected_clone_num, 2)
+      
+      ### calculate p-value
+      ### Fisher's exact test
+      ###
+      ###           TP Clone   No TP (GMP) Clone
+      ###          ----------------------------
+      ###    Clone |   X              Y
+      ### No Clone |   Z              W
+      X <- given_time_subsister_clone_num
+      Y <- gmp_subsister_clone_num
+      Z <- given_time_carpos_clone_num - given_time_subsister_clone_num
+      W <- gmp_carpos_clone_num - gmp_subsister_clone_num
+      
+      odds_ratio <- fisher.test(matrix(c(X, Z, Y, W), 2, 2), alternative = "greater")$estimate
+      p_value <- fisher.test(matrix(c(X, Z, Y, W), 2, 2), alternative = "greater")$p.value
+      
+      ### add new row to the table
+      selection_table3 <- rbind(selection_table3, c(patient, tp, gmp_carpos_clone_num, gmp_subsister_clone_num,
+                                                    given_time_carpos_clone_num, expected_clone_num,
+                                                    given_time_subsister_clone_num, selection_pcnt, odds_ratio, p_value))
+    }
+    
+  }
+  
+  ### remove the fake (first) row
+  selection_table3 <- selection_table3[-1,]
+  
+  ### make data frame
+  selection_table3 <- data.frame(selection_table3,
+                                 stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### multiple testing correction
+  selection_table3$FDR <- p.adjust(selection_table3$`P-value`, method = "BH")
+  
+  ### write out the result
+  write.xlsx2(selection_table3,
+              file = paste0(outputDir2, "/Subsister_Selection_Fator_Clone.xlsx"),
+              sheetName = "Subsister_Selection_Fator_Clone", row.names = FALSE)
+  
   
   
   #
