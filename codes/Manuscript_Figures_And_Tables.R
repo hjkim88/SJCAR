@@ -100,6 +100,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     install.packages("DescTools")
     require(DescTools, quietly = TRUE)
   }
+  if(!require(ggrepel, quietly = TRUE)) {
+    install.packages("ggrepel")
+    require(ggrepel, quietly = TRUE)
+  }
   
   ### create outputDir
   dir.create(outputDir, showWarnings = FALSE, recursive = TRUE)
@@ -3230,9 +3234,39 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           axis.text.x = element_text(angle = -45, hjust = 0.5, vjust = 0.5, size = 20))
   ggsave(file = paste0(outputDir2, "Estimated_CD4_CD8_Subsister_#_In_GMP.png"), plot = p, width = 20, height = 10, dpi = 400)
   
+  temp_df <- plot_df[which(plot_df$Cell_Type == "CD4"),]
+  temp_df <- temp_df[order(-temp_df$Cell_Num),]
+  temp_df <- temp_df[which(temp_df$Cell_Num > 0),]
+  temp_df$Patient <- factor(temp_df$Patient, levels = unique(temp_df$Patient))
+  p <- ggplot(data=temp_df, aes_string(x="Patient", y="Cell_Num", label="Cell_Num2")) +
+    geom_bar(position = position_dodge(), stat = "identity", fill="#F8766D") +
+    ggtitle("Infused GMP CD4 Subsisters # (per kg)") +
+    geom_text(size = 6, position = position_dodge(1)) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 40),
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text.x = element_text(angle = -45, hjust = 0.5, vjust = 0.5, size = 20))
+  ggsave(file = paste0(outputDir2, "Estimated_CD4_Subsister_#_In_GMP.png"), plot = p, width = 25, height = 10, dpi = 400)
+  
+  temp_df <- plot_df[which(plot_df$Cell_Type == "CD8"),]
+  temp_df <- temp_df[order(-temp_df$Cell_Num),]
+  temp_df <- temp_df[which(temp_df$Cell_Num > 0),]
+  temp_df$Patient <- factor(temp_df$Patient, levels = unique(temp_df$Patient))
+  p <- ggplot(data=temp_df, aes_string(x="Patient", y="Cell_Num", label="Cell_Num2")) +
+    geom_bar(position = position_dodge(), stat = "identity", fill="#00BFC4") +
+    ggtitle("Infused GMP CD8 Subsisters # (per kg)") +
+    geom_text(size = 6, position = position_dodge(1)) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 40),
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text.x = element_text(angle = -45, hjust = 0.5, vjust = 0.5, size = 20))
+  ggsave(file = paste0(outputDir2, "Estimated_CD8_Subsister_#_In_GMP.png"), plot = p, width = 25, height = 10, dpi = 400)
+  
   
   #
-  ### 8. c) Use the % of Cluster0 vs Total CD4/CD8 in GMP to estimate how many subsister-like cells were infused
+  ### 8. c) Use the % of Cluster01 vs Total CD4/CD8 in GMP to estimate how many subsister-like cells were infused
   #         Do not use GMP-redo here
   #
   
@@ -3242,6 +3276,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   ### cluster01 clones
   cluster01_clones <- unique(sub_seurat_obj2@meta.data$clonotype_id_by_patient_one_alpha_beta[which(sub_seurat_obj2@meta.data$clusters %in% c(0, 1))])
+  
+  ### remove NA from cluster01 clones
+  cluster01_clones <- cluster01_clones[which(!is.na(cluster01_clones))]
   
   ### add cluster01 column to the original seurat object
   Seurat_Obj@meta.data$Cluster01 <- "NO"
@@ -3340,6 +3377,37 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           axis.text.x = element_text(angle = -45, hjust = 0.5, vjust = 0.5, size = 20))
   ggsave(file = paste0(outputDir2, "Estimated_CD4_CD8_Subsister(Cluster01)_#_In_GMP.png"), plot = p, width = 25, height = 10, dpi = 400)
   
+  temp_df <- plot_df[which(plot_df$Cell_Type == "CD4"),]
+  temp_df <- temp_df[order(-temp_df$Cell_Num),]
+  temp_df <- temp_df[which(temp_df$Cell_Num > 0),]
+  temp_df$Patient <- factor(temp_df$Patient, levels = unique(temp_df$Patient))
+  p <- ggplot(data=temp_df, aes_string(x="Patient", y="Cell_Num", label="Cell_Num2")) +
+    geom_bar(position = position_dodge(), stat = "identity", fill="#F8766D") +
+    ggtitle("Infused GMP CD4 Subsisters (Cluster01) # (per kg)") +
+    geom_text(size = 6, position = position_dodge(1)) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 40),
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text.x = element_text(angle = -45, hjust = 0.5, vjust = 0.5, size = 20))
+  ggsave(file = paste0(outputDir2, "Estimated_CD4_Subsister(Cluster01)_#_In_GMP.png"), plot = p, width = 25, height = 10, dpi = 400)
+  
+  temp_df <- plot_df[which(plot_df$Cell_Type == "CD8"),]
+  temp_df <- temp_df[order(-temp_df$Cell_Num),]
+  temp_df <- temp_df[which(temp_df$Cell_Num > 0),]
+  temp_df$Patient <- factor(temp_df$Patient, levels = unique(temp_df$Patient))
+  p <- ggplot(data=temp_df, aes_string(x="Patient", y="Cell_Num", label="Cell_Num2")) +
+    geom_bar(position = position_dodge(), stat = "identity", fill="#00BFC4") +
+    ggtitle("Infused GMP CD8 Subsisters (Cluster01) # (per kg)") +
+    geom_text(size = 6, position = position_dodge(1)) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 40),
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text.x = element_text(angle = -45, hjust = 0.5, vjust = 0.5, size = 20))
+  ggsave(file = paste0(outputDir2, "Estimated_CD8_Subsister(Cluster01)_#_In_GMP.png"), plot = p, width = 25, height = 10, dpi = 400)
+  
+  
   #
   ### 8. d) Correlation between [subsister infusion amount (per kg)] and [PeakCAR]
   #
@@ -3399,7 +3467,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   out_table <- data.frame(matrix(0, length(unique(sub_seurat_obj2@meta.data$clusters)), 4),
                           stringsAsFactors = FALSE, check.names = FALSE)
   rownames(out_table) <- unique(sub_seurat_obj2@meta.data$clusters)
-  colnames(out_table) <- c("Cell #", "Clone #", "Duplicated Cell #", "Subsister Clone #")
+  colnames(out_table) <- c("Cell #", "Clone #", "Duplicated Cell #", "Subsister Cell #")
   
   ### ordering
   out_table <- out_table[order(as.numeric(rownames(out_table))),]
@@ -3412,10 +3480,40 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     ### fill out the table
     out_table[cluster, "Cell #"] <- length(cluster_idx)
     out_table[cluster, "Clone #"] <- length(unique(sub_seurat_obj2@meta.data$clonotype_id_by_patient_one_alpha_beta[cluster_idx]))
-    out_table[cluster, "Subsister Clone #"] <- length(intersect(which(sub_seurat_obj2@meta.data$clonotype_id_by_patient_one_alpha_beta %in% persister_clones),
+    out_table[cluster, "Subsister Cell #"] <- length(intersect(which(sub_seurat_obj2@meta.data$clonotype_id_by_patient_one_alpha_beta %in% persister_clones),
                                                                 cluster_idx))
     out_table[cluster, "Duplicated Cell #"] <- length(which(duplicated(sub_seurat_obj2@meta.data$clonotype_id_by_patient_one_alpha_beta[cluster_idx])))
   }
+  
+  ### save the result table
+  write.xlsx2(data.frame(Cluster=rownames(out_table),
+                         out_table,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              sheetName = "Numbers_In_PI_Clusters",
+              file = paste0(outputDir2, "Numbers_In_PI_Clusters.xlsx"),
+              row.names = FALSE)
+  
+  ### draw a pie chart to show the percentage of subsisters in each cluster
+  plot_df <- data.frame(Cluster=rownames(out_table),
+                        Numbers=out_table$`Subsister Cell #`,
+                        Pcnt=round(out_table$`Subsister Cell #`*100/sum(out_table$`Subsister Cell #`),1),
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  plot_df <- plot_df[order(as.numeric(plot_df$Cluster)),]
+  plot_df$Cluster <- factor(plot_df$Cluster, levels = unique(plot_df$Cluster))
+  p <- ggplot(data = plot_df,
+         aes(x = "", y = Numbers, fill = Cluster)) +
+    geom_bar(stat = "identity", width = 1) +
+    coord_polar(theta="y") +
+    labs(x = NULL, y = NULL, title = "Subsister # in Post-Infusion Clusters") +
+    scale_fill_discrete(name = "Cluster", labels = paste0(plot_df$Cluster, ": ",
+                                                          plot_df$Numbers, " (",
+                                                          plot_df$Pcnt, "%)")) +
+    theme_classic(base_size = 48) +
+    theme(plot.title = element_text(hjust = 0.5, color = "black", size = 48),
+          axis.line = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text = element_blank())
+  ggsave(paste0(outputDir2, "Subsister_Numbers_In_PI_Clusters.png"), plot = p, width = 20, height = 15, dpi = 350)
   
   #
   ### 10. Gini index of the CAR+ lineages over time
@@ -3667,11 +3765,68 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       stat_compare_means(size = 8) +
       stat_summary(fun=mean, geom="point", size=5, color="red") +
       theme_classic(base_size = 40) +
-      theme(legend.position = "none")
+      theme(legend.position = "none",
+            axis.title.x = element_blank())
   }
   
   ### save the violin plot
   ggsave(file = paste0(outputDir2, "GMP_CD8_CARpos_Subsisters_vs_Non-Subsisters_Downsampled.png"), plot = p, width = 25, height = 25, dpi = 350)
+  
+  ### violin plot
+  Idents(target_Seurat_Obj) <- target_Seurat_Obj@meta.data$New_Persistency
+  p <- VlnPlot(target_Seurat_Obj, features = c("CAPG", "MAL", "CD52", "IFITM2", "IFITM3",
+                                               "SPOCK2", "SELL", "CD27", "CD7"),
+               pt.size = 0)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + geom_boxplot(width=0.1) +
+      stat_compare_means(size = 8) +
+      stat_summary(fun=mean, geom="point", size=5, color="red") +
+      theme_classic(base_size = 40) +
+      theme(legend.position = "none",
+            axis.title.x = element_blank())
+  }
+  
+  ### save the violin plot
+  ggsave(file = paste0(outputDir2, "GMP_CD8_CARpos_Subsisters_vs_Non-Subsisters_Downsampled(2).png"), plot = p, width = 25, height = 25, dpi = 350)
+  
+  ### violin plot
+  Idents(target_Seurat_Obj) <- target_Seurat_Obj@meta.data$New_Persistency
+  p <- VlnPlot(target_Seurat_Obj, features = c("HLA-DRB5", "HLA-DPA1", "LAG3", "HLA-DQB1", "NPM1",
+                                               "CCL5", "FABP5", "CD74", "CD70"),
+               pt.size = 0)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + geom_boxplot(width=0.1) +
+      stat_compare_means(size = 8) +
+      stat_summary(fun=mean, geom="point", size=5, color="red") +
+      theme_classic(base_size = 40) +
+      theme(legend.position = "none",
+            axis.title.x = element_blank())
+  }
+  
+  ### save the violin plot
+  ggsave(file = paste0(outputDir2, "GMP_CD8_CARpos_Subsisters_vs_Non-Subsisters_Downsampled(3).png"), plot = p, width = 25, height = 25, dpi = 350)
+  
+  ### change the labels
+  target_Seurat_Obj@meta.data$Cluster01[which(target_Seurat_Obj@meta.data$Cluster01 == "YES")] <- "Cluster01"
+  target_Seurat_Obj@meta.data$Cluster01[which(target_Seurat_Obj@meta.data$Cluster01 == "NO")] <- "Other_Clusters"
+  
+  ### violin plot
+  Idents(target_Seurat_Obj) <- target_Seurat_Obj@meta.data$Cluster01
+  p <- VlnPlot(target_Seurat_Obj, features = c("MAL", "IFITM3", "CD27", "SELL", "TIGIT",
+                                               "HLA-DQA1", "CCL4", "GZMH", "IFNG"),
+               pt.size = 0)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + geom_boxplot(width=0.1) +
+      stat_compare_means(size = 8) +
+      stat_summary(fun=mean, geom="point", size=5, color="red") +
+      theme_classic(base_size = 40) +
+      theme(legend.position = "none",
+            axis.title.x = element_blank())
+  }
+  
+  ### save the violin plot
+  ggsave(file = paste0(outputDir2, "GMP_CD8_CARpos_Cluster01_vs_Others_Downsampled.png"), plot = p, width = 25, height = 25, dpi = 350)
+  
   
   ### get CARpos-only seurat object
   Seurat_Obj <- SetIdent(object = Seurat_Obj,
@@ -3713,6 +3868,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### define persisters
   sub_seurat_obj2@meta.data$CD8_Persisters <- "Non-subsisters"
   sub_seurat_obj2@meta.data$CD8_Persisters[which(sub_seurat_obj2@meta.data$clonotype_id_by_patient_one_alpha_beta %in% persister_clones)] <- "Subsisters"
+  sub_seurat_obj2@meta.data$CD8_Persisters <- factor(sub_seurat_obj2@meta.data$CD8_Persisters, levels = c("Subsisters", "Non-subsisters"))
   
   ### set ident with the persistency info
   sub_seurat_obj2 <- SetIdent(object = sub_seurat_obj2,
@@ -3728,13 +3884,37 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       stat_compare_means(size = 8) +
       stat_summary(fun=mean, geom="point", size=5, color="red") +
       theme_classic(base_size = 40) +
-      theme(legend.position = "none")
+      theme(legend.position = "none",
+            axis.title.x = element_blank())
   }
   
   ### save the violin plot
-  ggsave(file = paste0(outputDir2, "Post-Infusion_CD8_CARpos_Subsisters_vs_Non-Subsisters_Downsampled.png"), plot = p, width = 25, height = 25, dpi = 350)
+  ggsave(file = paste0(outputDir2, "Post-Infusion_CD8_CARpos_Subsisters_vs_Non-Subsisters.png"), plot = p, width = 25, height = 25, dpi = 350)
   
+  ### change the labels
+  sub_seurat_obj2@meta.data$Cluster01[which(sub_seurat_obj2@meta.data$Cluster01 == "YES")] <- "Cluster01"
+  sub_seurat_obj2@meta.data$Cluster01[which(sub_seurat_obj2@meta.data$Cluster01 == "NO")] <- "Other_Clusters"
   
+  ### set ident with the persistency info
+  sub_seurat_obj2 <- SetIdent(object = sub_seurat_obj2,
+                              cells = rownames(sub_seurat_obj2@meta.data),
+                              value = sub_seurat_obj2@meta.data$Cluster01)
+  
+  ### violin plot
+  p <- VlnPlot(sub_seurat_obj2, features = c("MAL", "IFITM3", "CD27", "SELL", "TIGIT",
+                                             "HLA-DQA1", "CCL4", "GZMH", "IFNG"),
+               pt.size = 0)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + geom_boxplot(width=0.1) +
+      stat_compare_means(size = 8) +
+      stat_summary(fun=mean, geom="point", size=5, color="red") +
+      theme_classic(base_size = 40) +
+      theme(legend.position = "none",
+            axis.title.x = element_blank())
+  }
+  
+  ### save the violin plot
+  ggsave(file = paste0(outputDir2, "Post-Infusion_CD8_CARpos_Cluster01_vs_Others.png"), plot = p, width = 25, height = 25, dpi = 350)
   
   
   
