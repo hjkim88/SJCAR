@@ -4170,18 +4170,21 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   bm_gmp_idx <- which(BM_Seurat_obj@meta.data$time2 == "GMP")
   bm_ai_idx <- which(BM_Seurat_obj@meta.data$time2 %in% c("Wk4", "Wk8", "3mo"))
   bm_carpos_idx <- which(BM_Seurat_obj@meta.data$CAR == "CARpos")
-  bm_carpos_cd8_idx <- intersect(bm_carpos_idx,
-                                 which(BM_Seurat_obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
-  bm_gmp_carpos_clones <- unique(BM_Seurat_obj$clonotype_id_by_patient_one_alpha_beta[intersect(bm_gmp_idx,
-                                                                                                bm_carpos_idx)])
+  bm_ai_carpos_idx <- intersect(bm_ai_idx, bm_carpos_idx)
+  bm_gmp_carpos_idx <- intersect(bm_gmp_idx, bm_carpos_idx)
+  bm_gmp_carpos_cd8_idx <- intersect(bm_gmp_carpos_idx,
+                                     which(BM_Seurat_obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  bm_gmp_carpos_clones <- unique(BM_Seurat_obj$clonotype_id_by_patient_one_alpha_beta[bm_gmp_carpos_idx])
   bm_gmp_carpos_clones <- bm_gmp_carpos_clones[which(!is.na(bm_gmp_carpos_clones))]
-  bm_ai_carpos_clones <- unique(BM_Seurat_obj$clonotype_id_by_patient_one_alpha_beta[intersect(bm_ai_idx,
-                                                                                               bm_carpos_idx)])
+  bm_ai_carpos_clones <- unique(BM_Seurat_obj$clonotype_id_by_patient_one_alpha_beta[bm_ai_carpos_idx])
   bm_ai_carpos_clones <- bm_ai_carpos_clones[which(!is.na(bm_ai_carpos_clones))]
   bm_gmp_ai_carpos_clones <- intersect(bm_gmp_carpos_clones, bm_ai_carpos_clones)
   
   ### define subsisters in BM
+  
+  ### remove ALL_CARpos_Persister
   BM_Seurat_obj@meta.data$ALL_CARpos_Persister <- NULL
+  
   ### BM GMP CARpos lineages at least one in GMP and others in post-infusion
   ### including all time points
   ### "YES": CAR+ Persister cells in GMP lineages (all time)
@@ -4189,18 +4192,30 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### NA: Others
   BM_Seurat_obj@meta.data$ALL_GMP_CARpos_Persister <- NA
   BM_Seurat_obj@meta.data$ALL_GMP_CARpos_Persister[which(BM_Seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% bm_gmp_ai_carpos_clones)] <- "YES"
-  BM_Seurat_obj@meta.data$ALL_GMP_CARpos_Persister[]
+  BM_Seurat_obj@meta.data$ALL_GMP_CARpos_Persister[setdiff(bm_carpos_idx,
+                                                           which(BM_Seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% bm_gmp_ai_carpos_clones))] <- "NO"
   
+  ### BM GMP CARpos lineages at least one in GMP and others in post-infusion
+  ### including GMP CELLS ONLY
   ### "YES": GMP CAR+ Persister cells
   ### "NO": GMP CAR+ cells that are non-persisters
   ### NA: Others
-  BM_Seurat_obj@meta.data$GMP_CARpos_Persister
+  BM_Seurat_obj@meta.data$GMP_CARpos_Persister <- NA
+  BM_Seurat_obj@meta.data$GMP_CARpos_Persister[intersect(which(BM_Seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% bm_gmp_ai_carpos_clones),
+                                                         bm_gmp_carpos_idx)] <- "YES"
+  BM_Seurat_obj@meta.data$GMP_CARpos_Persister[setdiff(bm_gmp_carpos_idx,
+                                                       which(BM_Seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% bm_gmp_ai_carpos_clones))] <- "NO"
   
-  
+  ### BM CD8 cells in GMP CARpos lineages at least one in GMP and others in post-infusion
+  ### including GMP CELLS ONLY
   ### "YES": GMP CAR+ CD8 Persister cells
   ### "NO": GMP CAR+ CD8 cells that are non-persisters
   ### NA: Others
-  BM_Seurat_obj@meta.data$GMP_CARpos_CD8_Persister
+  BM_Seurat_obj@meta.data$GMP_CARpos_CD8_Persister <- NA
+  BM_Seurat_obj@meta.data$GMP_CARpos_CD8_Persister[intersect(which(BM_Seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% bm_gmp_ai_carpos_clones),
+                                                             bm_gmp_carpos_cd8_idx)] <- "YES"
+  BM_Seurat_obj@meta.data$GMP_CARpos_CD8_Persister[setdiff(bm_gmp_carpos_cd8_idx,
+                                                           which(BM_Seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% bm_gmp_ai_carpos_clones))] <- "NO"
   
   
   ### get CARpos-only seurat object
@@ -4258,49 +4273,148 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### save the clustering result to meta.data
   BM_sub_seurat_obj2@meta.data$clusters <- Idents(BM_sub_seurat_obj2)
   
-  ###
-  
-  
-  
-  
-  ### UMAP with
-  
-  
-  
-  
-  
-  
-  ### UMAP with clusters by each patient
-  p <- DimPlot(object = sub_seurat_obj2, reduction = "umap",
-               group.by = "clusters", split.by = "px",
-               pt.size = 3, ncol = 3) +
+  ### UMAP with subsisters in post-infusion
+  p <- DimPlot(object = BM_sub_seurat_obj2, reduction = "umap",
+               group.by = "ALL_GMP_CARpos_Persister",
+               pt.size = 5,
+               cols = c("NO" = "lightgray", "YES" = "red"),
+               order = c("YES", "NO")) +
     ggtitle("") +
-    labs(color="Clusters") +
-    theme_classic(base_size = 36) +
-    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
-          axis.text.x = element_text(size = 30),
-          axis.title.x = element_blank(),
-          axis.title.y = element_text(size = 30))
-  ggsave(paste0(outputDir2, "UMAP_CARpos_Clusters.png"), plot = p, width = 15, height = 10, dpi = 350)
-  
-  ### UMAP with clusters with all patients
-  p <- DimPlot(object = sub_seurat_obj2, reduction = "umap",
-               group.by = "clusters",
-               pt.size = 5) +
-    ggtitle("") +
-    labs(color="Clusters") +
+    labs(color="Is_Subsistent") +
     theme_classic(base_size = 64) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
           axis.text.x = element_text(size = 48),
           axis.title.x = element_blank(),
           axis.title.y = element_text(size = 48),
-          legend.title = element_text(size = 36),
-          legend.text = element_text(size = 36))
-  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
-  ggsave(paste0(outputDir2, "UMAP_CARpos_Clusters_ALL.png"), plot = p, width = 15, height = 10, dpi = 400)
+          legend.title = element_text(size = 48),
+          legend.text = element_text(size = 48)) +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 1
+  ggsave(paste0(outputDir2, "UMAP_BM_PI_CARpos_Subsister_ALL.png"), plot = p, width = 30, height = 20, dpi = 350)
   
+  ### UMAP with subsister info split by each patient
+  p <- DimPlot(object = BM_sub_seurat_obj2, reduction = "umap",
+               group.by = "ALL_GMP_CARpos_Persister", split.by = "px",
+               pt.size = 5, ncol = 3,
+               cols = c("NO" = "lightgray", "YES" = "red"),
+               order = c("YES", "NO")) +
+    ggtitle("") +
+    labs(color="Is_Subsistent") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 48),
+          legend.text = element_text(size = 48)) +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 1
+  ggsave(paste0(outputDir2, "UMAP_BM_PI_CARpos_Subsister.png"), plot = p, width = 30, height = 20, dpi = 350)
   
+  ### DE analysis - BM Post Infusion subsister vs non-subsister
+  BM_sub_seurat_obj2 <- SetIdent(object = BM_sub_seurat_obj2,
+                                 cells = rownames(BM_sub_seurat_obj2@meta.data),
+                                 value = BM_sub_seurat_obj2@meta.data$ALL_GMP_CARpos_Persister)
+  de_result <- FindMarkers(BM_sub_seurat_obj2,
+                           ident.1 = "YES",
+                           ident.2 = "NO",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
   
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/BM_PI_CARpos_Subsister_vs_Non-subsister.xlsx"),
+              sheetName = "BM_PI_CARpos_Subsister_vs_Non-subsister", row.names = FALSE)
+  
+  ### get CARpos-only seurat object
+  BM_Seurat_obj <- SetIdent(object = BM_Seurat_obj,
+                            cells = rownames(BM_Seurat_obj@meta.data),
+                            value = BM_Seurat_obj@meta.data$CAR)
+  BM_sub_seurat_obj3 <- subset(BM_Seurat_obj, idents = c("CARpos"))
+  
+  ### get GMP seurat
+  BM_sub_seurat_obj3 <- SetIdent(object = BM_sub_seurat_obj3,
+                                 cells = rownames(BM_sub_seurat_obj3@meta.data),
+                                 value = BM_sub_seurat_obj3@meta.data$time2)
+  BM_sub_seurat_obj3 <- subset(BM_sub_seurat_obj3, idents = c("GMP"))
+  
+  ### normalization
+  BM_sub_seurat_obj3 <- NormalizeData(BM_sub_seurat_obj3,
+                                      normalization.method = "LogNormalize", scale.factor = 10000)
+  ### find variable genes
+  BM_sub_seurat_obj3 <- FindVariableFeatures(BM_sub_seurat_obj3,
+                                             selection.method = "vst", nfeatures = 2000)
+  ### scaling
+  BM_sub_seurat_obj3 <- ScaleData(BM_sub_seurat_obj3,
+                                  vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  ### PCA
+  BM_sub_seurat_obj3 <- RunPCA(BM_sub_seurat_obj3,
+                               features = VariableFeatures(object = BM_sub_seurat_obj3),
+                               npcs = 15)
+  ### UMAP
+  BM_sub_seurat_obj3 <- RunUMAP(BM_sub_seurat_obj3, dims = 1:15)
+  
+  ### get seurat object for some specific patients
+  BM_sub_seurat_obj3 <- SetIdent(object = BM_sub_seurat_obj3,
+                                 cells = rownames(BM_sub_seurat_obj3@meta.data),
+                                 value = BM_sub_seurat_obj3@meta.data$px)
+  BM_sub_seurat_obj3 <- subset(BM_sub_seurat_obj3, idents = c("SJCAR19-02", "SJCAR19-04", "SJCAR19-05",
+                                                             "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
+                                                             "SJCAR19-10", "SJCAR19-11"))
+  
+  ### DE analysis - BM GMP subsister vs non-subsister
+  BM_sub_seurat_obj3 <- SetIdent(object = BM_sub_seurat_obj3,
+                                 cells = rownames(BM_sub_seurat_obj3@meta.data),
+                                 value = BM_sub_seurat_obj3@meta.data$GMP_CARpos_CD8_Persister)
+  de_result <- FindMarkers(BM_sub_seurat_obj3,
+                           ident.1 = "YES",
+                           ident.2 = "NO",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/BM_GMP_CARpos_Subsister_vs_Non-subsister.xlsx"),
+              sheetName = "BM_GMP_CARpos_Subsister_vs_Non-subsister", row.names = FALSE)
+  
+  ### PB GMP CARpos CD8 Subsisters vs BM GMP CARpos CD8 Subsisters
+  pb_gmp_carpos_cd8_persister_idx <- which(rownames(Seurat_Obj@meta.data) %in% rownames(target_Seurat_Obj@meta.data)[which(target_Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "YES")])
+  bm_gmp_carpos_cd8_persister_idx <- which(rownames(Seurat_Obj@meta.data) %in% rownames(BM_sub_seurat_obj3@meta.data)[which(BM_sub_seurat_obj3@meta.data$GMP_CARpos_CD8_Persister == "YES")])
+  ### 23 clones intersected
+  intersect_gmp_carpos_cd8_persister_idx <- intersect(pb_gmp_carpos_cd8_persister_idx,
+                                                      bm_gmp_carpos_cd8_persister_idx)
+  intersect_gmp_carpos_cd8_persister_clones <- Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[intersect_gmp_carpos_cd8_persister_idx]
+  Seurat_Obj@meta.data$PB_BM_GMP_CD8_Persister <- NA
+  Seurat_Obj@meta.data$PB_BM_GMP_CD8_Persister[setdiff(pb_gmp_carpos_cd8_persister_idx,
+                                                       bm_gmp_carpos_cd8_persister_idx)] <- "PB_GMP_CARpos_CD8_Subsisters"
+  Seurat_Obj@meta.data$PB_BM_GMP_CD8_Persister[setdiff(bm_gmp_carpos_cd8_persister_idx,
+                                                       pb_gmp_carpos_cd8_persister_idx)] <- "BM_GMP_CARpos_CD8_Subsisters"
+  
+  ### DE analysis - PB GMP CARpos CD8 Subsisters vs BM GMP CARpos CD8 Subsisters
+  Seurat_Obj <- SetIdent(object = Seurat_Obj,
+                         cells = rownames(Seurat_Obj@meta.data),
+                         value = Seurat_Obj@meta.data$PB_BM_GMP_CD8_Persister)
+  de_result <- FindMarkers(Seurat_Obj,
+                           ident.1 = "PB_GMP_CARpos_CD8_Subsisters",
+                           ident.2 = "BM_GMP_CARpos_CD8_Subsisters",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/GMP_CARpos_CD8_Subsister_PB_vs_BM.xlsx"),
+              sheetName = "GMP_CARpos_CD8_Subsister_PB_vs_BM", row.names = FALSE)
+  
+  ### GMP UMAP difference between PB & BM subsisters
   
   
   
