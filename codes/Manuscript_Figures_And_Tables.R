@@ -34,8 +34,8 @@
 #               13. Clustering on GMP UMAP and find subsister clusters + calculate dose (related to 5(k))
 #               14. What are the DEGs between cells from the late time (after six weeks) points vs. early time points?
 #               15. Feature plots and DE list with specific genes from Tan paper
-#               16. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
-#               17. Time series DE analysis & pathway analysis
+#               16. Trajectory analysis of differentiation of CD8 CAR+ (start with all time points and perhaps move to only post-infusion depending on how it looks)
+#               17. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -4877,13 +4877,70 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   p <- FeaturePlot(sub_seurat_obj2, features = tan_good_persistency_genes, cols = c("lightgray", "red"))
   ggsave(paste0(outputDir2, "PB_PI_CARpos_CD8_Tan_Good_Persistency.png"), plot = p, width = 15, height = 10, dpi = 350)
   
-  
   #
-  ### 16. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 16. Trajectory analysis of differentiation of CD8 CAR+ (start with all time points and perhaps move to only post-infusion depending on how it looks)
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/16/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### get CARpos-only seurat object
+  carpos_cd8_cells <- rownames(Seurat_Obj@meta.data)[intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                                               which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))]
+  sub_seurat_obj4 <- subset(Seurat_Obj, cells = carpos_cd8_cells)
+  
+  ### after gmp time points only
+  gmp_after_time_points <- c("GMP", "Wk1", "Wk2", "Wk3", "Wk4", 
+                             "Wk6", "Wk8", "3mo", "6mo", "9mo")
+  sub_seurat_obj4 <- SetIdent(object = sub_seurat_obj4,
+                              cells = rownames(sub_seurat_obj4@meta.data),
+                              value = sub_seurat_obj4@meta.data$time2)
+  sub_seurat_obj4 <- subset(sub_seurat_obj4, idents = intersect(gmp_after_time_points,
+                                                                unique(sub_seurat_obj4@meta.data$time2)))
+  
+  ### get seurat object for some specific patients
+  sub_seurat_obj4 <- SetIdent(object = sub_seurat_obj4,
+                              cells = rownames(sub_seurat_obj4@meta.data),
+                              value = sub_seurat_obj4@meta.data$px)
+  sub_seurat_obj4 <- subset(sub_seurat_obj4, idents = c("SJCAR19-02", "SJCAR19-04", "SJCAR19-05",
+                                                        "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
+                                                        "SJCAR19-09", "SJCAR19-10", "SJCAR19-11"))
+  
+  ### normalization
+  sub_seurat_obj4 <- NormalizeData(sub_seurat_obj4,
+                                   normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### find variable genes
+  sub_seurat_obj4 <- FindVariableFeatures(sub_seurat_obj4,
+                                          selection.method = "vst", nfeatures = 2000)
+  
+  ### scaling
+  sub_seurat_obj4 <- ScaleData(sub_seurat_obj4,
+                               vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  
+  ### run pca & umap
+  sub_seurat_obj4 <- RunPCA(sub_seurat_obj4,
+                            features = VariableFeatures(object = sub_seurat_obj4),
+                            npcs = 15)
+  sub_seurat_obj4 <- RunUMAP(sub_seurat_obj4, dims = 1:15)
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  #
+  ### 17. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/17/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
