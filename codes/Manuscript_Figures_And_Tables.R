@@ -108,6 +108,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     install.packages("ggrepel")
     require(ggrepel, quietly = TRUE)
   }
+  if(!require(monocle, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("monocle")
+    require(monocle, quietly = TRUE)
+  }
   
   ### create outputDir
   dir.create(outputDir, showWarnings = FALSE, recursive = TRUE)
@@ -4925,7 +4931,80 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                             npcs = 15)
   sub_seurat_obj4 <- RunUMAP(sub_seurat_obj4, dims = 1:15)
   
+  ### get slingshot object
+  slingshot_obj <- slingshot(pca_map,
+                             clusterLabels = subset_Seurat_Obj@meta.data$Day, 
+                             reducedDim = "PCA")
   
+  ### get colors for the clustering result
+  cell_colors_clust <- cell_pal(intersect(levels(subset_Seurat_Obj@meta.data$Day),
+                                          unique(subset_Seurat_Obj@meta.data$Day)), hue_pal())
+  
+  ### Trajectory inference
+  png(paste0(outputDir2, donor, "_Trajectory_Inference_Time_PCA.png"), width = 5000, height = 3000, res = 350)
+  par(mar=c(7, 7, 7, 1), mgp=c(4,1,0))
+  plot(reducedDim(slingshot_obj),
+       main=paste(donor, "Trajectory Inference Based On Time (PCA)"),
+       col = cell_colors_clust[as.character(subset_Seurat_Obj@meta.data$Day)],
+       pch = 19, cex = 2, cex.lab = 3, cex.main = 3, cex.axis = 2)
+  # title(xlab="PC1", mgp=c(1,1,0), cex.lab=3)
+  # title(ylab="PC2", mgp=c(1,1,0), cex.lab=3)
+  lines(slingshot_obj, lwd = 4, type = "lineages", col = "black",
+        show.constraints = TRUE, constraints.col = cell_colors_clust)
+  legend("bottomright", legend = names(cell_colors_clust), col = cell_colors_clust,
+         pch = 19, cex = 1.8)
+  dev.off()
+  
+  ### Construct a monocle cds
+  monocle_cds <- newCellDataSet(as(as.matrix(subset_Seurat_Obj@assays$RNA@data), 'sparseMatrix'),
+                                phenoData = new('AnnotatedDataFrame', data = subset_Seurat_Obj@meta.data),
+                                featureData = new('AnnotatedDataFrame', data = data.frame(gene_short_name = row.names(subset_Seurat_Obj@assays$RNA@data),
+                                                                                          row.names = row.names(subset_Seurat_Obj@assays$RNA@data),
+                                                                                          stringsAsFactors = FALSE, check.names = FALSE)),
+                                lowerDetectionLimit = 0.5,
+                                expressionFamily = negbinomial.size())
+  
+  ### run monocle
+  monocle_cds <- estimateSizeFactors(monocle_cds)
+  monocle_cds <- estimateDispersions(monocle_cds)
+  monocle_cds <- reduceDimension(monocle_cds, reduction_method = "DDRTree")
+  monocle_cds <- orderCells(monocle_cds)
+  
+  ### determine the beginning state
+  plot_cell_trajectory(monocle_cds, color_by = "Day") + geom_point(alpha=0.1)
+  plot_cell_trajectory(monocle_cds, color_by = "State")
+  plot_complex_cell_trajectory(monocle_cds, color_by = "State")
+  if(donor == "321-04") {
+    monocle_cds <- orderCells(monocle_cds, root_state = "2")
+  } else if(donor == "321-05") {
+    monocle_cds <- orderCells(monocle_cds, root_state = "2")
+    monocle_cds$Day2 <- as.character(monocle_cds$Day)
+    monocle_cds$Day2[which(monocle_cds$Day2 %in% c("0", "5", "12"))] <- "Early"
+    monocle_cds$Day2[which(monocle_cds$Day2 %in% c("28", "60", "90"))] <- "Mid"
+    monocle_cds$Day2[which(monocle_cds$Day2 %in% c("120", "180"))] <- "Late"
+    monocle_cds$Day2 <- factor(monocle_cds$Day2, levels = c("Early", "Mid", "Late"))
+  }
+  
+  ### draw monocle plots
+  p <- plot_cell_trajectory(monocle_cds, color_by = "Day", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, donor, "_Trajectory_Inference_Time_Monocle2.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_complex_cell_trajectory(monocle_cds, color_by = "Day", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, donor, "_Trajectory_Inference_Time_Complex_Monocle2.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
   
   
   
