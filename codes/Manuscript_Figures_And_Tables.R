@@ -94,6 +94,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     BiocManager::install("slingshot")
     require(slingshot, quietly = TRUE)
   }
+  if(!require(scales, quietly = TRUE)) {
+    install.packages("scales")
+    require(scales, quietly = TRUE)
+  }
   if(!require(org.Hs.eg.db, quietly = TRUE)) {
     if (!requireNamespace("BiocManager", quietly = TRUE))
       install.packages("BiocManager")
@@ -357,6 +361,18 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
         ), panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank()
       )
+    }
+  }
+  
+  ### a function for color brewer
+  cell_pal <- function(cell_vars, pal_fun) {
+    if (is.numeric(cell_vars)) {
+      pal <- pal_fun(100)
+      return(pal[cut(cell_vars, breaks = 100)])
+    } else {
+      categories <- sort(unique(cell_vars))
+      pal <- setNames(pal_fun(length(categories)), categories)
+      return(pal[cell_vars])
     }
   }
   
@@ -4931,21 +4947,26 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                             npcs = 15)
   sub_seurat_obj4 <- RunUMAP(sub_seurat_obj4, dims = 1:15)
   
+  ### PCA map
+  pca_map <- Embeddings(sub_seurat_obj4, reduction = "pca")[rownames(sub_seurat_obj4@meta.data),1:2]
+  
   ### get slingshot object
   slingshot_obj <- slingshot(pca_map,
-                             clusterLabels = subset_Seurat_Obj@meta.data$Day, 
+                             clusterLabels = sub_seurat_obj4@meta.data$time2,
+                             start.clus = "GMP",
+                             end.clus = "6mo",
                              reducedDim = "PCA")
   
   ### get colors for the clustering result
-  cell_colors_clust <- cell_pal(intersect(levels(subset_Seurat_Obj@meta.data$Day),
-                                          unique(subset_Seurat_Obj@meta.data$Day)), hue_pal())
+  cell_colors_clust <- cell_pal(intersect(levels(sub_seurat_obj4@meta.data$time2),
+                                          unique(sub_seurat_obj4@meta.data$time2)), hue_pal())
   
   ### Trajectory inference
-  png(paste0(outputDir2, donor, "_Trajectory_Inference_Time_PCA.png"), width = 5000, height = 3000, res = 350)
+  png(paste0(outputDir2, "CARpos_CD8_Trajectory_Inference_Time_PCA.png"), width = 5000, height = 3000, res = 350)
   par(mar=c(7, 7, 7, 1), mgp=c(4,1,0))
   plot(reducedDim(slingshot_obj),
        main=paste(donor, "Trajectory Inference Based On Time (PCA)"),
-       col = cell_colors_clust[as.character(subset_Seurat_Obj@meta.data$Day)],
+       col = cell_colors_clust[as.character(sub_seurat_obj4@meta.data$time2)],
        pch = 19, cex = 2, cex.lab = 3, cex.main = 3, cex.axis = 2)
   # title(xlab="PC1", mgp=c(1,1,0), cex.lab=3)
   # title(ylab="PC2", mgp=c(1,1,0), cex.lab=3)
@@ -4956,10 +4977,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   dev.off()
   
   ### Construct a monocle cds
-  monocle_cds <- newCellDataSet(as(as.matrix(subset_Seurat_Obj@assays$RNA@data), 'sparseMatrix'),
-                                phenoData = new('AnnotatedDataFrame', data = subset_Seurat_Obj@meta.data),
-                                featureData = new('AnnotatedDataFrame', data = data.frame(gene_short_name = row.names(subset_Seurat_Obj@assays$RNA@data),
-                                                                                          row.names = row.names(subset_Seurat_Obj@assays$RNA@data),
+  monocle_cds <- newCellDataSet(as(as.matrix(sub_seurat_obj4@assays$RNA@data), 'sparseMatrix'),
+                                phenoData = new('AnnotatedDataFrame', data = sub_seurat_obj4@meta.data),
+                                featureData = new('AnnotatedDataFrame', data = data.frame(gene_short_name = row.names(sub_seurat_obj4@assays$RNA@data),
+                                                                                          row.names = row.names(sub_seurat_obj4@assays$RNA@data),
                                                                                           stringsAsFactors = FALSE, check.names = FALSE)),
                                 lowerDetectionLimit = 0.5,
                                 expressionFamily = negbinomial.size())
@@ -4971,28 +4992,19 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   monocle_cds <- orderCells(monocle_cds)
   
   ### determine the beginning state
-  plot_cell_trajectory(monocle_cds, color_by = "Day") + geom_point(alpha=0.1)
+  plot_cell_trajectory(monocle_cds, color_by = "time2") + geom_point(alpha=0.1)
   plot_cell_trajectory(monocle_cds, color_by = "State")
   plot_complex_cell_trajectory(monocle_cds, color_by = "State")
-  if(donor == "321-04") {
-    monocle_cds <- orderCells(monocle_cds, root_state = "2")
-  } else if(donor == "321-05") {
-    monocle_cds <- orderCells(monocle_cds, root_state = "2")
-    monocle_cds$Day2 <- as.character(monocle_cds$Day)
-    monocle_cds$Day2[which(monocle_cds$Day2 %in% c("0", "5", "12"))] <- "Early"
-    monocle_cds$Day2[which(monocle_cds$Day2 %in% c("28", "60", "90"))] <- "Mid"
-    monocle_cds$Day2[which(monocle_cds$Day2 %in% c("120", "180"))] <- "Late"
-    monocle_cds$Day2 <- factor(monocle_cds$Day2, levels = c("Early", "Mid", "Late"))
-  }
+  monocle_cds <- orderCells(monocle_cds, root_state = "2")
   
   ### draw monocle plots
-  p <- plot_cell_trajectory(monocle_cds, color_by = "Day", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+  p <- plot_cell_trajectory(monocle_cds, color_by = "time2", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
     labs(color="") +
     theme_classic(base_size = 36) +
     theme(legend.position = "top",
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 30))
-  ggsave(file = paste0(outputDir2, donor, "_Trajectory_Inference_Time_Monocle2.png"),
+  ggsave(file = paste0(outputDir2, "CAR_CD8_Trajectory_Inference_Time_Monocle2.png"),
          plot = p,
          width = 15, height = 10, dpi = 350)
   
@@ -5002,7 +5014,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme(legend.position = "top",
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 30))
-  ggsave(file = paste0(outputDir2, donor, "_Trajectory_Inference_Time_Complex_Monocle2.png"),
+  ggsave(file = paste0(outputDir2, "CAR_CD8_Trajectory_Inference_Time_Complex_Monocle2.png"),
          plot = p,
          width = 15, height = 10, dpi = 350)
   
