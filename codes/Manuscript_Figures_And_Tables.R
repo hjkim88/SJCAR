@@ -547,12 +547,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
             points(centers[clusters %in% const, dims,
                            drop=FALSE], cex = cex-0.5,
                    col = constraints.col[const], pch = 16)
-            text(x = centers[clusters %in% const, dims[1]]+0,
-                 y = centers[clusters %in% const, dims[2]]+1.3,
-                 labels = const,
-                 font = 2,
-                 cex = cex-0.5,
-                 col = "black")
+            # text(x = centers[clusters %in% const, dims[1]]+0,
+            #      y = centers[clusters %in% const, dims[2]]+2,
+            #      labels = const,
+            #      font = 2,
+            #      cex = cex-0.5,
+            #      col = "black")
           }
         }
       }
@@ -2202,27 +2202,27 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
-  target_Seurat_Obj <- subset(Seurat_Obj, cells = rownames(Seurat_Obj@meta.data)[union(which(Seurat_Obj$GMP_CARpos_CD8_Persister == "YES"),
-                                                                                       which(Seurat_Obj$GMP_CARpos_CD8_Persister == "NO"))])
+  target_Seurat_Obj2 <- subset(Seurat_Obj, cells = rownames(Seurat_Obj@meta.data)[union(which(Seurat_Obj$GMP_CARpos_CD8_Persister == "YES"),
+                                                                                        which(Seurat_Obj$GMP_CARpos_CD8_Persister == "NO"))])
   
   ### only the patients we are interested
-  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
-                                cells = rownames(target_Seurat_Obj@meta.data),
-                                value = target_Seurat_Obj@meta.data$px)
-  target_Seurat_Obj <- subset(target_Seurat_Obj, idents = c("SJCAR19-02", "SJCAR19-04", "SJCAR19-05",
-                                                            "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
-                                                            "SJCAR19-09", "SJCAR19-10", "SJCAR19-11"))
+  target_Seurat_Obj2 <- SetIdent(object = target_Seurat_Obj2,
+                                 cells = rownames(target_Seurat_Obj2@meta.data),
+                                 value = target_Seurat_Obj2@meta.data$px)
+  target_Seurat_Obj2 <- subset(target_Seurat_Obj2, idents = c("SJCAR19-02", "SJCAR19-04", "SJCAR19-05",
+                                                              "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
+                                                              "SJCAR19-09", "SJCAR19-10", "SJCAR19-11"))
   
   ### get the same number of samples (persister: non-persister - same ratio) and draw a UMAP plot again
   set.seed(1234)
-  target_Seurat_Obj@meta.data$New_Persistency <- NA
+  target_Seurat_Obj2@meta.data$New_Persistency <- NA
   multiplier_k <- 1
-  for(px in unique(target_Seurat_Obj@meta.data$px)) {
+  for(px in unique(target_Seurat_Obj2@meta.data$px)) {
     ### get specific indicies
-    px_gmp_last <- intersect(which(target_Seurat_Obj@meta.data$px == px),
-                             which(target_Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "YES"))
-    px_gmp_not_last <- intersect(which(target_Seurat_Obj@meta.data$px == px),
-                                 which(target_Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "NO"))
+    px_gmp_last <- intersect(which(target_Seurat_Obj2@meta.data$px == px),
+                             which(target_Seurat_Obj2@meta.data$GMP_CARpos_CD8_Persister == "YES"))
+    px_gmp_not_last <- intersect(which(target_Seurat_Obj2@meta.data$px == px),
+                                 which(target_Seurat_Obj2@meta.data$GMP_CARpos_CD8_Persister == "NO"))
     
     ### sampling
     if((length(px_gmp_last) > 0) && (length(px_gmp_not_last) > length(px_gmp_last))) {
@@ -2230,24 +2230,24 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     }
     
     ### annotate new persistency info
-    target_Seurat_Obj@meta.data$New_Persistency[px_gmp_last] <- "YES"
-    target_Seurat_Obj@meta.data$New_Persistency[px_gmp_not_last] <- "NO"
+    target_Seurat_Obj2@meta.data$New_Persistency[px_gmp_last] <- "YES"
+    target_Seurat_Obj2@meta.data$New_Persistency[px_gmp_not_last] <- "NO"
   }
   
   ### set idents with the new info
-  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
-                                cells = rownames(target_Seurat_Obj@meta.data),
-                                value = target_Seurat_Obj@meta.data$New_Persistency)
+  target_Seurat_Obj2 <- SetIdent(object = target_Seurat_Obj2,
+                                 cells = rownames(target_Seurat_Obj2@meta.data),
+                                 value = target_Seurat_Obj2@meta.data$New_Persistency)
   
   ### only using the specific cells
-  target_Seurat_Obj <- subset(target_Seurat_Obj, idents = c("YES", "NO"))
+  target_Seurat_Obj2 <- subset(target_Seurat_Obj2, idents = c("YES", "NO"))
   
   
   ### get DE genes
-  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
-                                cells = rownames(target_Seurat_Obj@meta.data),
-                                value = target_Seurat_Obj@meta.data$New_Persistency)
-  de_result <- FindMarkers(target_Seurat_Obj,
+  target_Seurat_Obj2 <- SetIdent(object = target_Seurat_Obj2,
+                                 cells = rownames(target_Seurat_Obj2@meta.data),
+                                 value = target_Seurat_Obj2@meta.data$New_Persistency)
+  de_result <- FindMarkers(target_Seurat_Obj2,
                            ident.1 = "YES",
                            ident.2 = "NO",
                            min.pct = 0.5,
@@ -2256,31 +2256,31 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   ### retain the DE genes only
   de_genes <- rownames(de_result)[which(de_result$p_val_adj < 0.01)]
-  target_Seurat_Obj@assays$RNA@counts <- target_Seurat_Obj@assays$RNA@counts[de_genes,]
-  target_Seurat_Obj@assays$RNA@data <- target_Seurat_Obj@assays$RNA@data[de_genes,]
-  target_Seurat_Obj@assays$RNA@var.features <- de_genes
+  target_Seurat_Obj2@assays$RNA@counts <- target_Seurat_Obj2@assays$RNA@counts[de_genes,]
+  target_Seurat_Obj2@assays$RNA@data <- target_Seurat_Obj2@assays$RNA@data[de_genes,]
+  target_Seurat_Obj2@assays$RNA@var.features <- de_genes
   
   ### normalization
-  target_Seurat_Obj <- NormalizeData(target_Seurat_Obj,
-                                     normalization.method = "LogNormalize", scale.factor = 10000)
+  target_Seurat_Obj2 <- NormalizeData(target_Seurat_Obj2,
+                                      normalization.method = "LogNormalize", scale.factor = 10000)
   
   ### find variable genes
-  target_Seurat_Obj <- FindVariableFeatures(target_Seurat_Obj,
-                                            selection.method = "vst", nfeatures = 2000)
+  target_Seurat_Obj2 <- FindVariableFeatures(target_Seurat_Obj2,
+                                             selection.method = "vst", nfeatures = 2000)
   
   ### scaling
-  target_Seurat_Obj <- ScaleData(target_Seurat_Obj,
-                                 vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  target_Seurat_Obj2 <- ScaleData(target_Seurat_Obj2,
+                                  vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
   
   ### run pca & umap
-  target_Seurat_Obj <- RunPCA(target_Seurat_Obj,
-                              features = VariableFeatures(object = target_Seurat_Obj),
-                              npcs = 15)
-  target_Seurat_Obj <- RunUMAP(target_Seurat_Obj, dims = 1:15)
+  target_Seurat_Obj2 <- RunPCA(target_Seurat_Obj2,
+                               features = VariableFeatures(object = target_Seurat_Obj2),
+                               npcs = 15)
+  target_Seurat_Obj2 <- RunUMAP(target_Seurat_Obj2, dims = 1:15)
   
   ### PCA with all those info
   # p <- list()
-  # p[[1]] <- DimPlot(object = target_Seurat_Obj, reduction = "pca",
+  # p[[1]] <- DimPlot(object = target_Seurat_Obj2, reduction = "pca",
   #                   group.by = "px", shape.by = "New_Persistency",
   #                   pt.size = 3, order = c("YES", "NO")) +
   #   ggtitle("PCA of SJCAR19 Data") +
@@ -2290,9 +2290,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   # p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
   # 
   # ### pca for each px
-  # target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
-  #                               cells = rownames(target_Seurat_Obj@meta.data),
-  #                               value = target_Seurat_Obj@meta.data$px)
+  # target_Seurat_Obj2 <- SetIdent(object = target_Seurat_Obj2,
+  #                                cells = rownames(target_Seurat_Obj2@meta.data),
+  #                                value = target_Seurat_Obj2@meta.data$px)
   # g <- ggplot_build(p[[1]])
   # color_code <- data.frame(colours = unique(g$data[[1]]["colour"]), 
   #                          label = levels(g$plot$data[, "px"]),
@@ -2303,8 +2303,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   #                "SJCAR19-09", "SJCAR19-10", "SJCAR19-11")
   
   # for(i in 1:length(unique_px)) {
-  #   temp_seurat_obj <- subset(target_Seurat_Obj, idents = c(unique_px[i]))
-  #   p[[i+1]] <- DimPlot(object = temp_seurat_obj, reduction = "pca",
+  #   target_Seurat_Obj2 <- subset(target_Seurat_Obj, idents = c(unique_px[i]))
+  #   p[[i+1]] <- DimPlot(object = target_Seurat_Obj2, reduction = "pca",
   #                       group.by = "New_Persistency",
   #                       pt.size = 3, cols = c("YES" = "red", "NO" = "lightgray"),
   #                       order = c("YES", "NO")) +
@@ -2327,10 +2327,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   # ggsave(file = paste0(outputDir2, fName, ".png"), g, width = 25, height = 15, dpi = 300)
   
   ### draw PCA with GMP time point only
-  p <- DimPlot(object = target_Seurat_Obj, reduction = "pca",
+  p <- DimPlot(object = target_Seurat_Obj2, reduction = "pca",
                group.by = "New_Persistency", split.by = "px",
                cols = c("NO" = "lightgray", "YES" = "red"),
-               order = c("NO", "YES"),
+               order = c("YES", "NO"),
                pt.size = 5, ncol = 3) +
     ggtitle("") +
     labs(color="") +
@@ -2346,22 +2346,22 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(paste0(outputDir2, "PCA_Plot_Persistence_per_Px_Sampled_DE_Genes_Only.png"), plot = p, width = 30, height = 20, dpi = 350)
   
   ### get subsister cells with PC1 < 0
-  pca_map <- Embeddings(target_Seurat_Obj, reduction = "pca")[rownames(target_Seurat_Obj@meta.data), 1:10]
-  target_idx <- intersect(which(target_Seurat_Obj@meta.data$New_Persistency == "YES"),
+  pca_map <- Embeddings(target_Seurat_Obj2, reduction = "pca")[rownames(target_Seurat_Obj2@meta.data), 1:10]
+  target_idx <- intersect(which(target_Seurat_Obj2@meta.data$New_Persistency == "YES"),
                           which(pca_map[,"PC_1"] < 0))
-  target_cells <- rownames(target_Seurat_Obj@meta.data)[target_idx]
-  target_clonotypes <- unique(target_Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[target_idx])
+  target_cells <- rownames(target_Seurat_Obj2@meta.data)[target_idx]
+  target_clonotypes <- unique(target_Seurat_Obj2@meta.data$clonotype_id_by_patient_one_alpha_beta[target_idx])
   
   ### factorize the column
-  target_Seurat_Obj@meta.data$New_Persistency <- factor(target_Seurat_Obj@meta.data$New_Persistency, levels = c("YES", "NO", "MID"))
+  target_Seurat_Obj2@meta.data$New_Persistency <- factor(target_Seurat_Obj2@meta.data$New_Persistency, levels = c("YES", "NO", "MID"))
   
   ### re-define the subsisters
-  target_Seurat_Obj@meta.data$New_Persistency[target_idx] <- "MID"
+  target_Seurat_Obj2@meta.data$New_Persistency[target_idx] <- "MID"
   
   # ### redraw the pca plots
   # g <- ggplot_build(p[[1]])
   # for(i in 1:length(unique_px)) {
-  #   temp_seurat_obj <- subset(target_Seurat_Obj, idents = c(unique_px[i]))
+  #   temp_seurat_obj <- subset(target_Seurat_Obj2, idents = c(unique_px[i]))
   #   p[[i+1]] <- DimPlot(object = temp_seurat_obj, reduction = "pca",
   #                       group.by = "New_Persistency",
   #                       pt.size = 3, cols = c("YES" = "red", "NO" = "lightgray", "MID" = "orange"),
@@ -2385,7 +2385,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   # ggsave(file = paste0(outputDir2, fName, "2.png"), g, width = 25, height = 15, dpi = 300)
   
   ### draw PCA with GMP time point only
-  p <- DimPlot(object = target_Seurat_Obj, reduction = "pca",
+  p <- DimPlot(object = target_Seurat_Obj2, reduction = "pca",
                group.by = "New_Persistency", split.by = "px",
                cols = c("YES" = "red", "NO" = "lightgray", "MID" = "orange"),
                order = c("NO", "MID", "YES"),
@@ -2471,12 +2471,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   ### look at the PCA now
   ### set new column for the outliers
-  target_Seurat_Obj@meta.data$New_Persistency2 <- as.character(target_Seurat_Obj@meta.data$New_Persistency)
-  target_Seurat_Obj@meta.data$New_Persistency2[which(target_Seurat_Obj@meta.data$New_Persistency2 == "MID")] <- "YES"
-  target_Seurat_Obj@meta.data$New_Persistency2[which(target_Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% outlier_clones)] <- "Outliers"
+  target_Seurat_Obj2@meta.data$New_Persistency2 <- as.character(target_Seurat_Obj2@meta.data$New_Persistency)
+  target_Seurat_Obj2@meta.data$New_Persistency2[which(target_Seurat_Obj2@meta.data$New_Persistency2 == "MID")] <- "YES"
+  target_Seurat_Obj2@meta.data$New_Persistency2[which(target_Seurat_Obj2@meta.data$clonotype_id_by_patient_one_alpha_beta %in% outlier_clones)] <- "Outliers"
   
   ### draw PCA with GMP time point only
-  p <- DimPlot(object = target_Seurat_Obj, reduction = "pca",
+  p <- DimPlot(object = target_Seurat_Obj2, reduction = "pca",
                group.by = "New_Persistency2", split.by = "px",
                cols = c("NO" = "lightgray", "YES" = "red", "Outliers" = "black"),
                order = c("NO", "Outliers", "YES"),
@@ -3419,7 +3419,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                               "GMP CD4 Subsister %", "GMP CD8 Subsister %",
                               "Estimated GMP CD4 Subsisters #", "Estimated GMP CD8 Subsisters #",
                               "Dose (per Kg)",
-                              "Adjusted Dose (peg Kg)",
+                              "Adjusted Dose (per Kg)",
                               "Estimated Injected GMP CD4 Subsisters # (per kg)",
                               "Estimated Injected GMP CD8 Subsisters # (per kg)")
   
@@ -3430,7 +3430,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   result_table$`CD8 % of CAR+` <- Real_GMP_CAR_CD8_pcnt
   result_table$`GMP Total Cell #` <- gmp_cell_cnt
   result_table$`Dose (per Kg)` <- dose_levels
-  result_table$`Adjusted Dose (peg Kg)` <- round(dose_levels * 100 / Real_GMP_CARpos_pcnt, 0)
+  result_table$`Adjusted Dose (per Kg)` <- round(dose_levels * 100 / Real_GMP_CARpos_pcnt, 0)
   result_table$`Estimated Injected GMP CD4 Subsisters # (per kg)` <- NA
   result_table$`Estimated Injected GMP CD8 Subsisters # (per kg)` <- NA
   
@@ -3469,8 +3469,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   }
   
   ### calculate some more info
-  result_table[,"Estimated Injected GMP CD4 Subsisters # (per kg)"] <- round(result_table[,"Adjusted Dose (peg Kg)"] * result_table[,"GMP CD4 Subsister %"] / 100, 0)
-  result_table[,"Estimated Injected GMP CD8 Subsisters # (per kg)"] <- round(result_table[,"Adjusted Dose (peg Kg)"] * result_table[,"GMP CD8 Subsister %"] / 100, 0)
+  result_table[,"Estimated Injected GMP CD4 Subsisters # (per kg)"] <- round(result_table[,"Adjusted Dose (per Kg)"] * result_table[,"GMP CD4 Subsister %"] / 100, 0)
+  result_table[,"Estimated Injected GMP CD8 Subsisters # (per kg)"] <- round(result_table[,"Adjusted Dose (per Kg)"] * result_table[,"GMP CD8 Subsister %"] / 100, 0)
   
   ### write out the result_table
   write.xlsx2(data.frame(Patient=rownames(result_table),
@@ -3563,7 +3563,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                               "GMP CD4 Subsister %", "GMP CD8 Subsister %",
                               "Estimated GMP CD4 Subsisters #", "Estimated GMP CD8 Subsisters #",
                               "Dose (per Kg)",
-                              "Adjusted Dose (peg Kg)",
+                              "Adjusted Dose (per Kg)",
                               "Estimated Injected GMP CD4 Subsisters # (per kg)",
                               "Estimated Injected GMP CD8 Subsisters # (per kg)")
   
@@ -3574,7 +3574,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   result_table2$`CD8 % of CAR+` <- Real_GMP_CAR_CD8_pcnt
   result_table2$`GMP Total Cell #` <- gmp_cell_cnt
   result_table2$`Dose (per Kg)` <- dose_levels
-  result_table2$`Adjusted Dose (peg Kg)` <- round(dose_levels * 100 / Real_GMP_CARpos_pcnt, 0)
+  result_table2$`Adjusted Dose (per Kg)` <- round(dose_levels * 100 / Real_GMP_CARpos_pcnt, 0)
   result_table2$`Estimated Injected GMP CD4 Subsisters # (per kg)` <- NA
   result_table2$`Estimated Injected GMP CD8 Subsisters # (per kg)` <- NA
   
@@ -3613,8 +3613,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   }
   
   ### calculate some more info
-  result_table2[,"Estimated Injected GMP CD4 Subsisters # (per kg)"] <- round(result_table2[,"Adjusted Dose (peg Kg)"] * result_table2[,"GMP CD4 Subsister %"] / 100, 0)
-  result_table2[,"Estimated Injected GMP CD8 Subsisters # (per kg)"] <- round(result_table2[,"Adjusted Dose (peg Kg)"] * result_table2[,"GMP CD8 Subsister %"] / 100, 0)
+  result_table2[,"Estimated Injected GMP CD4 Subsisters # (per kg)"] <- round(result_table2[,"Adjusted Dose (per Kg)"] * result_table2[,"GMP CD4 Subsister %"] / 100, 0)
+  result_table2[,"Estimated Injected GMP CD8 Subsisters # (per kg)"] <- round(result_table2[,"Adjusted Dose (per Kg)"] * result_table2[,"GMP CD8 Subsister %"] / 100, 0)
   
   ### write out the result_table
   write.xlsx2(data.frame(Patient=rownames(result_table2),
@@ -4695,7 +4695,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                                "GMP CD4 Subsister %", "GMP CD8 Subsister %",
                                "Estimated GMP CD4 Subsisters #", "Estimated GMP CD8 Subsisters #",
                                "Dose (per Kg)",
-                               "Adjusted Dose (peg Kg)",
+                               "Adjusted Dose (per Kg)",
                                "Estimated Injected GMP CD4 Subsisters # (per kg)",
                                "Estimated Injected GMP CD8 Subsisters # (per kg)")
   
@@ -4706,7 +4706,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   result_table2$`CD8 % of CAR+` <- Real_GMP_CAR_CD8_pcnt
   result_table2$`GMP Total Cell #` <- gmp_cell_cnt
   result_table2$`Dose (per Kg)` <- dose_levels
-  result_table2$`Adjusted Dose (peg Kg)` <- round(dose_levels * 100 / Real_GMP_CARpos_pcnt, 0)
+  result_table2$`Adjusted Dose (per Kg)` <- round(dose_levels * 100 / Real_GMP_CARpos_pcnt, 0)
   result_table2$`Estimated Injected GMP CD4 Subsisters # (per kg)` <- NA
   result_table2$`Estimated Injected GMP CD8 Subsisters # (per kg)` <- NA
   
@@ -4745,8 +4745,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   }
   
   ### calculate some more info
-  result_table2[,"Estimated Injected GMP CD4 Subsisters # (per kg)"] <- round(result_table2[,"Adjusted Dose (peg Kg)"] * result_table2[,"GMP CD4 Subsister %"] / 100, 0)
-  result_table2[,"Estimated Injected GMP CD8 Subsisters # (per kg)"] <- round(result_table2[,"Adjusted Dose (peg Kg)"] * result_table2[,"GMP CD8 Subsister %"] / 100, 0)
+  result_table2[,"Estimated Injected GMP CD4 Subsisters # (per kg)"] <- round(result_table2[,"Adjusted Dose (per Kg)"] * result_table2[,"GMP CD4 Subsister %"] / 100, 0)
+  result_table2[,"Estimated Injected GMP CD8 Subsisters # (per kg)"] <- round(result_table2[,"Adjusted Dose (per Kg)"] * result_table2[,"GMP CD8 Subsister %"] / 100, 0)
   
   ### write out the result_table
   write.xlsx2(data.frame(Patient=rownames(result_table2),
@@ -4808,6 +4808,23 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           axis.ticks = element_blank(),
           axis.text.x = element_text(angle = -45, hjust = 0.5, vjust = 0.5, size = 20))
   ggsave(file = paste0(outputDir2, "Estimated_CD8_Subsister(Cluster22)_#_In_GMP.png"), plot = p, width = 25, height = 10, dpi = 400)
+  
+  ### correlation between adjusted dose & subsister #
+  plot_df <- data.frame(Adjusted_Dose=as.numeric(result_table2$`Adjusted Dose (per Kg)`),
+                        Injected_Subsisters=as.numeric(result_table2$`Estimated Injected GMP CD8 Subsisters # (per kg)`),
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### draw the correlation plot
+  s_cor <- round(cor(plot_df$Adjusted_Dose, plot_df$Injected_Subsisters, method = "spearman", use = "complete.obs"), 2)
+  p <- ggplot(data = plot_df, aes(x=Adjusted_Dose, y=Injected_Subsisters)) +
+    geom_point(col = "blue", size = 8) +
+    labs(title = paste0("Spearman Correlation:", s_cor)) +
+    xlab("Injected Dose (per kg)") +
+    ylab("Injected Subsisters (per kg)") +
+    geom_smooth(method = lm, color="black", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 24))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Dose_vs_Subsister#.png"), plot = p, width = 18, height = 10, dpi = 400)
   
   
   #
@@ -4958,27 +4975,72 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                              reducedDim = "PCA")
   
   ### get colors for the clustering result
-  cell_colors_clust <- cell_pal(intersect(levels(sub_seurat_obj4@meta.data$time2),
-                                          unique(sub_seurat_obj4@meta.data$time2)), hue_pal())
+  cell_colors_clust <- cell_pal(unique(sub_seurat_obj4@meta.data$time2), hue_pal())
   
   ### Trajectory inference
   png(paste0(outputDir2, "CARpos_CD8_Trajectory_Inference_Time_PCA.png"), width = 5000, height = 3000, res = 350)
   par(mar=c(7, 7, 7, 1), mgp=c(4,1,0))
   plot(reducedDim(slingshot_obj),
-       main=paste(donor, "Trajectory Inference Based On Time (PCA)"),
+       main=paste("CAR+ CD8 Trajectory Inference"),
        col = cell_colors_clust[as.character(sub_seurat_obj4@meta.data$time2)],
-       pch = 19, cex = 2, cex.lab = 3, cex.main = 3, cex.axis = 2)
+       pch = 19, cex = 1, cex.lab = 3, cex.main = 3, cex.axis = 2)
   # title(xlab="PC1", mgp=c(1,1,0), cex.lab=3)
   # title(ylab="PC2", mgp=c(1,1,0), cex.lab=3)
   lines(slingshot_obj, lwd = 4, type = "lineages", col = "black",
         show.constraints = TRUE, constraints.col = cell_colors_clust)
-  legend("bottomright", legend = names(cell_colors_clust), col = cell_colors_clust,
-         pch = 19, cex = 1.8)
+  legend("bottomleft", legend = names(cell_colors_clust), col = cell_colors_clust,
+         pch = 19, cex = 1.5)
+  dev.off()
+  
+  ### cell # for each time point
+  cell_num <- sapply(unique(sub_seurat_obj4@meta.data$time2), function(x) {
+    return(length(which(sub_seurat_obj4@meta.data$time2 == x)))
+  })
+  
+  ### remove 6mo data since there are only 3 cells
+  cell_num <- cell_num[-8]
+  
+  ### the data is too big (can't run for monocle), so we down-sample the cells in each time point
+  set.seed(1234)
+  fixed_min_cell_num <- min(cell_num)
+  sub_seurat_obj4@meta.data$downsampled <- "NO"
+  for(tp in names(cell_num)) {
+    sub_seurat_obj4@meta.data$downsampled[sample(which(sub_seurat_obj4@meta.data$time2 == tp), fixed_min_cell_num)] <- "YES"
+  }
+  
+  ### PCA map
+  pca_map2 <- Embeddings(sub_seurat_obj4, reduction = "pca")[rownames(sub_seurat_obj4@meta.data)[which(sub_seurat_obj4@meta.data$downsampled == "YES")],1:2]
+  
+  ### get slingshot object
+  slingshot_obj2 <- slingshot(pca_map2,
+                              clusterLabels = sub_seurat_obj4@meta.data$time2[which(sub_seurat_obj4@meta.data$downsampled == "YES")],
+                              start.clus = "GMP",
+                              end.clus = "3mo",
+                              reducedDim = "PCA")
+  
+  ### get colors for the clustering result
+  cell_colors_clust2 <- cell_pal(names(cell_num), hue_pal())
+  
+  ### Trajectory inference
+  png(paste0(outputDir2, "CARpos_CD8_Trajectory_Inference_Time_PCA_Downsampled.png"), width = 5000, height = 3000, res = 350)
+  par(mar=c(7, 7, 7, 1), mgp=c(4,1,0))
+  plot(reducedDim(slingshot_obj2),
+       main=paste("CAR+ CD8 Trajectory Inference"),
+       col = cell_colors_clust2[as.character(sub_seurat_obj4@meta.data$time2[which(sub_seurat_obj4@meta.data$downsampled == "YES")])],
+       pch = 19, cex = 1, cex.lab = 3, cex.main = 3, cex.axis = 2)
+  # title(xlab="PC1", mgp=c(1,1,0), cex.lab=3)
+  # title(ylab="PC2", mgp=c(1,1,0), cex.lab=3)
+  lines(slingshot_obj2, lwd = 4, type = "lineages", col = "black",
+        show.constraints = TRUE, constraints.col = cell_colors_clust2)
+  legend("bottomleft", legend = names(cell_colors_clust2), col = cell_colors_clust2,
+         pch = 19, cex = 1.5)
   dev.off()
   
   ### Construct a monocle cds
-  monocle_cds <- newCellDataSet(as(as.matrix(sub_seurat_obj4@assays$RNA@data), 'sparseMatrix'),
-                                phenoData = new('AnnotatedDataFrame', data = sub_seurat_obj4@meta.data),
+  monocle_metadata <- sub_seurat_obj4@meta.data[rownames(sub_seurat_obj4@meta.data)[which(sub_seurat_obj4@meta.data$downsampled == "YES")],]
+  monocle_metadata$time2 <- factor(monocle_metadata$time2, levels = unique(monocle_metadata$time2))
+  monocle_cds <- newCellDataSet(as(as.matrix(sub_seurat_obj4@assays$RNA@data[,rownames(sub_seurat_obj4@meta.data)[which(sub_seurat_obj4@meta.data$downsampled == "YES")]]), 'sparseMatrix'),
+                                phenoData = new('AnnotatedDataFrame', data = monocle_metadata),
                                 featureData = new('AnnotatedDataFrame', data = data.frame(gene_short_name = row.names(sub_seurat_obj4@assays$RNA@data),
                                                                                           row.names = row.names(sub_seurat_obj4@assays$RNA@data),
                                                                                           stringsAsFactors = FALSE, check.names = FALSE)),
@@ -4994,8 +5056,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### determine the beginning state
   plot_cell_trajectory(monocle_cds, color_by = "time2") + geom_point(alpha=0.1)
   plot_cell_trajectory(monocle_cds, color_by = "State")
+  plot_complex_cell_trajectory(monocle_cds, color_by = "time2")
   plot_complex_cell_trajectory(monocle_cds, color_by = "State")
-  monocle_cds <- orderCells(monocle_cds, root_state = "2")
+  monocle_cds <- orderCells(monocle_cds, root_state = "5")
   
   ### draw monocle plots
   p <- plot_cell_trajectory(monocle_cds, color_by = "time2", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
@@ -5008,7 +5071,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
          plot = p,
          width = 15, height = 10, dpi = 350)
   
-  p <- plot_complex_cell_trajectory(monocle_cds, color_by = "Day", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+  p <- plot_complex_cell_trajectory(monocle_cds, color_by = "time2", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
     labs(color="") +
     theme_classic(base_size = 36) +
     theme(legend.position = "top",
@@ -5018,13 +5081,70 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
          plot = p,
          width = 15, height = 10, dpi = 350)
   
+  p <- plot_complex_cell_trajectory(monocle_cds, color_by = "State", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CAR_CD8_Trajectory_Inference_State_Complex_Monocle2.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
   
+  ### gene expression changes
+  interesting_genes <- c("SELL", "GZMH", "GZMK", "CCL4", "KLRD1", "IFITM3")
+  cds_subset <- monocle_cds[interesting_genes,]
+  p <- plot_genes_in_pseudotime(cds_subset, color_by = "time2",
+                           cell_size = 2, ncol = 2) +
+    labs(color = "Time") +
+    theme_classic(base_size = 20) +
+    theme(legend.title = element_text(size = 30),
+          legend.text = element_text(size = 20))
+  ggsave(file = paste0(outputDir2, "CAR_CD8_Trajectory_Inference_GEX.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
   
+  ### what are the gene expression differences in GMP State 1 vs State 5?
+  sub_seurat_obj4@meta.data$State <- NA
+  sub_seurat_obj4@meta.data[rownames(monocle_cds@phenoData@data),"State"] <- monocle_cds@phenoData@data$State
+  sub_seurat_obj4 <- SetIdent(object = sub_seurat_obj4,
+                              cells = rownames(sub_seurat_obj4@meta.data),
+                              value = sub_seurat_obj4@meta.data$State)
+  de_result_st1_vs_5 <- FindMarkers(sub_seurat_obj4,
+                                    ident.1 = "1",
+                                    ident.2 = "5",
+                                    min.pct = 0.2,
+                                    logfc.threshold = 0.2,
+                                    test.use = "wilcox")
   
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result_st1_vs_5),
+                         de_result_st1_vs_5,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/CARpos_CD8_St1_vs_St5.xlsx"),
+              sheetName = "CARpos_CD8_St1_vs_St5", row.names = FALSE)
   
+  ### get entrez ids for the genes
+  de_entrez_ids <- mapIds(org.Hs.eg.db,
+                          rownames(de_result_st1_vs_5)[which(de_result_st1_vs_5$p_val_adj < 0.01)],
+                          "ENTREZID", "SYMBOL")
+  de_entrez_ids <- de_entrez_ids[!is.na(de_entrez_ids)]
   
-  
-  
+  ### GO & KEGG
+  pathway_result_GO <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                          org = "human", database = "GO",
+                                          title = paste0("Pathways_with_DE_Genes_St1_vs_St5"),
+                                          displayNum = 10, imgPrint = TRUE,
+                                          dir = outputDir2)
+  pathway_result_KEGG <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                            org = "human", database = "KEGG",
+                                            title = paste0("Pathways_with_DE_Genes_St1_vs_St5"),
+                                            displayNum = 10, imgPrint = TRUE,
+                                            dir = outputDir2)
+  write.xlsx2(pathway_result_GO, file = paste0(outputDir2, "GO_Pathways_with_DE_genes_St1_vs_St5.xlsx"),
+              row.names = FALSE, sheetName = paste0("GO_Results"))
+  write.xlsx2(pathway_result_KEGG, file = paste0(outputDir2, "KEGG_Pathways_with_DE_genes_St1_vs_St5.xlsx"),
+              row.names = FALSE, sheetName = paste0("KEGG_Results"))
   
   #
   ### 17. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
