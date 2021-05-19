@@ -4838,9 +4838,142 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   outputDir2 <- paste0(outputDir, "/14/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
+  #
+  ### get seurat object for CAR+ CD8 post-infusion time points
+  #
+  ### get CARpos-only seurat object
+  carpos_cd8_cells <- rownames(Seurat_Obj@meta.data)[intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                                               which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))]
+  sub_seurat_obj5 <- subset(Seurat_Obj, cells = carpos_cd8_cells)
   
+  ### after gmp time points only
+  pi_time_points <- c("Wk1", "Wk2", "Wk3", "Wk4", 
+                      "Wk6", "Wk8", "3mo", "6mo", "9mo")
+  sub_seurat_obj5 <- SetIdent(object = sub_seurat_obj5,
+                              cells = rownames(sub_seurat_obj5@meta.data),
+                              value = sub_seurat_obj5@meta.data$time2)
+  sub_seurat_obj5 <- subset(sub_seurat_obj5, idents = intersect(pi_time_points,
+                                                                unique(sub_seurat_obj5@meta.data$time2)))
   
+  ### get seurat object for some specific patients
+  sub_seurat_obj5 <- SetIdent(object = sub_seurat_obj5,
+                              cells = rownames(sub_seurat_obj5@meta.data),
+                              value = sub_seurat_obj5@meta.data$px)
+  sub_seurat_obj5 <- subset(sub_seurat_obj5, idents = c("SJCAR19-02", "SJCAR19-04", "SJCAR19-05",
+                                                        "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
+                                                        "SJCAR19-09", "SJCAR19-10", "SJCAR19-11"))
   
+  ### normalization
+  sub_seurat_obj5 <- NormalizeData(sub_seurat_obj5,
+                                   normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### find variable genes
+  sub_seurat_obj5 <- FindVariableFeatures(sub_seurat_obj5,
+                                          selection.method = "vst", nfeatures = 2000)
+  
+  ### scaling
+  sub_seurat_obj5 <- ScaleData(sub_seurat_obj5,
+                               vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  
+  ### run pca & umap
+  sub_seurat_obj5 <- RunPCA(sub_seurat_obj5,
+                            features = VariableFeatures(object = sub_seurat_obj5),
+                            npcs = 15)
+  sub_seurat_obj5 <- RunUMAP(sub_seurat_obj5, dims = 1:15)
+  
+  ### set early vs late
+  sub_seurat_obj5@meta.data$early_late <- "Early"
+  sub_seurat_obj5@meta.data$early_late[which(sub_seurat_obj5@meta.data$time2 %in% c("Wk8", "3mo", "6mo", "9mo"))] <- "Late"
+  
+  ### DE analysis
+  sub_seurat_obj5 <- SetIdent(object = sub_seurat_obj5,
+                              cells = rownames(sub_seurat_obj5@meta.data),
+                              value = sub_seurat_obj5@meta.data$early_late)
+  de_result <- FindMarkers(sub_seurat_obj5,
+                           ident.1 = "Early",
+                           ident.2 = "Late",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/DE_PI_CARpos_CD8_Early_vs_Late.xlsx"),
+              sheetName = "PI_CARpos_CD8_Early_vs_Late_DE_Result", row.names = FALSE)
+  
+  ### get entrez ids for the genes
+  de_entrez_ids <- mapIds(org.Hs.eg.db,
+                          rownames(de_result)[which(de_result$p_val_adj < 0.01)],
+                          "ENTREZID", "SYMBOL")
+  de_entrez_ids <- de_entrez_ids[!is.na(de_entrez_ids)]
+  
+  ### GO & KEGG
+  pathway_result_GO <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                          org = "human", database = "GO",
+                                          title = paste0("Pathways_with_DE_Genes_PI_CARpos_CD8_Early_vs_Late"),
+                                          displayNum = 10, imgPrint = TRUE,
+                                          dir = outputDir2)
+  pathway_result_KEGG <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                            org = "human", database = "KEGG",
+                                            title = paste0("Pathways_with_DE_Genes_PI_CARpos_CD8_Early_vs_Late"),
+                                            displayNum = 10, imgPrint = TRUE,
+                                            dir = outputDir2)
+  write.xlsx2(pathway_result_GO, file = paste0(outputDir2, "GO_Pathways_with_DE_genes_PI_CARpos_CD8_Early_vs_Late.xlsx"),
+              row.names = FALSE, sheetName = paste0("GO_Results"))
+  write.xlsx2(pathway_result_KEGG, file = paste0(outputDir2, "KEGG_Pathways_with_DE_genes_PI_CARpos_CD8_Early_vs_Late.xlsx"),
+              row.names = FALSE, sheetName = paste0("KEGG_Results"))
+  
+  ### lineages
+  persister_clones <- unique(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "YES")])
+  
+  ### CARpos CD8 subsisters [After 6 weeks] vs [Early time points; not GMP]
+  sub_seurat_obj5@meta.data$early_late2 <- NA
+  sub_seurat_obj5@meta.data$early_late2[intersect(which(sub_seurat_obj5@meta.data$clonotype_id_by_patient_one_alpha_beta %in% persister_clones),
+                                                  which(sub_seurat_obj5@meta.data$early_late == "Early"))] <- "Early_Subsisters"
+  sub_seurat_obj5@meta.data$early_late2[intersect(which(sub_seurat_obj5@meta.data$clonotype_id_by_patient_one_alpha_beta %in% persister_clones),
+                                                  which(sub_seurat_obj5@meta.data$early_late == "Late"))] <- "Late_Subsisters"
+  
+  ### DE analysis
+  sub_seurat_obj5 <- SetIdent(object = sub_seurat_obj5,
+                              cells = rownames(sub_seurat_obj5@meta.data),
+                              value = sub_seurat_obj5@meta.data$early_late2)
+  de_result <- FindMarkers(sub_seurat_obj5,
+                           ident.1 = "Early_Subsisters",
+                           ident.2 = "Late_Subsisters",
+                           min.pct = 0.1,
+                           logfc.threshold = 0.1,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/DE_PI_CARpos_CD8_Subsisters_Early_vs_Late.xlsx"),
+              sheetName = "PI_CARpos_CD8_Subsisters_Early_vs_Late_DE_Result", row.names = FALSE)
+  
+  ### get entrez ids for the genes
+  de_entrez_ids <- mapIds(org.Hs.eg.db,
+                          rownames(de_result)[which(de_result$p_val_adj < 0.01)],
+                          "ENTREZID", "SYMBOL")
+  de_entrez_ids <- de_entrez_ids[!is.na(de_entrez_ids)]
+  
+  ### GO & KEGG
+  pathway_result_GO <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                          org = "human", database = "GO",
+                                          title = paste0("Pathways_with_DE_Genes_PI_CARpos_CD8_Subsisters_Early_vs_Late"),
+                                          displayNum = 10, imgPrint = TRUE,
+                                          dir = outputDir2)
+  pathway_result_KEGG <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                            org = "human", database = "KEGG",
+                                            title = paste0("Pathways_with_DE_Genes_PI_CARpos_CD8_Subsisters_Early_vs_Late"),
+                                            displayNum = 10, imgPrint = TRUE,
+                                            dir = outputDir2)
+  write.xlsx2(pathway_result_GO, file = paste0(outputDir2, "GO_Pathways_with_DE_genes_PI_CARpos_CD8_Subsisters_Early_vs_Late.xlsx"),
+              row.names = FALSE, sheetName = paste0("GO_Results"))
+  write.xlsx2(pathway_result_KEGG, file = paste0(outputDir2, "KEGG_Pathways_with_DE_genes_PI_CARpos_CD8_Subsisters_Early_vs_Late.xlsx"),
+              row.names = FALSE, sheetName = paste0("KEGG_Results"))
   
   #
   ### 15. Feature plots and DE list with specific genes from Tan paper
