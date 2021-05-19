@@ -35,7 +35,9 @@
 #               14. What are the DEGs between cells from the late time (after six weeks) points vs. early time points?
 #               15. Feature plots and DE list with specific genes from Tan paper
 #               16. Trajectory analysis of differentiation of CD8 CAR+ (start with all time points and perhaps move to only post-infusion depending on how it looks)
-#               17. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#               17. Comaprison to a reference data set of well characterized t cell differentiation gene sets
+#               18. CAR+ cells with high CAR expression vs CAR+ cells with low CAR expression (DE, pathway, & subsister difference)
+#               19. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -117,6 +119,20 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       install.packages("BiocManager")
     BiocManager::install("monocle")
     require(monocle, quietly = TRUE)
+  }
+  if(!require(gage, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("gage")
+    require(gage, quietly = TRUE)
+  }
+  if(!require(msigdbr, quietly = TRUE)) {
+    install.packages("msigdbr")
+    library(msigdbr, quietly = TRUE)
+  }
+  if(!require(ggthemes, quietly = TRUE)) {
+    install.packages("ggthemes")
+    require(ggthemes, quietly = TRUE)
   }
   
   ### create outputDir
@@ -5279,12 +5295,355 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   write.xlsx2(pathway_result_KEGG, file = paste0(outputDir2, "KEGG_Pathways_with_DE_genes_St1_vs_St5.xlsx"),
               row.names = FALSE, sheetName = paste0("KEGG_Results"))
   
+  ### the data is too big (can't run for monocle), so we down-sample the cells in each time point
+  ### BUT THIS TIME, INCLUDE ALL THE GMP SUBSISTERS (ADDITION TO THE ORIGINAL DOWNSAMPLED ONES)
+  sub_seurat_obj4@meta.data$downsampled2 <- sub_seurat_obj4@meta.data$downsampled
+  sub_seurat_obj4@meta.data$downsampled2[which(sub_seurat_obj4@meta.data$GMP_CARpos_CD8_Persister == "YES")] <- "YES"
+  
+  ### Construct a monocle cds
+  monocle_metadata <- sub_seurat_obj4@meta.data[rownames(sub_seurat_obj4@meta.data)[which(sub_seurat_obj4@meta.data$downsampled2 == "YES")],]
+  monocle_metadata$time2 <- factor(monocle_metadata$time2, levels = unique(monocle_metadata$time2))
+  monocle_cds <- newCellDataSet(as(as.matrix(sub_seurat_obj4@assays$RNA@data[,rownames(sub_seurat_obj4@meta.data)[which(sub_seurat_obj4@meta.data$downsampled2 == "YES")]]), 'sparseMatrix'),
+                                phenoData = new('AnnotatedDataFrame', data = monocle_metadata),
+                                featureData = new('AnnotatedDataFrame', data = data.frame(gene_short_name = row.names(sub_seurat_obj4@assays$RNA@data),
+                                                                                          row.names = row.names(sub_seurat_obj4@assays$RNA@data),
+                                                                                          stringsAsFactors = FALSE, check.names = FALSE)),
+                                lowerDetectionLimit = 0.5,
+                                expressionFamily = negbinomial.size())
+  
+  ### run monocle
+  monocle_cds <- estimateSizeFactors(monocle_cds)
+  monocle_cds <- estimateDispersions(monocle_cds)
+  monocle_cds <- reduceDimension(monocle_cds, reduction_method = "DDRTree")
+  monocle_cds <- orderCells(monocle_cds)
+  
+  ### determine the beginning state
+  plot_cell_trajectory(monocle_cds, color_by = "time2") + geom_point(alpha=0.1)
+  plot_cell_trajectory(monocle_cds, color_by = "State")
+  plot_complex_cell_trajectory(monocle_cds, color_by = "time2")
+  plot_complex_cell_trajectory(monocle_cds, color_by = "State")
+  monocle_cds <- orderCells(monocle_cds, root_state = "1")
+  
+  ### draw monocle plots
+  p <- plot_cell_trajectory(monocle_cds, color_by = "time2", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CAR_CD8_Trajectory_Inference_Time_Monocle2_Subsisters.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_complex_cell_trajectory(monocle_cds, color_by = "time2", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CAR_CD8_Trajectory_Inference_Time_Complex_Monocle2_Subsisters.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_cell_trajectory(monocle_cds, color_by = "GMP_CARpos_CD8_Persister", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="GMP Subsisters") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CAR_CD8_Trajectory_Inference_Persistency_Complex_Monocle2_Subsisters.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  ### State1:  241, State 6: 111
+  print(length(intersect(which(monocle_cds$State == 1),
+                         which(monocle_cds$GMP_CARpos_CD8_Persister == "YES"))))
+  print(length(intersect(which(monocle_cds$State == 6),
+                         which(monocle_cds$GMP_CARpos_CD8_Persister == "YES"))))
+  print(unique(monocle_cds$px[intersect(which(monocle_cds$State == 1),
+                                        which(monocle_cds$GMP_CARpos_CD8_Persister == "YES"))]))
+  print(unique(monocle_cds$px[intersect(which(monocle_cds$State == 6),
+                                        which(monocle_cds$GMP_CARpos_CD8_Persister == "YES"))]))
+  
+  ### the data is too big (can't run for monocle), so we down-sample the cells in each time point
+  ### BUT THIS TIME, INCLUDE ALL THE SUBSISTERS (ADDITION TO THE ORIGINAL DOWNSAMPLED ONES)
+  sub_seurat_obj4@meta.data$downsampled3 <- sub_seurat_obj4@meta.data$downsampled2
+  sub_seurat_obj4@meta.data$downsampled3[which(sub_seurat_obj4@meta.data$ALL_GMP_CARpos_Persister == "YES")] <- "YES"
+  
+  ### Construct a monocle cds
+  monocle_metadata <- sub_seurat_obj4@meta.data[rownames(sub_seurat_obj4@meta.data)[which(sub_seurat_obj4@meta.data$downsampled3 == "YES")],]
+  monocle_metadata$time2 <- factor(monocle_metadata$time2, levels = unique(monocle_metadata$time2))
+  monocle_cds <- newCellDataSet(as(as.matrix(sub_seurat_obj4@assays$RNA@data[,rownames(sub_seurat_obj4@meta.data)[which(sub_seurat_obj4@meta.data$downsampled3 == "YES")]]), 'sparseMatrix'),
+                                phenoData = new('AnnotatedDataFrame', data = monocle_metadata),
+                                featureData = new('AnnotatedDataFrame', data = data.frame(gene_short_name = row.names(sub_seurat_obj4@assays$RNA@data),
+                                                                                          row.names = row.names(sub_seurat_obj4@assays$RNA@data),
+                                                                                          stringsAsFactors = FALSE, check.names = FALSE)),
+                                lowerDetectionLimit = 0.5,
+                                expressionFamily = negbinomial.size())
+  
+  ### run monocle
+  monocle_cds <- estimateSizeFactors(monocle_cds)
+  monocle_cds <- estimateDispersions(monocle_cds)
+  monocle_cds <- reduceDimension(monocle_cds, reduction_method = "DDRTree")
+  monocle_cds <- orderCells(monocle_cds)
+  
+  ### determine the beginning state
+  plot_cell_trajectory(monocle_cds, color_by = "time2") + geom_point(alpha=0.1)
+  plot_cell_trajectory(monocle_cds, color_by = "State")
+  plot_complex_cell_trajectory(monocle_cds, color_by = "time2")
+  plot_complex_cell_trajectory(monocle_cds, color_by = "State")
+  monocle_cds <- orderCells(monocle_cds, root_state = "7")
+  
+  ### draw monocle plots
+  p <- plot_cell_trajectory(monocle_cds, color_by = "time2", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CAR_CD8_Trajectory_Inference_Time_Monocle2_Subsisters2.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_complex_cell_trajectory(monocle_cds, color_by = "time2", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CAR_CD8_Trajectory_Inference_Time_Complex_Monocle2_Subsisters2.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_cell_trajectory(monocle_cds, color_by = "ALL_GMP_CARpos_Persister", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="ALL Subsisters") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CAR_CD8_Trajectory_Inference_Persistency_Complex_Monocle2_Subsisters2.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  
   #
-  ### 17. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 17. Comaprison to a reference data set of well characterized t cell differentiation gene sets
+  #       T cell differentiation: GO:0030217 (Gene Ontology)
+  #       T cell exhaustion:  GSE9650_EFFECTOR_VS_EXHAUSTED_CD8_TCELL_DN (msigdb)
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/17/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### get t cell differentiation genes
+  go.hs <- go.gsets(species="human")
+  t_cell_diff_genes <- go.hs[["go.sets"]][["GO:0030217 T cell differentiation"]]
+  t_cell_diff_genes <- mapIds(org.Hs.eg.db,
+                              t_cell_diff_genes,
+                              "SYMBOL", "ENTREZID")
+  t_cell_diff_genes <- t_cell_diff_genes[!is.na(t_cell_diff_genes)]
+  
+  ### get t cell exhaustion genes
+  m_df <- msigdbr(species = "Homo sapiens")
+  m_list <- m_df %>% split(x = .$gene_symbol, f = .$gs_name)
+  t_cell_exhaustion_genes <- m_list[["GSE9650_EFFECTOR_VS_EXHAUSTED_CD8_TCELL_DN"]]
+  
+  #
+  ### GMP CARpos CD8 subsister vs non-subsister
+  #
+  ### DE analysis
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister)
+  de_result <- FindMarkers(target_Seurat_Obj,
+                           ident.1 = "YES",
+                           ident.2 = "NO",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### subset
+  de_result_diff <- de_result[intersect(rownames(de_result), t_cell_diff_genes),]
+  de_result_exhaustion <- de_result[intersect(rownames(de_result), t_cell_exhaustion_genes),]
+  
+  ### write out the DE results
+  write.xlsx2(data.frame(Gene=rownames(de_result_diff),
+                         de_result_diff,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/GMP_CARpos_CD8_Subsisters_vs_Non-subsisters_diff.xlsx"),
+              sheetName = "GMP_CARpos_CD8_Subsisters_vs_Non-subsisters_diff", row.names = FALSE)
+  
+  write.xlsx2(data.frame(Gene=rownames(de_result_exhaustion),
+                         de_result_exhaustion,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/GMP_CARpos_CD8_Subsisters_vs_Non-subsisters_exhaustion.xlsx"),
+              sheetName = "GMP_CARpos_CD8_Subsisters_vs_Non-subsisters_exhaustion", row.names = FALSE)
+  
+  ### dot plot
+  p <- DotPlot(target_Seurat_Obj,
+               features = rownames(de_result_diff),
+               cols = c("blue", "red"),
+               group.by = "GMP_CARpos_CD8_Persister") +
+    scale_size(range = c(2, 15)) +
+    coord_flip() +
+    xlab("T Cell Differentiation Genes") +
+    ylab("Is_Subsistent") +
+    theme_calc(base_size = 20) +
+    theme(plot.title = element_text(hjust = 0.5))
+  ggsave(file = paste0(outputDir2, "GMP_CARpos_CD8_Subsisters_vs_Non-subsisters_diff.png"),
+         plot = p, width = 15, height = 15, dpi = 350)
+  
+  p <- DotPlot(target_Seurat_Obj,
+               features = rownames(de_result_exhaustion),
+               cols = c("blue", "red"),
+               group.by = "GMP_CARpos_CD8_Persister") +
+    scale_size(range = c(2, 15)) +
+    coord_flip() +
+    xlab("T Cell Exhaustion Genes") +
+    ylab("Is_Subsistent") +
+    theme_calc(base_size = 20) +
+    theme(plot.title = element_text(hjust = 0.5))
+  ggsave(file = paste0(outputDir2, "GMP_CARpos_CD8_Subsisters_vs_Non-subsisters_exhaustion.png"),
+         plot = p, width = 15, height = 15, dpi = 350)
+  
+  #
+  ### CARpos post-infusion subsister vs non-subsister
+  #
+  ### DE analysis
+  sub_seurat_obj2 <- SetIdent(object = sub_seurat_obj2,
+                              cells = rownames(sub_seurat_obj2@meta.data),
+                              value = sub_seurat_obj2@meta.data$CD8_Persisters)
+  de_result <- FindMarkers(sub_seurat_obj2,
+                           ident.1 = "Subsisters",
+                           ident.2 = "Non-subsisters",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### subset
+  de_result_diff <- de_result[intersect(rownames(de_result), t_cell_diff_genes),]
+  de_result_exhaustion <- de_result[intersect(rownames(de_result), t_cell_exhaustion_genes),]
+  
+  ### write out the DE results
+  write.xlsx2(data.frame(Gene=rownames(de_result_diff),
+                         de_result_diff,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/PI_CARpos_Subsisters_vs_Non-subsisters_diff.xlsx"),
+              sheetName = "PI_CARpos_Subsisters_vs_Non-subsisters_diff", row.names = FALSE)
+  
+  write.xlsx2(data.frame(Gene=rownames(de_result_exhaustion),
+                         de_result_exhaustion,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/PI_CARpos_Subsisters_vs_Non-subsisters_exhaustion.xlsx"),
+              sheetName = "PI_CARpos_Subsisters_vs_Non-subsisters_exhaustion", row.names = FALSE)
+  
+  ### dot plot
+  p <- DotPlot(sub_seurat_obj2,
+          features = rownames(de_result_diff),
+          cols = c("blue", "red"),
+          group.by = "CD8_Persisters") +
+    scale_size(range = c(2, 15)) +
+    coord_flip() +
+    xlab("T Cell Differentiation Genes") +
+    ylab("Is_Subsistent") +
+    theme_calc(base_size = 20) +
+    theme(plot.title = element_text(hjust = 0.5))
+  ggsave(file = paste0(outputDir2, "PI_CARpos_Subsisters_vs_Non-subsisters_diff.png"),
+         plot = p, width = 15, height = 15, dpi = 350)
+  
+  p <- DotPlot(sub_seurat_obj2,
+               features = rownames(de_result_exhaustion),
+               cols = c("blue", "red"),
+               group.by = "CD8_Persisters") +
+    scale_size(range = c(2, 15)) +
+    coord_flip() +
+    xlab("T Cell Exhaustion Genes") +
+    ylab("Is_Subsistent") +
+    theme_calc(base_size = 20) +
+    theme(plot.title = element_text(hjust = 0.5))
+  ggsave(file = paste0(outputDir2, "PI_CARpos_Subsisters_vs_Non-subsisters_exhaustion.png"),
+         plot = p, width = 15, height = 15, dpi = 350)
+  
+  
+  #
+  ### 18. GMP CAR+ CD8 cells with high CAR expression vs low CAR expression (DE, pathway, & subsister difference)
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/18/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### CAR EXP < 2: 4208, CAR EXP > 50: 3677
+  target_Seurat_Obj@meta.data$CAR2 <- "MID"
+  target_Seurat_Obj@meta.data$CAR2[which(target_Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",rownames(target_Seurat_Obj@meta.data)] < 2)] <- "LOW"
+  target_Seurat_Obj@meta.data$CAR2[which(target_Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",rownames(target_Seurat_Obj@meta.data)] > 50)] <- "HIGH"
+  
+  ### UMAP with time with all patients
+  p <- DimPlot(object = target_Seurat_Obj, reduction = "umap",
+               group.by = "CAR2",
+               pt.size = 2,
+               cols = c("HIGH" = "red", "LOW" = "blue", "MID" = "lightgray"),
+               order = c("HIGH", "LOW", "MID")) +
+    ggtitle("") +
+    labs(color="CAR EXP") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 36))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  ggsave(paste0(outputDir2, "UMAP_GMP_CAR+_CD8_CAR_EXP.png"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### DE analysis
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$CAR2)
+  de_result <- FindMarkers(target_Seurat_Obj,
+                           ident.1 = "HIGH",
+                           ident.2 = "LOW",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE results
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/GMP_CARpos_CD8_CAR_EXP_HIGH_vs_Low.xlsx"),
+              sheetName = "GMP_CARpos_CD8_CAR_EXP_HIGH_vs_Low", row.names = FALSE)
+  
+  ### get entrez ids for the genes
+  de_entrez_ids <- mapIds(org.Hs.eg.db,
+                          rownames(de_result)[which(de_result$p_val_adj < 0.01)],
+                          "ENTREZID", "SYMBOL")
+  de_entrez_ids <- de_entrez_ids[!is.na(de_entrez_ids)]
+  
+  ### GO & KEGG
+  pathway_result_GO <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                          org = "human", database = "GO",
+                                          title = paste0("Pathways_with_DE_Genes_GMP_CARpos_CD8_CAR_EXP_HIGH_vs_Low"),
+                                          displayNum = 10, imgPrint = TRUE,
+                                          dir = outputDir2)
+  pathway_result_KEGG <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                            org = "human", database = "KEGG",
+                                            title = paste0("Pathways_with_DE_Genes_GMP_CARpos_CD8_CAR_EXP_HIGH_vs_Low"),
+                                            displayNum = 10, imgPrint = TRUE,
+                                            dir = outputDir2)
+  write.xlsx2(pathway_result_GO, file = paste0(outputDir2, "GO_Pathways_with_DE_genes_GMP_CARpos_CD8_CAR_EXP_HIGH_vs_Low.xlsx"),
+              row.names = FALSE, sheetName = paste0("GO_Results"))
+  write.xlsx2(pathway_result_KEGG, file = paste0(outputDir2, "KEGG_Pathways_with_DE_genes_GMP_CARpos_CD8_CAR_EXP_HIGH_vs_Low.xlsx"),
+              row.names = FALSE, sheetName = paste0("KEGG_Results"))
+  
+  
+  #
+  ### 19. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/19/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
