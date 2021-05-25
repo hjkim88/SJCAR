@@ -38,7 +38,8 @@
 #               17. Comaprison to a reference data set of well characterized t cell differentiation gene sets
 #               18. CAR+ cells with high CAR expression vs CAR+ cells with low CAR expression (DE, pathway, & subsister difference)
 #               19. Look at all GMP (CAR+ & CAR-) and all CAR+ GMP cells whether they are two separated clusters
-#               20. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#               20. Tay's request to look at some genes of Px11
+#               21. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -5495,6 +5496,280 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
               file = paste0(outputDir2, "/GMP_CARpos_CD8_Subsisters_St1_vs_St5.xlsx"),
               sheetName = "GMP_CARpos_CD8_Subsisters_St1_vs_St5", row.names = FALSE)
   
+  #
+  ### Proportion of cells in each state - proportional bar graph (time, subsisters, GMP-subsisters, clone_size)
+  #
+  
+  ### time
+  plot_df <- data.frame(State=as.vector(sapply(levels(monocle_cds$State), function(x) rep(x, length(levels(monocle_cds$time2))))),
+                        Time=rep(levels(monocle_cds$time2), length(levels(monocle_cds$State))),
+                        Freq=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### fill out the plot_df
+  for(i in 1:length(levels(monocle_cds$State))) {
+    for(j in 1:length(levels(monocle_cds$time2))) {
+      plot_df[(i-1)*length(levels(monocle_cds$time2))+j,"Freq"] <- length(intersect(which(monocle_cds$State == levels(monocle_cds$State)[i]),
+                                       which(monocle_cds$time2 == levels(monocle_cds$time2)[j])))
+    }
+  }
+  
+  ### remove 0 rows
+  plot_df <- plot_df[which(plot_df$Freq != 0),]
+  
+  ### percentage calculation
+  state_sum <- rep(0, length(levels(monocle_cds$State)))
+  names(state_sum) <- levels(monocle_cds$State)
+  for(i in 1:length(levels(monocle_cds$State))) {
+    state_sum[i] <- sum(plot_df[which(plot_df$State == levels(monocle_cds$State)[i]),"Freq"])
+    plot_df$Pcnt[which(plot_df$State == levels(monocle_cds$State)[i])] <- round(plot_df$Freq[which(plot_df$State == levels(monocle_cds$State)[i])] * 100 / state_sum[i], 1)
+  }
+  
+  ### factorize the columns
+  plot_df$State <- factor(plot_df$State, levels = levels(monocle_cds$State))
+  plot_df$Time <- factor(plot_df$Time, levels = levels(monocle_cds$time2))
+  
+  ### draw a proportional bar plot
+  ### pcnt < 10 -> ""
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) < 10)] <- ""
+  plot_df$Pcnt <- as.character(plot_df$Pcnt)
+  ### state_sum < 20 -> ""
+  blank_state <- names(state_sum)[which(state_sum < 20)]
+  plot_df$Pcnt[which(plot_df$State %in% blank_state)] <- ""
+  p <- ggplot(data=plot_df, aes_string(x="State", y="Freq", fill="Time", label="Pcnt")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Proportion of Cells - Time") +
+    geom_text(size = 5, position = position_stack(vjust = 1)) +
+    coord_flip() +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.title = element_blank(),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "State_Cell_Proportion_Time.png"), plot = p,
+         width = 20, height = 10, dpi = 350)
+  
+  ### subsisters
+  plot_df <- data.frame(State=as.vector(sapply(levels(monocle_cds$State), function(x) rep(x, length(unique(monocle_cds$ALL_GMP_CARpos_Persister))))),
+                        Subsister=rep(unique(monocle_cds$ALL_GMP_CARpos_Persister), length(levels(monocle_cds$State))),
+                        Freq=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### fill out the plot_df
+  for(i in 1:length(levels(monocle_cds$State))) {
+    for(j in 1:length(unique(monocle_cds$ALL_GMP_CARpos_Persister))) {
+      plot_df[(i-1)*length(unique(monocle_cds$ALL_GMP_CARpos_Persister))+j,"Freq"] <- length(intersect(which(monocle_cds$State == levels(monocle_cds$State)[i]),
+                                                                                    which(monocle_cds$ALL_GMP_CARpos_Persister == unique(monocle_cds$ALL_GMP_CARpos_Persister)[j])))
+    }
+  }
+  
+  ### remove 0 rows
+  plot_df <- plot_df[which(plot_df$Freq != 0),]
+  
+  ### percentage calculation
+  state_sum <- rep(0, length(levels(monocle_cds$State)))
+  names(state_sum) <- levels(monocle_cds$State)
+  for(i in 1:length(levels(monocle_cds$State))) {
+    state_sum[i] <- sum(plot_df[which(plot_df$State == levels(monocle_cds$State)[i]),"Freq"])
+    plot_df$Pcnt[which(plot_df$State == levels(monocle_cds$State)[i])] <- round(plot_df$Freq[which(plot_df$State == levels(monocle_cds$State)[i])] * 100 / state_sum[i], 1)
+  }
+  
+  ### factorize the columns
+  plot_df$State <- factor(plot_df$State, levels = levels(monocle_cds$State))
+  plot_df$Subsister <- factor(plot_df$Subsister, levels = unique(plot_df$Subsister))
+  
+  ### draw a proportional bar plot
+  ### pcnt < 10 -> ""
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) < 10)] <- ""
+  plot_df$Pcnt <- as.character(plot_df$Pcnt)
+  ### state_sum < 20 -> ""
+  blank_state <- names(state_sum)[which(state_sum < 20)]
+  plot_df$Pcnt[which(plot_df$State %in% blank_state)] <- ""
+  p <- ggplot(data=plot_df, aes_string(x="State", y="Freq", fill="Subsister", label="Pcnt")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Proportion of Cells - Subsister Group") +
+    geom_text(size = 5, position = position_stack(vjust = 1)) +
+    coord_flip() +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.title = element_blank(),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "State_Cell_Proportion_Subsister_Group.png"), plot = p,
+         width = 20, height = 10, dpi = 350)
+  
+  ### GMP subsisters
+  plot_df <- data.frame(State=as.vector(sapply(levels(monocle_cds$State), function(x) rep(x, length(unique(monocle_cds$GMP_CARpos_CD8_Persister))))),
+                        Subsister=rep(unique(monocle_cds$GMP_CARpos_CD8_Persister), length(levels(monocle_cds$State))),
+                        Freq=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### fill out the plot_df
+  for(i in 1:length(levels(monocle_cds$State))) {
+    for(j in 1:length(unique(monocle_cds$GMP_CARpos_CD8_Persister))) {
+      plot_df[(i-1)*length(unique(monocle_cds$GMP_CARpos_CD8_Persister))+j,"Freq"] <- length(intersect(which(monocle_cds$State == levels(monocle_cds$State)[i]),
+                                                                                                       which(monocle_cds$GMP_CARpos_CD8_Persister == unique(monocle_cds$GMP_CARpos_CD8_Persister)[j])))
+    }
+  }
+  
+  ### remove 0 rows
+  plot_df <- plot_df[which(plot_df$Freq != 0),]
+  
+  ### percentage calculation
+  state_sum <- rep(0, length(levels(monocle_cds$State)))
+  names(state_sum) <- levels(monocle_cds$State)
+  for(i in 1:length(levels(monocle_cds$State))) {
+    state_sum[i] <- sum(plot_df[which(plot_df$State == levels(monocle_cds$State)[i]),"Freq"])
+    plot_df$Pcnt[which(plot_df$State == levels(monocle_cds$State)[i])] <- round(plot_df$Freq[which(plot_df$State == levels(monocle_cds$State)[i])] * 100 / state_sum[i], 1)
+  }
+  
+  ### factorize the columns
+  plot_df$State <- factor(plot_df$State, levels = levels(monocle_cds$State))
+  plot_df$Subsister <- factor(plot_df$Subsister, levels = unique(plot_df$Subsister))
+  
+  ### draw a proportional bar plot
+  ### pcnt < 10 -> ""
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) < 10)] <- ""
+  plot_df$Pcnt <- as.character(plot_df$Pcnt)
+  ### state_sum < 20 -> ""
+  blank_state <- names(state_sum)[which(state_sum < 20)]
+  plot_df$Pcnt[which(plot_df$State %in% blank_state)] <- ""
+  p <- ggplot(data=plot_df, aes_string(x="State", y="Freq", fill="Subsister", label="Pcnt")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Proportion of Cells - GMP Subsisters") +
+    geom_text(size = 15, position = position_stack(vjust = 1)) +
+    coord_flip() +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.title = element_blank(),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "State_Cell_Proportion_GMP_Subsisters.png"), plot = p,
+         width = 20, height = 10, dpi = 350)
+  
+
+  ### save CAR+ clone size info
+  SJCAR19_Clonotype_Frequency <- vector("list", length = length(unique(Seurat_Obj@meta.data$px)))
+  names(SJCAR19_Clonotype_Frequency) <- unique(Seurat_Obj@meta.data$px)
+  type <- "One_From_Each"
+  for(patient in unique(Seurat_Obj@meta.data$px)) {
+    
+    ### print progress
+    writeLines(paste(patient))
+    
+    ### load the file
+    target_file <- read.xlsx2(file = paste0(px_result_dir, patient, "/car_clonotype_frequency_over_time_", patient, ".xlsx"),
+                              sheetName = paste0("CARpos_Clonotype_Frequency_", substr(type, 1, 4)), stringsAsFactors = FALSE, check.names = FALSE,
+                              row.names = 1)
+    
+    ### numerize the table
+    for(i in 1:ncol(target_file)) {
+      target_file[,i] <- as.numeric(target_file[,i])
+    }
+    
+    ### combine some redundant time points to one
+    if(length(which(colnames(target_file) == "GMP-redo")) > 0) {
+      target_file[,"GMP"] <- target_file[,"GMP"] + target_file[,"GMP-redo"]
+      target_file <- target_file[,-which(colnames(target_file) == "GMP-redo")]
+    }
+    if(length(which(colnames(target_file) == "PreTransB")) > 0) {
+      if(length(which(colnames(target_file) == "PreTrans")) > 0) {
+        target_file[,"PreTrans"] <- target_file[,"PreTrans"] + target_file[,"PreTransB"]
+        target_file <- target_file[,-which(colnames(target_file) == "PreTransB")]
+      } else {
+        colnames(target_file)[which(colnames(target_file) == "PreTransB")] <- "PreTrans"
+      }
+    }
+    if(length(which(colnames(target_file) == "Wk1b")) > 0) {
+      if(length(which(colnames(target_file) == "Wk1")) > 0) {
+        target_file[,"Wk1"] <- target_file[,"Wk1"] + target_file[,"Wk1b"]
+        target_file <- target_file[,-which(colnames(target_file) == "Wk1b")]
+      } else {
+        colnames(target_file)[which(colnames(target_file) == "Wk1b")] <- "Wk1"
+      }
+    }
+    if(length(which(colnames(target_file) == "Wk-1Run1")) > 0) {
+      if(length(which(colnames(target_file) == "Wk-1")) > 0) {
+        target_file[,"Wk-1"] <- target_file[,"Wk-1"] + target_file[,"Wk-1Run1"]
+        target_file <- target_file[,-which(colnames(target_file) == "Wk-1Run1")]
+      } else {
+        colnames(target_file)[which(colnames(target_file) == "Wk-1Run1")] <- "Wk-1"
+      }
+    }
+    if(length(which(colnames(target_file) == "Wk-1Run2")) > 0) {
+      if(length(which(colnames(target_file) == "Wk-1")) > 0) {
+        target_file[,"Wk-1"] <- target_file[,"Wk-1"] + target_file[,"Wk-1Run2"]
+        target_file <- target_file[,-which(colnames(target_file) == "Wk-1Run2")]
+      } else {
+        colnames(target_file)[which(colnames(target_file) == "Wk-1Run2")] <- "Wk-1"
+      }
+    }
+    
+    SJCAR19_Clonotype_Frequency[[patient]] <- target_file
+    
+  }
+  
+  ### CLONE SIZE
+  Seurat_Obj@meta.data$car_clone_size <- 0
+  Seurat_Obj@meta.data$car_clone_size[intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                                which(!is.na(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta)))] <- 1
+  for(patient in names(SJCAR19_Clonotype_Frequency)) {
+    ### per patient per clone give clone size info
+    for(cln in rownames(SJCAR19_Clonotype_Frequency[[patient]])) {
+      Seurat_Obj@meta.data$car_clone_size[which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta == cln)] <- as.numeric(SJCAR19_Clonotype_Frequency[[patient]][cln,"Total"])
+    }
+  }
+  
+  ### plot_df - clone size
+  monocle_cds$car_clone_size <- Seurat_Obj@meta.data[rownames(monocle_cds@phenoData@data), "car_clone_size"]
+  plot_df <- data.frame(State=as.vector(sapply(levels(monocle_cds$State), function(x) rep(x, length(unique(monocle_cds$car_clone_size))))),
+                        Clone_Size=rep(unique(monocle_cds$car_clone_size), length(levels(monocle_cds$State))),
+                        Freq=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### fill out the plot_df
+  for(i in 1:length(levels(monocle_cds$State))) {
+    for(j in 1:length(unique(monocle_cds$car_clone_size))) {
+      plot_df[(i-1)*length(unique(monocle_cds$car_clone_size))+j,"Freq"] <- length(intersect(which(monocle_cds$State == levels(monocle_cds$State)[i]),
+                                                                                                       which(monocle_cds$car_clone_size == unique(monocle_cds$car_clone_size)[j])))
+    }
+  }
+  
+  ### remove 0 rows
+  plot_df <- plot_df[which(plot_df$Freq != 0),]
+  
+  ### percentage calculation
+  state_sum <- rep(0, length(levels(monocle_cds$State)))
+  names(state_sum) <- levels(monocle_cds$State)
+  for(i in 1:length(levels(monocle_cds$State))) {
+    state_sum[i] <- sum(plot_df[which(plot_df$State == levels(monocle_cds$State)[i]),"Freq"])
+    plot_df$Pcnt[which(plot_df$State == levels(monocle_cds$State)[i])] <- round(plot_df$Freq[which(plot_df$State == levels(monocle_cds$State)[i])] * 100 / state_sum[i], 1)
+  }
+  
+  ### factorize the columns
+  plot_df$State <- factor(plot_df$State, levels = levels(monocle_cds$State))
+  plot_df$Clone_Size <- factor(plot_df$Clone_Size, levels = unique(plot_df$Clone_Size)[order(unique(plot_df$Clone_Size))])
+  
+  ### draw a proportional bar plot
+  ### pcnt < 10 -> ""
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) < 10)] <- ""
+  plot_df$Pcnt <- as.character(plot_df$Pcnt)
+  ### state_sum < 20 -> ""
+  blank_state <- names(state_sum)[which(state_sum < 20)]
+  plot_df$Pcnt[which(plot_df$State %in% blank_state)] <- ""
+  p <- ggplot(data=plot_df, aes_string(x="State", y="Freq", fill="Clone_Size", label="Pcnt")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Proportion of Cells - Clone_Size") +
+    geom_text(size = 5, position = position_stack(vjust = 1)) +
+    coord_flip() +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.title = element_blank(),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "State_Cell_Proportion_Clone_Size.png"), plot = p,
+         width = 20, height = 10, dpi = 350)
+  
   
   ### add state info to the target_seurat_obj - GMP CAR+ CD8
   target_Seurat_Obj@meta.data$State <- NA
@@ -5901,11 +6176,72 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   
   #
-  ### 20. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 20. Tay's request to look at some genes of Px11
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/20/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### genes of interest
+  genes_of_interest <- c("TIGIT", "KLRD1", "CD86", "IL2RA", "CD70",
+                         "LAG3", "CD7", "SELL", "CD27", "IL7R")
+  genes_of_interest <- intersect(genes_of_interest,
+                                 rownames(target_Seurat_Obj@assays$RNA@counts))
+  
+  ### get GMP CARpos CD8 Px11 only data
+  px11_gmp_seurat_obj <- subset(target_Seurat_Obj, cells = rownames(target_Seurat_Obj@meta.data)[which(target_Seurat_Obj@meta.data$px == "SJCAR19-11")])
+  
+  ### de analysis
+  px11_gmp_seurat_obj <- SetIdent(object = px11_gmp_seurat_obj,
+                                  cells = rownames(px11_gmp_seurat_obj@meta.data),
+                                  value = px11_gmp_seurat_obj@meta.data$GMP_CARpos_CD8_Persister)
+  px_11_de_result <- FindMarkers(px11_gmp_seurat_obj,
+                                 ident.1 = "YES",
+                                 ident.2 = "NO",
+                                 min.pct = 0.2,
+                                 logfc.threshold = 0.2,
+                                 test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(px_11_de_result),
+                         px_11_de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/GMP_CARpos_CD8_Px11_Subsisters_vs_Non-Subsisters.xlsx"),
+              sheetName = "GMP_CARpos_CD8_Px11_Subsisters_vs_Non-Subsisters", row.names = FALSE)
+  
+  ### DE result - dot plot
+  px11_gmp_seurat_obj@meta.data$GMP_CARpos_CD8_Persister <- factor(px11_gmp_seurat_obj@meta.data$GMP_CARpos_CD8_Persister,
+                                                                   levels = c("YES", "NO"))
+  p <- DotPlot(px11_gmp_seurat_obj,
+               features = genes_of_interest,
+               cols = c("blue", "red"),
+               group.by = "GMP_CARpos_CD8_Persister") +
+    scale_size(range = c(2, 15)) +
+    coord_flip() +
+    xlab("Interesting Genes") +
+    ylab("Is Subsistent") +
+    theme_calc(base_size = 20) +
+    theme(plot.title = element_text(hjust = 0.5))
+  ggsave(file = paste0(outputDir2, "Dotplot_GMP_CARpos_CD8_Px11_Subsisters_vs_Non-subsisters.png"),
+         plot = p, width = 15, height = 15, dpi = 350)
+  
+  ### DE result - ridge plot
+  p <- RidgePlot(px11_gmp_seurat_obj, features = genes_of_interest, ncol = 5,
+                 cols = c("#D21414", "#039076"))
+  for(i in 1:length(genes_of_interest)) {
+    p[[i]] <- p[[i]] + labs(y = "Is Subsistent")
+  }
+  ggsave(paste0(outputDir2, "Ridgeplot_GMP_CARpos_CD8_Px11_Subsisters_vs_Non-subsisters.png"), plot = p, width = 15, height = 7, dpi = 350)
+  
+  
+  
+  #
+  ### 21. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/21/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
