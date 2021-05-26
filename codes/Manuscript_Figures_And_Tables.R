@@ -39,7 +39,8 @@
 #               18. CAR+ cells with high CAR expression vs CAR+ cells with low CAR expression (DE, pathway, & subsister difference)
 #               19. Look at all GMP (CAR+ & CAR-) and all CAR+ GMP cells whether they are two separated clusters
 #               20. Tay's request to look at some genes of Px11
-#               21. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#               21. Multiple regression to estimate peakcar using both dose level & tumor burden
+#               22. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -1319,6 +1320,255 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     } else {
       writeLines("geneList = NULL")
     }
+  }
+  
+  #
+  ### GSEA with the important genes of the PC1
+  #
+  
+  #'****************************************************************************************
+  #' Gene Set Enrichment Analysis function
+  #' 
+  #' It receives gene list (character vector) and signature profiles (named numeric vector)
+  #' as inputs, performs GSEA and returns a table of GSEA result table and draws
+  #' a GSEA plot. It is basically a statistical significance test to check how the
+  #' given given genes are biased on the signature profiles.
+  #' 
+  #' Whether there are multiple gene sets or multiple signatures,
+  #' multiple testing (FDR computation) is performed.
+  #' But if the input gene set and the input signature are both lists with multiple
+  #' items (The length of the two are both more than 1) then we return an error message.
+  #' 
+  #' The plot file names will be determined by names(gene_list) or names(signature)
+  #' If length(gene_list) > 1, then names(gene_list) will be used and
+  #' if length(signature) > 1, then names(signature) will be used as file names.
+  #' If there is no list names, then file names will be "GSEA_Plot_i.png".
+  #' Here, i indicates that the plot is from the i-th row of the GSEA result table.
+  #' 
+  #' * Some plot drawing codes were from Rtoolbox/R/ReplotGSEA.R written by Thomas Kuilman. 
+  #'****************************************************************************************
+  #' @title	run_gsea
+  #' 
+  #' @param gene_list   A list of character vectors containing gene names to be tested
+  #' @param signature   A list of named numeric vectors of signature values for GSEA. The gene_list
+  #'                    should be included in the names(signature)
+  #' @param printPlot   If TRUE, it also generates GSEA plot of the results
+  #'                    (Default = FALSE)
+  #' @param fdr_cutoff  When printing GSEA plots, print them with the FDR < fdr_cutoff only
+  #'                    (Default = 0.05)
+  #' @param heatmap_color_type  when 'relative', the heatmap of the GSEA colors the bottom half of the
+  #'                            absolute range of the signature as blue and the upper half as red
+  #'                            when 'absolute', the heatmap of GSEA colors the negative signature as blue
+  #'                            and the positives as red
+  #' @param printPath   When printing GSEA plots, print them in the designated path
+  #'                    (Default = "./")
+  #' @param width       The width of the plot file
+  #'                    (Default = 2000)
+  #' @param height      The height of the plot file
+  #'                    (Default = 1200)
+  #' @param res         The resolution of the plot file
+  #'                    (Default = 130)
+  #' 
+  #' @return 	          It tests bias of the "gene_list" on the "signature" range and
+  #'                    returns a table including p-values and FDRs (adjusted p-values)
+  #'                    If fdr_cutoff == TRUE, it also generates a GSEA plot with the result
+  #' 
+  run_gsea <- function(gene_list,
+                       signature,
+                       printPlot = FALSE,
+                       fdr_cutoff = 0.05,
+                       heatmap_color_type = c("relative", "absolute"),
+                       width = 2000,
+                       height = 1200,
+                       res = 350,
+                       printPath = "./") {
+    
+    ### load required libraries
+    if(!require("fgsea", quietly = TRUE)) {
+      if(!requireNamespace("BiocManager", quietly = TRUE))
+        install.packages("BiocManager")
+      BiocManager::install("fgsea")
+      require("fgsea", quietly = TRUE)
+    }
+    if(!require("limma", quietly = TRUE)) {
+      if(!requireNamespace("BiocManager", quietly = TRUE))
+        install.packages("BiocManager")
+      BiocManager::install("limma")
+      require("limma", quietly = TRUE)
+    } 
+    if(!require("checkmate", quietly = TRUE)) {
+      install.packages("checkmate")
+      require("checkmate", quietly = TRUE)
+    }
+    
+    ### argument checking
+    assertList(gene_list)
+    assertList(signature)
+    assertLogical(printPlot)
+    assertNumeric(fdr_cutoff)
+    assertIntegerish(width)
+    assertIntegerish(height)
+    assertIntegerish(res)
+    assertString(printPath)
+    if(length(gene_list) > 1 && length(signature) > 1) {
+      stop("ERROR: \"gene_list\" and \"signature\" cannot be both \"list\"")
+    }
+    
+    ### set random seed
+    set.seed(1234)
+    
+    ### run GSEA
+    ### if there are more than one signatures
+    if(length(signature) > 1) {
+      ### combine GSEA results of every signature inputs
+      for(i in 1:length(signature)) {
+        temp <- data.frame(fgseaMultilevel(pathways = gene_list, stats = signature[[i]]))
+        if(i == 1) {
+          gsea_result <- temp
+        } else {
+          gsea_result <- rbind(gsea_result, temp)
+        }
+      }
+      
+      ### compute FDRs
+      corrected_gsea_result <- gsea_result[order(gsea_result$pval),]
+      corrected_gsea_result$padj <- p.adjust(corrected_gsea_result$pval, method = "BH")
+      gsea_result <- corrected_gsea_result[rownames(gsea_result),]
+    } else {
+      ### if there are more than one gene sets
+      gsea_result <- data.frame(fgseaMultilevel(pathways = gene_list, stats = signature[[1]]))
+    }
+    
+    ### print GSEA plot
+    sIdx <- which(gsea_result$padj < fdr_cutoff)
+    if(printPlot && length(sIdx) > 0) {
+      for(i in sIdx) {
+        ### get required values ready
+        if(length(signature) > 1) {
+          geneset <- gene_list[[1]]
+          stats <- signature[[i]]
+          stats <- stats[order(-stats)]
+          fileName <- names(signature)[i]
+        } else {
+          geneset <- gene_list[[i]]
+          stats <- signature[[1]]
+          stats <- stats[order(-stats)]
+          fileName <- names(gene_list)[i]
+        }
+        if(is.null(fileName)) {
+          fileName <- paste0("GSEA_Plot_", i)
+        }
+        stats <- stats[!is.na(stats)]
+        gsea.hit.indices <- which(names(stats) %in% geneset)
+        es.temp <- calcGseaStat(stats, gsea.hit.indices, returnAllExtremes = TRUE)
+        if(es.temp$res >= 0) {
+          gsea.es.profile <- es.temp$tops
+        } else {
+          gsea.es.profile <- es.temp$bottoms
+        }
+        enrichment.score.range <- c(min(gsea.es.profile), max(gsea.es.profile))
+        metric.range <- c(min(stats), max(stats))
+        gsea.p.value <- round(gsea_result$pval[i] ,5)
+        gsea.fdr <- round(gsea_result$padj[i] ,5)
+        gsea.enrichment.score <- round(gsea_result$ES[i], 5)
+        gsea.normalized.enrichment.score <- round(gsea_result$NES[i], 5)
+        
+        ### print GSEA result plot
+        png(paste0(printPath, fileName, ".png"), width = width, height = height, res = res)
+        
+        ### set layout
+        layout.show(layout(matrix(c(1, 2, 3, 4)), heights = c(1.7, 0.5, 0.2, 2)))
+        
+        ### draw the GSEA plot
+        par(mar = c(0, 5, 2, 2))
+        plot(c(1, gsea.hit.indices, length(stats)),
+             c(0, gsea.es.profile, 0), type = "l", col = "red", lwd = 1.5, xaxt = "n",
+             xaxs = "i", xlab = "", ylab = "Enrichment score (ES)",
+             ylim = enrichment.score.range,
+             main = list(fileName, font = 1, cex = 1),
+             panel.first = {
+               abline(h = seq(round(enrichment.score.range[1], digits = 1),
+                              enrichment.score.range[2], 0.1),
+                      col = "gray95", lty = 2)
+               abline(h = 0, col = "gray50", lty = 2)
+             }
+        )
+        
+        ### add informative text to the GSEA plot
+        plot.coordinates <- par("usr")
+        if(es.temp$res < 0) {
+          text(length(stats) * 0.01, plot.coordinates[3] * 0.98,
+               paste("P-value:", gsea.p.value, "\nFDR:", gsea.fdr, "\nES:",
+                     gsea.enrichment.score, "\nNormalized ES:",
+                     gsea.normalized.enrichment.score), adj = c(0, 0))
+        } else {
+          text(length(stats) * 0.99, plot.coordinates[4] - ((plot.coordinates[4] - plot.coordinates[3]) * 0.03),
+               paste("P-value:", gsea.p.value, "\nFDR:", gsea.fdr, "\nES:",
+                     gsea.enrichment.score, "\nNormalized ES:",
+                     gsea.normalized.enrichment.score), adj = c(1, 1))
+        }
+        
+        ### draw hit indices
+        par(mar = c(0, 5, 0, 2))
+        plot(0, type = "n", xaxt = "n", xaxs = "i", xlab = "", yaxt = "n",
+             ylab = "", xlim = c(1, length(stats)))
+        abline(v = gsea.hit.indices, lwd = 0.75)
+        
+        ### create color palette for the heatmap
+        par(mar = c(0, 5, 0, 2))
+        if(heatmap_color_type[1] == "relative") {
+          rank.colors <- stats - metric.range[1]
+          rank.colors <- rank.colors / (metric.range[2] - metric.range[1])
+          rank.colors <- ceiling(rank.colors * 511 + 1)
+          rank.colors <- colorRampPalette(c("blue", "white", "red"))(512)[rank.colors]
+        } else {
+          rank.colors1 <- stats[which(stats >= 0)]
+          rank.colors1 <- rank.colors1 - min(rank.colors1)
+          rank.colors1 <- rank.colors1 / (max(rank.colors1) - min(rank.colors1))
+          rank.colors1 <- ceiling(rank.colors1 * 255 + 1)
+          rank.colors1 <- colorRampPalette(c("white", "red"))(256)[rank.colors1]
+          rank.colors2 <- stats[which(stats < 0)]
+          rank.colors2 <- rank.colors2 - min(rank.colors2)
+          rank.colors2 <- rank.colors2 / (max(rank.colors2) - min(rank.colors2))
+          rank.colors2 <- ceiling(rank.colors2 * 255 + 1)
+          rank.colors2 <- colorRampPalette(c("blue", "white"))(256)[rank.colors2]
+          rank.colors <- c(rank.colors1, rank.colors2)
+        }
+        
+        ### draw the heatmap
+        rank.colors <- rle(rank.colors)
+        barplot(matrix(rank.colors$lengths), col = rank.colors$values,
+                border = NA, horiz = TRUE, xaxt = "n", xlim = c(1, length(stats)))
+        box()
+        text(length(stats) / 2, 0.7,
+             labels = "Signature")
+        text(length(stats) * 0.01, 0.7, "Largest", adj = c(0, NA))
+        text(length(stats) * 0.99, 0.7, "Smallest", adj = c(1, NA))
+        
+        ### draw signature values
+        par(mar = c(5, 5, 0, 2))
+        rank.metric <- rle(round(stats, digits = 2))
+        plot(stats, type = "n", xaxs = "i",
+             xlab = "Rank in ordered gene list", xlim = c(0, length(stats)),
+             ylim = metric.range, yaxs = "i",
+             ylab = "Signature values",
+             panel.first = abline(h = seq(metric.range[1] / 2,
+                                          metric.range[2] - metric.range[1] / 4,
+                                          metric.range[2] / 2), col = "gray95", lty = 2))
+        
+        barplot(rank.metric$values, col = "lightgrey", lwd = 0.1,
+                xlim = c(0, length(stats)), ylim = c(-1, 1),
+                width = rank.metric$lengths, border = NA,
+                space = 0, add = TRUE, xaxt = "n")
+        box()
+        
+        ### print out the file
+        dev.off()
+      }
+    }
+    
+    return(gsea_result)
+    
   }
   
   
@@ -5781,6 +6031,17 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   #       T cell differentiation: GO:0030217 (Gene Ontology)
   #       T cell exhaustion:  GSE9650_EFFECTOR_VS_EXHAUSTED_CD8_TCELL_DN (msigdb)
   #
+  #       CD8 effector vs. memory T cells (downregulated genes): https://www.gsea-msigdb.org/gsea/msigdb/cards/GOLDRATH_EFF_VS_MEMORY_CD8_TCELL_DN.html
+  #       CD8 effector vs. memory T cells (upregulated genes): https://www.gsea-msigdb.org/gsea/msigdb/cards/GOLDRATH_EFF_VS_MEMORY_CD8_TCELL_UP.html
+  #       CD8 naive vs. effector T cells (downregulated genes): https://www.gsea-msigdb.org/gsea/msigdb/cards/GOLDRATH_NAIVE_VS_EFF_CD8_TCELL_DN.html
+  #       CD8 naive vs. effector T cells (upregulated genes): https://www.gsea-msigdb.org/gsea/msigdb/cards/GOLDRATH_NAIVE_VS_EFF_CD8_TCELL_UP.html
+  #       CD8 central vs. effector memory T cells (downregulated genes): https://www.gsea-msigdb.org/gsea/msigdb/cards/GSE23321_CENTRAL_VS_EFFECTOR_MEMORY_CD8_TCELL_DN.html
+  #       CD8 central vs. effector memory T cells (upregulated genes): https://www.gsea-msigdb.org/gsea/msigdb/cards/GSE23321_CENTRAL_VS_EFFECTOR_MEMORY_CD8_TCELL_UP.html
+  #       CD8 stem cell vs. central memory T cells (downregulated genes): https://www.gsea-msigdb.org/gsea/msigdb/cards/GSE23321_CD8_STEM_CELL_MEMORY_VS_CENTRAL_MEMORY_CD8_TCELL_DN.html
+  #       CD8 stem cell vs. central memory T cells (upregulated genes): https://www.gsea-msigdb.org/gsea/msigdb/cards/GSE23321_CD8_STEM_CELL_MEMORY_VS_CENTRAL_MEMORY_CD8_TCELL_UP.html
+  #       CD8 stem cell vs. effector memory T cells (downregulated genes): https://www.gsea-msigdb.org/gsea/msigdb/cards/GSE23321_CD8_STEM_CELL_MEMORY_VS_EFFECTOR_MEMORY_CD8_TCELL_DN.html
+  #       CD8 stem cell vs. effector memory T cells (upregulated genes): https://www.gsea-msigdb.org/gsea/msigdb/cards/GSE23321_CD8_STEM_CELL_MEMORY_VS_EFFECTOR_MEMORY_CD8_TCELL_UP.html
+  #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/17/")
@@ -5798,6 +6059,28 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   m_df <- msigdbr(species = "Homo sapiens")
   m_list <- m_df %>% split(x = .$gene_symbol, f = .$gs_name)
   t_cell_exhaustion_genes <- m_list[["GSE9650_EFFECTOR_VS_EXHAUSTED_CD8_TCELL_DN"]]
+  
+  ### get t_cell_diff_list based on Tay's suggestion
+  t_cell_diff_list <- list(m_list[["GOLDRATH_EFF_VS_MEMORY_CD8_TCELL_DN"]],
+                           m_list[["GOLDRATH_EFF_VS_MEMORY_CD8_TCELL_UP"]],
+                           m_list[["GOLDRATH_NAIVE_VS_EFF_CD8_TCELL_DN"]],
+                           m_list[["GOLDRATH_NAIVE_VS_EFF_CD8_TCELL_UP"]],
+                           m_list[["GSE23321_CENTRAL_VS_EFFECTOR_MEMORY_CD8_TCELL_DN"]],
+                           m_list[["GSE23321_CENTRAL_VS_EFFECTOR_MEMORY_CD8_TCELL_UP"]],
+                           m_list[["GSE23321_CD8_STEM_CELL_MEMORY_VS_CENTRAL_MEMORY_CD8_TCELL_DN"]],
+                           m_list[["GSE23321_CD8_STEM_CELL_MEMORY_VS_CENTRAL_MEMORY_CD8_TCELL_UP"]],
+                           m_list[["GSE23321_CD8_STEM_CELL_MEMORY_VS_EFFECTOR_MEMORY_CD8_TCELL_DN"]],
+                           m_list[["GSE23321_CD8_STEM_CELL_MEMORY_VS_EFFECTOR_MEMORY_CD8_TCELL_UP"]])
+  names(t_cell_diff_list) <- c("CD8 effector vs. memory T cells (downregulated genes)",
+                               "CD8 effector vs. memory T cells (upregulated genes)",
+                               "CD8 naive vs. effector T cells (downregulated genes)",
+                               "CD8 naive vs. effector T cells (upregulated genes)",
+                               "CD8 central vs. effector memory T cells (downregulated genes)",
+                               "CD8 central vs. effector memory T cells (upregulated genes)",
+                               "CD8 stem cell vs. central memory T cells (downregulated genes)",
+                               "CD8 stem cell vs. central memory T cells (upregulated genes)",
+                               "CD8 stem cell vs. effector memory T cells (downregulated genes)",
+                               "CD8 stem cell vs. effector memory T cells (upregulated genes)")
   
   #
   ### GMP CARpos CD8 subsister vs non-subsister
@@ -5857,6 +6140,28 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(file = paste0(outputDir2, "GMP_CARpos_CD8_Subsisters_vs_Non-subsisters_exhaustion.png"),
          plot = p, width = 15, height = 15, dpi = 350)
   
+  ### signature preparation
+  # signat <- sign(de_result$avg_log2FC) * -log10(de_result$p_val_adj)
+  # names(signat) <- rownames(de_result)
+  subsister_idx <- which(target_Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "YES")
+  non_subsister_idx <- which(target_Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "NO")
+  ### add 0.01 to avoid Inf, -Inf, & NaN
+  s_mat <- data.frame(target_Seurat_Obj@assays$RNA@counts[,subsister_idx]) + 0.01
+  ns_mat <- data.frame(target_Seurat_Obj@assays$RNA@counts[,non_subsister_idx]) + 0.01
+  s_mat <- apply(s_mat, 1, mean)
+  ns_mat <- apply(ns_mat, 1, mean)
+  signat <- log2(s_mat / ns_mat)
+  
+  ### run GSEA
+  GSEA_result <- run_gsea(gene_list = t_cell_diff_list, signature = list(signat),
+                          fdr_cutoff = 0.05,
+                          printPlot = TRUE, printPath = outputDir2)
+  
+  ### write out the result file
+  write.xlsx2(GSEA_result, file = paste0(outputDir2, "/GSEA_GMP_CARpos_CD8_Subsisters_vs_Non-subsisters.xlsx"),
+              sheetName = "GSEA_GMP_CARpos_CD8_Subsisters_vs_Non-subsisters", row.names = FALSE)
+  
+  
   #
   ### CARpos post-infusion subsister vs non-subsister
   #
@@ -5915,6 +6220,27 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(file = paste0(outputDir2, "PI_CARpos_Subsisters_vs_Non-subsisters_exhaustion.png"),
          plot = p, width = 15, height = 15, dpi = 350)
   
+  ### signature preparation
+  # signat <- sign(de_result$avg_log2FC) * -log10(de_result$p_val_adj)
+  # names(signat) <- rownames(de_result)
+  subsister_idx <- which(sub_seurat_obj2@meta.data$CD8_Persisters == "Subsisters")
+  non_subsister_idx <- which(sub_seurat_obj2@meta.data$CD8_Persisters == "Non-subsisters")
+  ### add 0.01 to avoid Inf, -Inf, & NaN
+  s_mat <- data.frame(sub_seurat_obj2@assays$RNA@counts[,subsister_idx]) + 0.01
+  ns_mat <- data.frame(sub_seurat_obj2@assays$RNA@counts[,non_subsister_idx]) + 0.01
+  s_mat <- apply(s_mat, 1, mean)
+  ns_mat <- apply(ns_mat, 1, mean)
+  signat <- log2(s_mat / ns_mat)
+  
+  ### run GSEA
+  GSEA_result <- run_gsea(gene_list = t_cell_diff_list, signature = list(signat),
+                          fdr_cutoff = 0.05,
+                          printPlot = TRUE, printPath = outputDir2)
+  
+  ### write out the result file
+  write.xlsx2(GSEA_result, file = paste0(outputDir2, "/PI_CARpos_Subsisters_vs_Non-subsisters.xlsx"),
+              sheetName = "PI_CARpos_Subsisters_vs_Non-subsisters", row.names = FALSE)
+  
   
   #
   ### 18. GMP CAR+ CD8 cells with high CAR expression vs low CAR expression (DE, pathway, & subsister difference)
@@ -5924,10 +6250,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   outputDir2 <- paste0(outputDir, "/18/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
+  ### GMP
   ### CAR EXP < 2: 4208, CAR EXP > 50: 3677
+  car_cnt <- target_Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",]
   target_Seurat_Obj@meta.data$CAR2 <- "MID"
-  target_Seurat_Obj@meta.data$CAR2[which(target_Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",rownames(target_Seurat_Obj@meta.data)] < 2)] <- "LOW"
-  target_Seurat_Obj@meta.data$CAR2[which(target_Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",rownames(target_Seurat_Obj@meta.data)] > 50)] <- "HIGH"
+  target_Seurat_Obj@meta.data$CAR2[which(car_cnt[rownames(target_Seurat_Obj@meta.data)] < 2)] <- "LOW"
+  target_Seurat_Obj@meta.data$CAR2[which(car_cnt[rownames(target_Seurat_Obj@meta.data)] > 50)] <- "HIGH"
   
   ### UMAP with time with all patients
   p <- DimPlot(object = target_Seurat_Obj, reduction = "umap",
@@ -5992,6 +6320,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
                                 cells = rownames(target_Seurat_Obj@meta.data),
                                 value = target_Seurat_Obj@meta.data$CAR2)
+  
+  ### CAR2
   p <- RidgePlot(target_Seurat_Obj, features = features, ncol = 5,
                  cols = c("blue", "orange", "red"))
   for(i in 1:25) {
@@ -6003,11 +6333,150 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
                                 cells = rownames(target_Seurat_Obj@meta.data),
                                 value = target_Seurat_Obj@meta.data$gmp_seurat_clusters)
-  p <- RidgePlot(target_Seurat_Obj, features = features, ncol = 3)
+  cluster_col <- rainbow(length(levels(target_Seurat_Obj@meta.data$gmp_seurat_clusters)))
+  names(cluster_col) <- levels(target_Seurat_Obj@meta.data$gmp_seurat_clusters)
+  cluster_col["22"] <- "black"
+  ### Clusters
+  p <- RidgePlot(target_Seurat_Obj, features = features, cols = cluster_col, ncol = 3)
   for(i in 1:9) {
-    p[[i]] <- p[[i]] + labs(y = "CAR EXP")
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
   }
   ggsave(paste0(outputDir2, "GMP_CARpos_CD8_CAR_EXP_DEGs_Clusters.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  ### Time2
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$time2)
+  p <- RidgePlot(target_Seurat_Obj, features = features, ncol = 3)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + labs(y = "Time")
+  }
+  ggsave(paste0(outputDir2, "GMP_CARpos_CD8_CAR_EXP_DEGs_Time.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  ### State
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$State)
+  p <- RidgePlot(target_Seurat_Obj, features = features, ncol = 3)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + labs(y = "State")
+  }
+  ggsave(paste0(outputDir2, "GMP_CARpos_CD8_CAR_EXP_DEGs_State.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  
+  ### Post infusion
+  ### CAR EXP < 2: 8515, CAR EXP > 30: 1443
+  car_cnt <- sub_seurat_obj2@assays$RNA@counts["JCC-SJCAR19short",]
+  sub_seurat_obj2@meta.data$CAR2 <- "MID"
+  sub_seurat_obj2@meta.data$CAR2[which(car_cnt[rownames(sub_seurat_obj2@meta.data)] < 2)] <- "LOW"
+  sub_seurat_obj2@meta.data$CAR2[which(car_cnt[rownames(sub_seurat_obj2@meta.data)] > 30)] <- "HIGH"
+  
+  ### UMAP with time with all patients
+  p <- DimPlot(object = sub_seurat_obj2, reduction = "umap",
+               group.by = "CAR2",
+               pt.size = 2,
+               cols = c("HIGH" = "red", "LOW" = "blue", "MID" = "lightgray"),
+               order = c("HIGH", "LOW", "MID")) +
+    ggtitle("") +
+    labs(color="CAR EXP") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 36))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  ggsave(paste0(outputDir2, "UMAP_PI_CAR+_CAR_EXP.png"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### DE analysis
+  sub_seurat_obj2 <- SetIdent(object = sub_seurat_obj2,
+                              cells = rownames(sub_seurat_obj2@meta.data),
+                              value = sub_seurat_obj2@meta.data$CAR2)
+  de_result <- FindMarkers(sub_seurat_obj2,
+                           ident.1 = "HIGH",
+                           ident.2 = "LOW",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE results
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/PI_CARpos_CAR_EXP_HIGH_vs_Low.xlsx"),
+              sheetName = "PI_CARpos_CAR_EXP_HIGH_vs_Low", row.names = FALSE)
+  
+  ### get entrez ids for the genes
+  de_entrez_ids <- mapIds(org.Hs.eg.db,
+                          rownames(de_result)[which(de_result$p_val_adj < 0.01)],
+                          "ENTREZID", "SYMBOL")
+  de_entrez_ids <- de_entrez_ids[!is.na(de_entrez_ids)]
+  
+  ### GO & KEGG
+  pathway_result_GO <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                          org = "human", database = "GO",
+                                          title = paste0("Pathways_with_DE_Genes_PI_CARpos_CAR_EXP_HIGH_vs_Low"),
+                                          displayNum = 10, imgPrint = TRUE,
+                                          dir = outputDir2)
+  pathway_result_KEGG <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                            org = "human", database = "KEGG",
+                                            title = paste0("Pathways_with_DE_Genes_PI_CARpos_CAR_EXP_HIGH_vs_Low"),
+                                            displayNum = 10, imgPrint = TRUE,
+                                            dir = outputDir2)
+  write.xlsx2(pathway_result_GO, file = paste0(outputDir2, "GO_Pathways_with_DE_genes_PI_CARpos_CAR_EXP_HIGH_vs_Low.xlsx"),
+              row.names = FALSE, sheetName = paste0("GO_Results"))
+  write.xlsx2(pathway_result_KEGG, file = paste0(outputDir2, "KEGG_Pathways_with_DE_genes_PI_CARpos_CAR_EXP_HIGH_vs_Low.xlsx"),
+              row.names = FALSE, sheetName = paste0("KEGG_Results"))
+  
+  ### Ridge plot
+  features <- rownames(de_result)[1:25]
+  sub_seurat_obj2 <- SetIdent(object = sub_seurat_obj2,
+                              cells = rownames(sub_seurat_obj2@meta.data),
+                              value = sub_seurat_obj2@meta.data$CAR2)
+  p <- RidgePlot(sub_seurat_obj2, features = features, ncol = 5,
+                 cols = c("blue", "orange", "red"))
+  for(i in 1:25) {
+    p[[i]] <- p[[i]] + labs(y = "CAR EXP")
+  }
+  ggsave(paste0(outputDir2, "PI_CARpos_CAR_EXP_DEGs.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  features <- rownames(de_result)[1:9]
+  sub_seurat_obj2 <- SetIdent(object = sub_seurat_obj2,
+                              cells = rownames(sub_seurat_obj2@meta.data),
+                              value = sub_seurat_obj2@meta.data$clusters)
+  cluster_col <- rainbow(length(levels(sub_seurat_obj2@meta.data$clusters)))
+  names(cluster_col) <- levels(sub_seurat_obj2@meta.data$clusters)
+  cluster_col["0"] <- "black"
+  p <- RidgePlot(sub_seurat_obj2, features = features, cols = cluster_col, ncol = 3)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir2, "PI_CARpos_CAR_EXP_DEGs_Clusters.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  ### Time2
+  sub_seurat_obj2 <- SetIdent(object = sub_seurat_obj2,
+                              cells = rownames(sub_seurat_obj2@meta.data),
+                              value = sub_seurat_obj2@meta.data$time2)
+  p <- RidgePlot(sub_seurat_obj2, features = features, ncol = 3)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + labs(y = "Time")
+  }
+  ggsave(paste0(outputDir2, "PI_CARpos_CAR_EXP_DEGs_Time.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  ### State
+  common_cell_names <- intersect(rownames(sub_seurat_obj2@meta.data), rownames(sub_seurat_obj4@meta.data))
+  sub_seurat_obj2@meta.data$State <- NA
+  sub_seurat_obj2@meta.data[common_cell_names,"State"] <- sub_seurat_obj4@meta.data[common_cell_names,"State"]
+  sub_seurat_obj2@meta.data$State <- factor(sub_seurat_obj2@meta.data$State, levels = unique(sub_seurat_obj2@meta.data$State[order(sub_seurat_obj2@meta.data$State)]))
+  sub_seurat_obj2 <- SetIdent(object = sub_seurat_obj2,
+                              cells = rownames(sub_seurat_obj2@meta.data),
+                              value = sub_seurat_obj2@meta.data$State)
+  p <- RidgePlot(sub_seurat_obj2, features = features, ncol = 3)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + labs(y = "State")
+  }
+  ggsave(paste0(outputDir2, "PI_CARpos_CAR_EXP_DEGs_State.png"), plot = p, width = 20, height = 15, dpi = 350)
   
   
   #
@@ -6235,13 +6704,24 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(paste0(outputDir2, "Ridgeplot_GMP_CARpos_CD8_Px11_Subsisters_vs_Non-subsisters.png"), plot = p, width = 15, height = 7, dpi = 350)
   
   
-  
   #
-  ### 21. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 21. Multiple regression to estimate peakcar using both dose level & tumor burden
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/21/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  
+  
+  
+  
+  #
+  ### 22. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/22/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
