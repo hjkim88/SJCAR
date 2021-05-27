@@ -2057,74 +2057,101 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### AFTER-INFUSION - GMP SUBSISTER CAR+ VS THE REST CAR+
   
   ### get AI indicies
-  ai_indicies <- which(Seurat_Obj@meta.data$time2 %in% c("Wk1", "Wk2", "Wk3", "Wk4", "Wk6", "Wk8", "3mo", "6mo", "9mo"))
+  car_pi_indicies <- intersect(which(Seurat_Obj@meta.data$time2 %in% c("Wk1", "Wk2", "Wk3", "Wk4", "Wk6", "Wk8", "3mo", "6mo", "9mo")),
+                               which(Seurat_Obj@meta.data$CAR == "CARpos"))
   
   ### target lineages
-  subsister_clones_ai <- unique(intersect(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "YES")],
-                                          Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[ai_indicies]))
-  rest_carpos_clones_ai <- unique(setdiff(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
-                                                                                                                ai_indicies)],
-                                          subsister_clones_ai))
-  rest_carpos_clones_ai <- rest_carpos_clones_ai[which(!is.na(rest_carpos_clones_ai))]
+  subsister_clones_pi <- unique(intersect(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "YES")],
+                                          Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[car_pi_indicies]))
+  rest_carpos_clones_pi <- unique(setdiff(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[car_pi_indicies],
+                                          subsister_clones_pi))
+  rest_carpos_clones_pi <- rest_carpos_clones_pi[which(!is.na(rest_carpos_clones_pi))]
   
-  ### get persister vs rest carpos clone sizes in AI time points
-  subsister_clone_sizes_ai <- rep(0, length(subsister_clones_ai))
-  names(subsister_clone_sizes_ai) <- subsister_clones_ai
-  for(clone in subsister_clones_ai) {
-    subsister_clone_sizes_ai[clone] <- length(which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[ai_indicies] == clone))
+  ### get persister vs rest carpos clone sizes in PI time points
+  subsister_clone_sizes_pi <- rep(1, length(subsister_clones_pi))
+  names(subsister_clone_sizes_pi) <- subsister_clones_pi
+  for(clone in subsister_clones_pi) {
+    subsister_clone_sizes_pi[clone] <- length(which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[car_pi_indicies] == clone))
   }
   
-  rest_carpos_clone_sizes_ai <- rep(0, length(rest_carpos_clones_ai))
-  names(rest_carpos_clone_sizes_ai) <- rest_carpos_clones_ai
-  for(clone in rest_carpos_clones_ai) {
-    rest_carpos_clone_sizes_ai[clone] <- length(which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[ai_indicies] == clone))
+  rest_carpos_clone_sizes_pi <- rep(0, length(rest_carpos_clones_pi))
+  names(rest_carpos_clone_sizes_pi) <- rest_carpos_clones_pi
+  for(clone in rest_carpos_clones_pi) {
+    rest_carpos_clone_sizes_pi[clone] <- length(which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[car_pi_indicies] == clone))
   }
   
   ### prepare a data frame for the plot
-  plot_df <- data.frame(Clone_Size=c(subsister_clone_sizes_ai,
-                                     rest_carpos_clone_sizes_ai),
-                        Group=c(rep("Subsisters_After_Infusion", length(subsister_clone_sizes_ai)),
-                                rep("Rest_CARpos_After_Infusion", length(rest_carpos_clone_sizes_ai))),
+  plot_df <- data.frame(Clone_Size=c(subsister_clone_sizes_pi,
+                                     rest_carpos_clone_sizes_pi),
+                        Group=c(rep("Post_Infusion_CARpos_Subsisters", length(subsister_clone_sizes_pi)),
+                                rep("Post_Infusion_CARpos_Rest", length(rest_carpos_clone_sizes_pi))),
                         stringsAsFactors = FALSE, check.names = FALSE)
-  plot_df$Group <- factor(plot_df$Group, levels = c("Subsisters_After_Infusion", "Rest_CARpos_After_Infusion"))
+  plot_df$Group <- factor(plot_df$Group, levels = c("Post_Infusion_CARpos_Subsisters", "Post_Infusion_CARpos_Rest"))
   
   ### draw a violin plot
   ggplot(plot_df, aes_string(x="Group", y="Clone_Size", fill = "Group")) +
     geom_violin(trim=FALSE)+
-    geom_boxplot(width=0.1, fill="white") +
-    ylim(c(-0.5, 2)) +
-    geom_text(data = data.frame(Group=c("Subsisters_After_Infusion", "Rest_CARpos_After_Infusion"),
-                                Median=c(median(subsister_clone_sizes_ai),
-                                         median(rest_carpos_clone_sizes_ai)),
+    geom_text(data = data.frame(Group=c("Post_Infusion_CARpos_Subsisters", "Post_Infusion_CARpos_Rest"),
+                                Median=c(median(subsister_clone_sizes_pi),
+                                         median(rest_carpos_clone_sizes_pi)),
                                 stringsAsFactors = FALSE, check.names = FALSE),
               aes_string(x = "Group", y = "Median", label = "Median"),
               size = 10, hjust = -2, vjust = -2) +
-    geom_text(data = data.frame(Group=c("Subsisters_After_Infusion", "Rest_CARpos_After_Infusion"),
-                                Median=c(median(subsister_clone_sizes_ai),
-                                         median(rest_carpos_clone_sizes_ai)),
-                                Length=c(paste("n =", length(subsister_clone_sizes_ai)),
-                                         paste("n =", length(rest_carpos_clone_sizes_ai))),
+    geom_text(data = data.frame(Group=c("Post_Infusion_CARpos_Subsisters", "Post_Infusion_CARpos_Rest"),
+                                Median=c(median(subsister_clone_sizes_pi),
+                                         median(rest_carpos_clone_sizes_pi)),
+                                Length=c(paste("n =", length(subsister_clone_sizes_pi)),
+                                         paste("n =", length(rest_carpos_clone_sizes_pi))),
+                                stringsAsFactors = FALSE, check.names = FALSE),
+              aes_string(x = "Group", y = "Median", label = "Length"),
+              size = 5, hjust = 0.5, vjust = 3) +
+    labs(title="", x="", y = "Clone Size", fill = "") +
+    scale_fill_manual(values=c("#E69F00", "#56B4E9")) +
+    stat_summary(fun="median") +
+    # stat_compare_means(size = 8) +
+    theme_classic(base_size = 36) +
+    theme(axis.text.x = element_text(size = 25),
+          axis.title.y = element_text(size = 30),
+          legend.text = element_text(size = 30))
+  ggsave(paste0(outputDir2, "/", "PI_CARpos_Violin_Clone_Size_S_vs_R.png"), width = 22, height = 12, dpi = 500)
+  
+  ### draw a violin plot
+  ggplot(plot_df, aes_string(x="Group", y="Clone_Size", fill = "Group")) +
+    geom_violin(trim=FALSE)+
+    ylim(c(-0.5, 2)) +
+    geom_text(data = data.frame(Group=c("Post_Infusion_CARpos_Subsisters", "Post_Infusion_CARpos_Rest"),
+                                Median=c(median(subsister_clone_sizes_pi),
+                                         median(rest_carpos_clone_sizes_pi)),
+                                stringsAsFactors = FALSE, check.names = FALSE),
+              aes_string(x = "Group", y = "Median", label = "Median"),
+              size = 10, hjust = -2, vjust = -2) +
+    geom_text(data = data.frame(Group=c("Post_Infusion_CARpos_Subsisters", "Post_Infusion_CARpos_Rest"),
+                                Median=c(median(subsister_clone_sizes_pi),
+                                         median(rest_carpos_clone_sizes_pi)),
+                                Length=c(paste("n =", length(subsister_clone_sizes_pi)),
+                                         paste("n =", length(rest_carpos_clone_sizes_pi))),
                                 stringsAsFactors = FALSE, check.names = FALSE),
               aes_string(x = "Group", y = "Median", label = "Length"),
               size = 5, hjust = 0.5, vjust = 35) +
     labs(title="", x="", y = "Clone Size", fill = "") +
     scale_fill_manual(values=c("#E69F00", "#56B4E9")) +
-    stat_compare_means(size = 8) +
+    stat_summary(fun="median") +
+    # stat_compare_means(size = 8) +
     theme_classic(base_size = 36) +
-    theme(axis.text.x = element_text(size = 30),
+    theme(axis.text.x = element_text(size = 25),
           axis.title.y = element_text(size = 30),
           legend.text = element_text(size = 30))
-  ggsave(paste0(outputDir2, "/", "Violin_After_Infusion_Clone_Size_S_vs_R.png"), width = 20, height = 12, dpi = 500)
+  ggsave(paste0(outputDir2, "/", "PI_CARpos_Violin_Clone_Size_S_vs_R_CUT.png"), width = 22, height = 12, dpi = 500)
   
   ### density plot
   ggplot(plot_df, aes_string(x="Clone_Size", col="Group")) +
     geom_density(size = 2) +
     xlim(c(0,20)) +
-    geom_text(data = data.frame(Group=c("Subsisters_After_Infusion", "Rest_CARpos_After_Infusion"),
+    geom_text(data = data.frame(Group=c("Post_Infusion_CARpos_Subsisters", "Post_Infusion_CARpos_Rest"),
                                 x = c(18, 18),
                                 y = c(0.3, 0.2),
-                                Length=c(paste("n =", length(subsister_clone_sizes_ai)),
-                                         paste("n =", length(rest_carpos_clone_sizes_ai))),
+                                Length=c(paste("n =", length(subsister_clone_sizes_pi)),
+                                         paste("n =", length(rest_carpos_clone_sizes_pi))),
                                 stringsAsFactors = FALSE, check.names = FALSE),
               aes_string(x = "x", y = "y", label = "Length"),
               size = 5, hjust = 0.5, vjust = 0.5) +
@@ -2132,7 +2159,160 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     scale_fill_manual(values=c("#E69F00", "#56B4E9")) +
     theme_classic(base_size = 36) +
     theme(legend.text = element_text(size = 35))
-  ggsave(paste0(outputDir2, "/", "Density_After_Infusion_Clone_Size_S_vs_R.png"), width = 15, height = 12, dpi = 500)
+  ggsave(paste0(outputDir2, "/", "PI_CARpos_Density_Clone_Size_S_vs_R.png"), width = 18, height = 12, dpi = 500)
+  
+  ### target lineages
+  subsister_clones_gmp <- unique(target_Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(target_Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "YES")])
+  rest_carpos_clones_gmp <- unique(target_Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(target_Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "NO")])
+  rest_carpos_clones_gmp <- rest_carpos_clones_gmp[which(!is.na(rest_carpos_clones_gmp))]
+  
+  ### gmp indicies
+  gmp_carpos_cd8_indicies <- intersect(intersect(which(Seurat_Obj@meta.data$time2 == "GMP"),
+                                                 which(Seurat_Obj@meta.data$CAR == "CARpos")),
+                                       which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))
+  
+  ### get persister vs rest carpos clone sizes in GMP
+  subsister_clone_sizes_gmp <- rep(1, length(subsister_clones_gmp))
+  names(subsister_clone_sizes_gmp) <- subsister_clones_gmp
+  for(clone in subsister_clones_gmp) {
+    subsister_clone_sizes_gmp[clone] <- length(which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[gmp_carpos_cd8_indicies] == clone))
+  }
+  
+  rest_carpos_clone_sizes_gmp <- rep(0, length(rest_carpos_clones_gmp))
+  names(rest_carpos_clone_sizes_gmp) <- rest_carpos_clones_gmp
+  for(clone in rest_carpos_clones_gmp) {
+    rest_carpos_clone_sizes_gmp[clone] <- length(which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[gmp_carpos_cd8_indicies] == clone))
+  }
+  
+  ### prepare a data frame for the plot
+  plot_df <- data.frame(Clone_Size=c(subsister_clone_sizes_gmp,
+                                     rest_carpos_clone_sizes_gmp),
+                        Group=c(rep("GMP_CARpos_CD8_Subsisters", length(subsister_clone_sizes_gmp)),
+                                rep("GMP_CARpos_CD8_Rest", length(rest_carpos_clone_sizes_gmp))),
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  plot_df$Group <- factor(plot_df$Group, levels = c("GMP_CARpos_CD8_Subsisters", "GMP_CARpos_CD8_Rest"))
+  
+  ### draw a violin plot
+  ggplot(plot_df, aes_string(x="Group", y="Clone_Size", fill = "Group")) +
+    geom_violin(trim=FALSE)+
+    geom_text(data = data.frame(Group=c("GMP_CARpos_CD8_Subsisters", "GMP_CARpos_CD8_Rest"),
+                                Median=c(median(subsister_clone_sizes_gmp),
+                                         median(rest_carpos_clone_sizes_gmp)),
+                                stringsAsFactors = FALSE, check.names = FALSE),
+              aes_string(x = "Group", y = "Median", label = "Median"),
+              size = 10, hjust = -2, vjust = -2) +
+    geom_text(data = data.frame(Group=c("GMP_CARpos_CD8_Subsisters", "GMP_CARpos_CD8_Rest"),
+                                Median=c(median(subsister_clone_sizes_gmp),
+                                         median(rest_carpos_clone_sizes_gmp)),
+                                Length=c(paste("n =", length(subsister_clone_sizes_gmp)),
+                                         paste("n =", length(rest_carpos_clone_sizes_gmp))),
+                                stringsAsFactors = FALSE, check.names = FALSE),
+              aes_string(x = "Group", y = "Median", label = "Length"),
+              size = 5, hjust = 0.5, vjust = 3) +
+    labs(title="", x="", y = "Clone Size", fill = "") +
+    scale_fill_manual(values=c("#E69F00", "#56B4E9")) +
+    stat_summary(fun="median") +
+    # stat_compare_means(size = 8) +
+    theme_classic(base_size = 36) +
+    theme(axis.text.x = element_text(size = 25),
+          axis.title.y = element_text(size = 30),
+          legend.text = element_text(size = 30))
+  ggsave(paste0(outputDir2, "/", "GMP_CARpos_CD8_Violin_Clone_Size_S_vs_R.png"), width = 22, height = 12, dpi = 500)
+  
+  ### draw a violin plot
+  ggplot(plot_df, aes_string(x="Group", y="Clone_Size", fill = "Group")) +
+    geom_violin(trim=FALSE)+
+    ylim(c(0.5, 2)) +
+    geom_text(data = data.frame(Group=c("GMP_CARpos_CD8_Subsisters", "GMP_CARpos_CD8_Rest"),
+                                Median=c(median(subsister_clone_sizes_gmp),
+                                         median(rest_carpos_clone_sizes_gmp)),
+                                stringsAsFactors = FALSE, check.names = FALSE),
+              aes_string(x = "Group", y = "Median", label = "Median"),
+              size = 10, hjust = -2, vjust = -2) +
+    geom_text(data = data.frame(Group=c("GMP_CARpos_CD8_Subsisters", "GMP_CARpos_CD8_Rest"),
+                                Median=c(median(subsister_clone_sizes_gmp),
+                                         median(rest_carpos_clone_sizes_gmp)),
+                                Length=c(paste("n =", length(subsister_clone_sizes_gmp)),
+                                         paste("n =", length(rest_carpos_clone_sizes_gmp))),
+                                stringsAsFactors = FALSE, check.names = FALSE),
+              aes_string(x = "Group", y = "Median", label = "Length"),
+              size = 5, hjust = 0.5, vjust = 15) +
+    labs(title="", x="", y = "Clone Size", fill = "") +
+    scale_fill_manual(values=c("#E69F00", "#56B4E9")) +
+    stat_summary(fun="median") +
+    # stat_compare_means(size = 8) +
+    theme_classic(base_size = 36) +
+    theme(axis.text.x = element_text(size = 25),
+          axis.title.y = element_text(size = 30),
+          legend.text = element_text(size = 30))
+  ggsave(paste0(outputDir2, "/", "GMP_CARpos_CD8_Violin_Clone_Size_S_vs_R_CUT.png"), width = 22, height = 12, dpi = 500)
+  
+  ### density plot
+  ggplot(plot_df, aes_string(x="Clone_Size", col="Group")) +
+    geom_density(size = 2) +
+    xlim(c(0,20)) +
+    geom_text(data = data.frame(Group=c("GMP_CARpos_CD8_Subsisters", "GMP_CARpos_CD8_Rest"),
+                                x = c(18, 18),
+                                y = c(0.4, 0.2),
+                                Length=c(paste("n =", length(subsister_clone_sizes_gmp)),
+                                         paste("n =", length(rest_carpos_clone_sizes_gmp))),
+                                stringsAsFactors = FALSE, check.names = FALSE),
+              aes_string(x = "x", y = "y", label = "Length"),
+              size = 5, hjust = 0.5, vjust = 0.5) +
+    labs(title="", x="Clone Size", y = "Density", col = "") +
+    scale_fill_manual(values=c("#E69F00", "#56B4E9")) +
+    theme_classic(base_size = 36) +
+    theme(legend.text = element_text(size = 35))
+  ggsave(paste0(outputDir2, "/", "GMP_CARpos_CD8_Density_Clone_Size_S_vs_R.png"), width = 18, height = 12, dpi = 500)
+  
+  ### draw a cumulative plot
+  max_clone_size <- Reduce(max, c(subsister_clone_sizes_gmp, rest_carpos_clone_sizes_gmp,
+                                  subsister_clone_sizes_pi, rest_carpos_clone_sizes_pi))
+  png(filename = paste0(outputDir2, "/", "Cumulative_Clone_Sizes.png"), width = 2000, height = 1500, res = 350)
+  plot(ecdf(subsister_clone_sizes_gmp), col="#F2C03E", lwd = 1,
+       main = "Cumulative Clone Sizes",
+       sub = paste0("KS test p-value: ",
+                    "GMP=", formatC(ks.test(subsister_clone_sizes_gmp, rest_carpos_clone_sizes_gmp)$p.value, format = "e", digits = 2), ", ",
+                    "PI=", formatC(ks.test(subsister_clone_sizes_pi, rest_carpos_clone_sizes_pi)$p.value, format = "e", digits = 2)),
+       xlab = "Clone Size",
+       ylab = "Proportion",
+       xaxs="i", xlim=c(0,max_clone_size))
+  lines(ecdf(rest_carpos_clone_sizes_gmp), col="#045282", lwd = 1)
+  lines(ecdf(subsister_clone_sizes_pi), col="#D21414", lwd = 1)
+  lines(ecdf(rest_carpos_clone_sizes_pi), col="#039076", lwd = 1)
+  legend("bottomright", 
+         legend=c("GMP CAR+ CD8 Subsisters (n=198)", "GMP CAR+ CD8 Rest (n=47994)",
+                  "PI CAR Subsister (n=198)","PI CAR Rest (n=45448)"),
+         col=c("#F2C03E", "#045282","#D21414","#039076"),
+         pch=15)
+  dev.off()
+  
+  ### with downsampled ones
+  set.seed(1234)
+  rest_carpos_clone_sizes_gmp_ds <- sample(rest_carpos_clone_sizes_gmp, length(subsister_clone_sizes_gmp))
+  rest_carpos_clone_sizes_pi_ds <- sample(rest_carpos_clone_sizes_pi, length(subsister_clone_sizes_pi))
+  
+  ### draw a cumulative plot
+  max_clone_size <- Reduce(max, c(subsister_clone_sizes_gmp, rest_carpos_clone_sizes_gmp_ds,
+                                  subsister_clone_sizes_pi, rest_carpos_clone_sizes_pi_ds))
+  png(filename = paste0(outputDir2, "/", "Cumulative_Clone_Sizes_Downsampled.png"), width = 2000, height = 1500, res = 350)
+  plot(ecdf(subsister_clone_sizes_gmp), col="#F2C03E", lwd = 1,
+       main = "Cumulative Clone Sizes",
+       sub = paste0("KS test p-value: ",
+                    "GMP=", formatC(ks.test(subsister_clone_sizes_gmp, rest_carpos_clone_sizes_gmp_ds)$p.value, format = "e", digits = 2), ", ",
+                    "PI=", formatC(ks.test(subsister_clone_sizes_pi, rest_carpos_clone_sizes_pi_ds)$p.value, format = "e", digits = 2)),
+       xlab = "Clone Size",
+       ylab = "Proportion",
+       xaxs="i", xlim=c(0,max_clone_size))
+  lines(ecdf(rest_carpos_clone_sizes_gmp_ds), col="#045282", lwd = 1)
+  lines(ecdf(subsister_clone_sizes_pi), col="#D21414", lwd = 1)
+  lines(ecdf(rest_carpos_clone_sizes_pi_ds), col="#039076", lwd = 1)
+  legend("bottomright", 
+         legend=c("GMP CAR+ CD8 Subsisters (n=198)", "GMP CAR+ CD8 Rest (n=198)",
+                  "PI CAR Subsister (n=198)","PI CAR Rest (n=198)"),
+         col=c("#F2C03E", "#045282","#D21414","#039076"),
+         pch=15)
+  dev.off()
   
   
   #
@@ -6712,8 +6892,108 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   outputDir2 <- paste0(outputDir, "/21/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
+  ### set values
+  peakcar <- c(4215, 6178, 28867, 33667, 16709)
+  names(peakcar) <- c("SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05", "SJCAR19-06")
+  dose_level_table <- read.xlsx2(file = paste0(outputDir, "/8/Estimated_CD4_CD8_Subsister_#_In_GMP.xlsx"),
+                                 sheetIndex = 1, row.names = 1,
+                                 stringsAsFactors = FALSE, check.names = FALSE)
+  cd8_subsister_dose_level <- as.numeric(dose_level_table[names(peakcar),"Estimated Injected GMP CD8 Subsisters # (per kg)"])
+  dose_level_table <- read.xlsx2(file = paste0(outputDir, "/13/Estimated_CD4_CD8_Subsister(Cluster22)_#_In_GMP.xlsx"),
+                                 sheetIndex = 1, row.names = 1,
+                                 stringsAsFactors = FALSE, check.names = FALSE)
+  cd8_cluster22_dose_level <- as.numeric(dose_level_table[names(peakcar),"Estimated Injected GMP CD8 Subsisters # (per kg)"])
+  tumor_burden <- c(10, 1, 0, 12, 1)
   
+  ### make a data frame
+  plot_df <- data.frame(CD8_Subsister_Dose_Level=cd8_subsister_dose_level,
+                        CD8_Cluster22_Dose_Level=cd8_cluster22_dose_level,
+                        PeakCAR=peakcar,
+                        tumor_burden,
+                        stringsAsFactors = FALSE, check.names = FALSE)
   
+  ### correlation plot
+  png(filename = paste0(outputDir2, "Correlation_Between_Factors.png"), width = 2500, height = 1500, res = 350)
+  pairs(data=plot_df,
+        ~PeakCAR + tumor_burden + CD8_Subsister_Dose_Level + CD8_Cluster22_Dose_Level,
+        pch = 19)
+  dev.off()
+  
+  ### multiple regression - subsisters
+  fit <- lm(PeakCAR ~ tumor_burden + CD8_Subsister_Dose_Level, data=plot_df)
+  smr <- summary(fit)
+  f <- smr$fstatistic
+  pv <- pf(f[1],f[2],f[3],lower.tail=F)
+  
+  ### make the plot data frame
+  new_plot_df <- data.frame(plot_df,
+                            Residuals=fit$residuals,
+                            Fitted_Values=fit$fitted.values,
+                            stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### draw the correlation plot
+  p <- list()
+  p[[1]] <- ggplot(data = new_plot_df, aes_string(x="PeakCAR", y="Fitted_Values")) +
+    geom_point(col = "black", size = 8) +
+    geom_abline(intercept = 0, slope = 1, col = "red", size = 2) +
+    labs(title = paste0("Spearman Correlation = ", round(cor(new_plot_df$PeakCAR, new_plot_df$Fitted_Values, method = "spearman"), 2))) +
+    xlab("PeakCAR") +
+    ylab("Predicted Values") +
+    geom_smooth(method = lm, color="blue", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 24, color = "blue"))
+  p[[2]] <- ggplot(data = new_plot_df, aes_string(x="Fitted_Values", y="Residuals")) +
+    geom_point(col = "black", size = 8) +
+    geom_line(size = 3) +
+    labs(title = paste0("R2 = ", round(smr$r.squared, 2),
+                        ", Adjusted R2 = ", round(smr$adj.r.squared, 2),
+                        ", P-value = ", round(pv, 2))) +
+    xlab("Predicted Values") +
+    ylab("Residuals") +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 24))
+  g <- arrangeGrob(grobs = p,
+                   nrow = 1,
+                   ncol = 2)
+  ggsave(file = paste0(outputDir2, "PeakCAR_Multiple_Regression_Subsisters.png"), g, width = 25, height = 10, dpi = 400)
+  
+  ### multiple regression - cluster22
+  fit <- lm(PeakCAR ~ tumor_burden + CD8_Cluster22_Dose_Level, data=plot_df)
+  smr <- summary(fit)
+  f <- smr$fstatistic
+  pv <- pf(f[1],f[2],f[3],lower.tail=F)
+  
+  ### make the plot data frame
+  new_plot_df <- data.frame(plot_df,
+                            Residuals=fit$residuals,
+                            Fitted_Values=fit$fitted.values,
+                            stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### draw the correlation plot
+  p <- list()
+  p[[1]] <- ggplot(data = new_plot_df, aes_string(x="PeakCAR", y="Fitted_Values")) +
+    geom_point(col = "black", size = 8) +
+    geom_abline(intercept = 0, slope = 1, col = "red", size = 2) +
+    labs(title = paste0("Spearman Correlation = ", round(cor(new_plot_df$PeakCAR, new_plot_df$Fitted_Values, method = "spearman"), 2))) +
+    xlab("PeakCAR") +
+    ylab("Predicted Values") +
+    geom_smooth(method = lm, color="blue", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 24, color = "blue"))
+  p[[2]] <- ggplot(data = new_plot_df, aes_string(x="Fitted_Values", y="Residuals")) +
+    geom_point(col = "black", size = 8) +
+    geom_line(size = 3) +
+    labs(title = paste0("R2 = ", round(smr$r.squared, 2),
+                        ", Adjusted R2 = ", round(smr$adj.r.squared, 2),
+                        ", P-value = ", round(pv, 2))) +
+    xlab("Predicted Values") +
+    ylab("Residuals") +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 24))
+  g <- arrangeGrob(grobs = p,
+                   nrow = 1,
+                   ncol = 2)
+  ggsave(file = paste0(outputDir2, "PeakCAR_Multiple_Regression_Cluster22.png"), g, width = 25, height = 10, dpi = 400)
   
   
   #
