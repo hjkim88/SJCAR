@@ -6895,10 +6895,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### set values
   # peakcar <- c(4215, 6178, 28867, 33667, 16709)
   peakcar <- c(199054, 42149, 61777, 288670, 224445, 167092, 4806, 142422,
-               301705, 356424, 64212, 5835, 2193043, 87863, 18532)
+               301705, 356424, 64212, 5835)
   names(peakcar) <- c("SJCAR19-01", "SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05",
                       "SJCAR19-06", "SJCAR19-07", "SJCAR19-08", "SJCAR19-09", "SJCAR19-10",
-                      "SJCAR19-11", "SJCAR19-12", "SJCAR19-13", "SJCAR19-14", "SJCAR19-15")
+                      "SJCAR19-11", "SJCAR19-12")
   dose_level_table <- read.xlsx2(file = paste0(outputDir, "/8/Estimated_CD4_CD8_Subsister_#_In_GMP.xlsx"),
                                  sheetIndex = 1, row.names = 1,
                                  stringsAsFactors = FALSE, check.names = FALSE)
@@ -6907,10 +6907,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                                  sheetIndex = 1, row.names = 1,
                                  stringsAsFactors = FALSE, check.names = FALSE)
   cd8_cluster22_dose_level <- as.numeric(dose_level_table[names(peakcar),"Estimated Injected GMP CD8 Subsisters # (per kg)"])
-  tumor_burden <- c(98, 10, 1, 0, 12, 1, 80, 72, 78, 84, 0, 2, 51, 43, 0)
+  tumor_burden <- c(98, 10, 1, 0, 12, 1, 80, 72, 78, 84, 0, 2)
   names(tumor_burden) <- c("SJCAR19-01", "SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05",
                            "SJCAR19-06", "SJCAR19-07", "SJCAR19-08", "SJCAR19-09", "SJCAR19-10",
-                           "SJCAR19-11", "SJCAR19-12", "SJCAR19-13", "SJCAR19-14", "SJCAR19-15")
+                           "SJCAR19-11", "SJCAR19-12")
   
   ### make a data frame
   plot_df <- data.frame(CD8_Subsister_Dose_Level=cd8_subsister_dose_level,
@@ -6920,7 +6920,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                         stringsAsFactors = FALSE, check.names = FALSE)
   
   ### remove NA rows
-  
+  plot_df <- plot_df[which(!is.na(plot_df$CD8_Subsister_Dose_Level)),]
   
   ### correlation plot
   png(filename = paste0(outputDir2, "Correlation_Between_Factors.png"), width = 2500, height = 1500, res = 350)
