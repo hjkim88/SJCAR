@@ -157,6 +157,14 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     remotes::install_github('satijalab/seurat-wrappers')
     require(SeuratWrappers, quietly = TRUE)
   }
+  if(!require(e1071, quietly = TRUE)) {
+    install.packages("e1071")
+    require(e1071, quietly = TRUE)
+  }
+  if(!require(hydroGOF, quietly = TRUE)) {
+    install.packages("hydroGOF")
+    require(hydroGOF, quietly = TRUE)
+  }
   
   ### create outputDir
   dir.create(outputDir, showWarnings = FALSE, recursive = TRUE)
@@ -7092,11 +7100,87 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                    ncol = 2)
   ggsave(file = paste0(outputDir2, "PeakCAR_Multiple_Regression_Cluster22.png"), g, width = 25, height = 10, dpi = 400)
   
-  ### SVM regression
+  
+  ### r-squared function
+  rsq <- function (x, y) round(cor(x, y)^2, 4)
+  adj_rsq <- function(x, y, p, n) round(1-((1-cor(x, y)^2) * (n-1) / (n-p-1)), 4)
+  
+  ### f-statistic function
+  fstat <- function(x, y, df1, df2) round((cor(x, y)^2 / (1-cor(x, y)^2)) * (df2 / df1), 4)
+  fstat_pv <- function(x, y, df1, df2) round(pf((cor(x, y)^2 / (1-cor(x, y)^2)) * (df2 / df1), df1, df2, lower.tail = FALSE), 4)
   
   
+  ### SVM regression - subsisters
+  svm_model = svm(PeakCAR ~ tumor_burden + CD8_Subsister_Dose_Level, data=plot_df)
+  predictYsvm <- predict(svm_model, data=plot_df)
   
+  ### make the plot data frame
+  new_plot_df <- data.frame(plot_df,
+                            Residuals=predictYsvm-plot_df$PeakCAR,
+                            Fitted_Values=predictYsvm,
+                            stringsAsFactors = FALSE, check.names = FALSE)
   
+  ### draw the correlation plot
+  p <- list()
+  p[[1]] <- ggplot(data = new_plot_df, aes_string(x="PeakCAR", y="Fitted_Values")) +
+    geom_point(col = "black", size = 8) +
+    geom_abline(intercept = 0, slope = 1, col = "red", size = 2) +
+    labs(title = paste0("Spearman Correlation = ", round(cor(new_plot_df$PeakCAR, new_plot_df$Fitted_Values, method = "spearman"), 2))) +
+    xlab("PeakCAR") +
+    ylab("Predicted Values") +
+    geom_smooth(method = lm, color="blue", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 24, color = "blue"))
+  p[[2]] <- ggplot(data = new_plot_df, aes_string(x="Fitted_Values", y="Residuals")) +
+    geom_point(col = "black", size = 8) +
+    geom_line(size = 3) +
+    labs(title = paste0("R2 = ", rsq(new_plot_df$PeakCAR, new_plot_df$Fitted_Values),
+                        ", Adjusted R2 = ", adj_rsq(new_plot_df$PeakCAR, new_plot_df$Fitted_Values, 2, length(plot_df$PeakCAR)),
+                        ", P-value = ", fstat_pv(new_plot_df$PeakCAR, new_plot_df$Fitted_Values, 2, 9))) +
+    xlab("Predicted Values") +
+    ylab("Residuals") +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 24))
+  g <- arrangeGrob(grobs = p,
+                   nrow = 1,
+                   ncol = 2)
+  ggsave(file = paste0(outputDir2, "PeakCAR_SVM_Regression_Subsisters.png"), g, width = 25, height = 10, dpi = 400)
+  
+  ### SVM regression - cluster22
+  svm_model = svm(PeakCAR ~ tumor_burden + CD8_Cluster22_Dose_Level, data=plot_df)
+  predictYsvm <- predict(svm_model, data=plot_df)
+  
+  ### make the plot data frame
+  new_plot_df <- data.frame(plot_df,
+                            Residuals=predictYsvm-plot_df$PeakCAR,
+                            Fitted_Values=predictYsvm,
+                            stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### draw the correlation plot
+  p <- list()
+  p[[1]] <- ggplot(data = new_plot_df, aes_string(x="PeakCAR", y="Fitted_Values")) +
+    geom_point(col = "black", size = 8) +
+    geom_abline(intercept = 0, slope = 1, col = "red", size = 2) +
+    labs(title = paste0("Spearman Correlation = ", round(cor(new_plot_df$PeakCAR, new_plot_df$Fitted_Values, method = "spearman"), 2))) +
+    xlab("PeakCAR") +
+    ylab("Predicted Values") +
+    geom_smooth(method = lm, color="blue", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 24, color = "blue"))
+  p[[2]] <- ggplot(data = new_plot_df, aes_string(x="Fitted_Values", y="Residuals")) +
+    geom_point(col = "black", size = 8) +
+    geom_line(size = 3) +
+    labs(title = paste0("R2 = ", rsq(new_plot_df$PeakCAR, new_plot_df$Fitted_Values),
+                        ", Adjusted R2 = ", adj_rsq(new_plot_df$PeakCAR, new_plot_df$Fitted_Values, 2, length(plot_df$PeakCAR)),
+                        ", P-value = ", fstat_pv(new_plot_df$PeakCAR, new_plot_df$Fitted_Values, 2, 9))) +
+    xlab("Predicted Values") +
+    ylab("Residuals") +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 24))
+  g <- arrangeGrob(grobs = p,
+                   nrow = 1,
+                   ncol = 2)
+  ggsave(file = paste0(outputDir2, "PeakCAR_SVM_Regression_Cluster22.png"), g, width = 25, height = 10, dpi = 400)
   
   
   #
