@@ -137,6 +137,26 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     install.packages("ggthemes")
     require(ggthemes, quietly = TRUE)
   }
+  if(!require(DelayedMatrixStats, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("DelayedMatrixStats")
+    require(DelayedMatrixStats, quietly = TRUE)
+  }
+  if(!require(scran, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("scran")
+    require(scran, quietly = TRUE)
+  }
+  if(!require(remotes, quietly = TRUE)) {
+    install.packages("remotes")
+    require(remotes, quietly = TRUE)
+  }
+  if(!require(SeuratWrappers, quietly = TRUE)) {
+    remotes::install_github('satijalab/seurat-wrappers')
+    require(SeuratWrappers, quietly = TRUE)
+  }
   
   ### create outputDir
   dir.create(outputDir, showWarnings = FALSE, recursive = TRUE)
@@ -443,7 +463,6 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   #' lines(sds, lwd = 3)
   #'
   #' @import graphics
-  #' @import grDevices
   #' @export
   setMethod(
     f = "plot",
@@ -514,7 +533,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       if(lineages){
         X <- reducedDim(x)
         clusterLabels <- slingClusterLabels(x)
-        connectivity <- slingAdjacency(x)
+        connectivity <- slingMST(x)
         clusters <- rownames(connectivity)
         nclus <- nrow(connectivity)
         centers <- t(vapply(clusters,function(clID){
@@ -584,6 +603,17 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       invisible(NULL)
     }
   )
+  
+  #' @rdname plot-SlingshotDataSet
+  #' @importFrom graphics lines
+  #' @export
+  lines.SlingshotDataSet <- function(x,
+                                     type = NULL,
+                                     dims = seq_len(2),
+                                     ...) {
+    plot(x, type = type, add = TRUE, dims = dims, ...)
+    invisible(NULL)
+  }
   
   #' @title Pairs plot of Slingshot output
   #' @name pairs-SlingshotDataSet
@@ -5527,6 +5557,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                                                         "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
                                                         "SJCAR19-09", "SJCAR19-10", "SJCAR19-11"))
   
+  ### run mnn
+  sub_seurat_obj4.list <- SplitObject(sub_seurat_obj4, split.by = "px")
+  sub_seurat_obj4 <- RunFastMNN(object.list = sub_seurat_obj4.list)
+  rm(sub_seurat_obj4.list)
+  gc()
+  
   ### normalization
   sub_seurat_obj4 <- NormalizeData(sub_seurat_obj4,
                                    normalization.method = "LogNormalize", scale.factor = 10000)
@@ -5552,8 +5588,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   slingshot_obj <- slingshot(pca_map,
                              clusterLabels = sub_seurat_obj4@meta.data$time2,
                              start.clus = "GMP",
-                             end.clus = "6mo",
-                             reducedDim = "PCA")
+                             end.clus = "6mo")
+  slingshot_obj <- as.SlingshotDataSet(slingshot_obj)
   
   ### get colors for the clustering result
   cell_colors_clust <- cell_pal(unique(sub_seurat_obj4@meta.data$time2), hue_pal())
@@ -5568,6 +5604,31 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   # title(xlab="PC1", mgp=c(1,1,0), cex.lab=3)
   # title(ylab="PC2", mgp=c(1,1,0), cex.lab=3)
   lines(slingshot_obj, lwd = 4, type = "lineages", col = "black",
+        show.constraints = TRUE, constraints.col = cell_colors_clust)
+  legend("bottomleft", legend = names(cell_colors_clust), col = cell_colors_clust,
+         pch = 19, cex = 1.5)
+  dev.off()
+  
+  ### MNN map
+  mnn_map <- Embeddings(sub_seurat_obj4, reduction = "mnn")[rownames(sub_seurat_obj4@meta.data),1:2]
+  
+  ### get slingshot object
+  slingshot_obj_mnn <- slingshot(mnn_map,
+                                 clusterLabels = sub_seurat_obj4@meta.data$time2,
+                                 start.clus = "GMP",
+                                 end.clus = "6mo")
+  slingshot_obj_mnn <- as.SlingshotDataSet(slingshot_obj_mnn)
+  
+  ### Trajectory inference
+  png(paste0(outputDir2, "CARpos_CD8_Trajectory_Inference_Time_MNN.png"), width = 5000, height = 3000, res = 350)
+  par(mar=c(7, 7, 7, 1), mgp=c(4,1,0))
+  plot(reducedDim(slingshot_obj_mnn),
+       main=paste("CAR+ CD8 Trajectory Inference"),
+       col = cell_colors_clust[as.character(sub_seurat_obj4@meta.data$time2)],
+       pch = 19, cex = 1, cex.lab = 3, cex.main = 3, cex.axis = 2)
+  # title(xlab="PC1", mgp=c(1,1,0), cex.lab=3)
+  # title(ylab="PC2", mgp=c(1,1,0), cex.lab=3)
+  lines(slingshot_obj_mnn, lwd = 4, type = "lineages", col = "black",
         show.constraints = TRUE, constraints.col = cell_colors_clust)
   legend("bottomleft", legend = names(cell_colors_clust), col = cell_colors_clust,
          pch = 19, cex = 1.5)
@@ -5596,8 +5657,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   slingshot_obj2 <- slingshot(pca_map2,
                               clusterLabels = sub_seurat_obj4@meta.data$time2[which(sub_seurat_obj4@meta.data$downsampled == "YES")],
                               start.clus = "GMP",
-                              end.clus = "3mo",
-                              reducedDim = "PCA")
+                              end.clus = "3mo")
+  slingshot_obj2 <- as.SlingshotDataSet(slingshot_obj2)
   
   ### get colors for the clustering result
   cell_colors_clust2 <- cell_pal(names(cell_num), hue_pal())
@@ -5616,6 +5677,32 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   legend("bottomleft", legend = names(cell_colors_clust2), col = cell_colors_clust2,
          pch = 19, cex = 1.5)
   dev.off()
+  
+  ### MNN map
+  mnn_map2 <- Embeddings(sub_seurat_obj4, reduction = "mnn")[rownames(sub_seurat_obj4@meta.data)[which(sub_seurat_obj4@meta.data$downsampled == "YES")],1:2]
+  
+  ### get slingshot object
+  slingshot_obj2_mnn <- slingshot(mnn_map2,
+                                  clusterLabels = sub_seurat_obj4@meta.data$time2[which(sub_seurat_obj4@meta.data$downsampled == "YES")],
+                                  start.clus = "GMP",
+                                  end.clus = "3mo")
+  slingshot_obj2_mnn <- as.SlingshotDataSet(slingshot_obj2_mnn)
+  
+  ### Trajectory inference
+  png(paste0(outputDir2, "CARpos_CD8_Trajectory_Inference_Time_MNN_Downsampled.png"), width = 5000, height = 3000, res = 350)
+  par(mar=c(7, 7, 7, 1), mgp=c(4,1,0))
+  plot(reducedDim(slingshot_obj2_mnn),
+       main=paste("CAR+ CD8 Trajectory Inference"),
+       col = cell_colors_clust2[as.character(sub_seurat_obj4@meta.data$time2[which(sub_seurat_obj4@meta.data$downsampled == "YES")])],
+       pch = 19, cex = 1, cex.lab = 3, cex.main = 3, cex.axis = 2)
+  # title(xlab="PC1", mgp=c(1,1,0), cex.lab=3)
+  # title(ylab="PC2", mgp=c(1,1,0), cex.lab=3)
+  lines(slingshot_obj2_mnn, lwd = 4, type = "lineages", col = "black",
+        show.constraints = TRUE, constraints.col = cell_colors_clust2)
+  legend("bottomleft", legend = names(cell_colors_clust2), col = cell_colors_clust2,
+         pch = 19, cex = 1.5)
+  dev.off()
+  
   
   ### Construct a monocle cds
   monocle_metadata <- sub_seurat_obj4@meta.data[rownames(sub_seurat_obj4@meta.data)[which(sub_seurat_obj4@meta.data$downsampled == "YES")],]
@@ -7004,6 +7091,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                    nrow = 1,
                    ncol = 2)
   ggsave(file = paste0(outputDir2, "PeakCAR_Multiple_Regression_Cluster22.png"), g, width = 25, height = 10, dpi = 400)
+  
+  ### SVM regression
+  
+  
+  
+  
   
   
   #
