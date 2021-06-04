@@ -40,7 +40,9 @@
 #               19. Look at all GMP (CAR+ & CAR-) and all CAR+ GMP cells whether they are two separated clusters
 #               20. Tay's request to look at some genes of Px11
 #               21. Multiple regression to estimate peakcar using both dose level & tumor burden
-#               22. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#               22. Classifier - reperform with the new data and also with the subsister cluster info (not only based on the subsisters all the cluster cells)
+#               23. PCA/UMAP/MNN comparison with the original GMP CARpos cells
+#               24. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -164,6 +166,14 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   if(!require(hydroGOF, quietly = TRUE)) {
     install.packages("hydroGOF")
     require(hydroGOF, quietly = TRUE)
+  }
+  if(!require(caret, quietly = TRUE)) {
+    install.packages("caret")
+    require(caret, quietly = TRUE)
+  }
+  if(!require(pROC, quietly = TRUE)) {
+    install.packages("pROC")
+    require(pROC, quietly = TRUE)
   }
   
   ### create outputDir
@@ -5642,6 +5652,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
          pch = 19, cex = 1.5)
   dev.off()
   
+  
   ### cell # for each time point
   cell_num <- sapply(unique(sub_seurat_obj4@meta.data$time2), function(x) {
     return(length(which(sub_seurat_obj4@meta.data$time2 == x)))
@@ -5710,6 +5721,121 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   legend("bottomleft", legend = names(cell_colors_clust2), col = cell_colors_clust2,
          pch = 19, cex = 1.5)
   dev.off()
+  
+  ### run mnn
+  sub_seurat_obj4.list <- SplitObject(sub_seurat_obj4, split.by = "library")
+  sub_seurat_obj4 <- RunFastMNN(object.list = sub_seurat_obj4.list)
+  rm(sub_seurat_obj4.list)
+  gc()
+  
+  ### normalization
+  sub_seurat_obj4 <- NormalizeData(sub_seurat_obj4,
+                                   normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### find variable genes
+  sub_seurat_obj4 <- FindVariableFeatures(sub_seurat_obj4,
+                                          selection.method = "vst", nfeatures = 2000)
+  
+  ### scaling
+  sub_seurat_obj4 <- ScaleData(sub_seurat_obj4,
+                               vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  
+  ### run pca & umap
+  sub_seurat_obj4 <- RunPCA(sub_seurat_obj4,
+                            features = VariableFeatures(object = sub_seurat_obj4),
+                            npcs = 15)
+  sub_seurat_obj4 <- RunUMAP(sub_seurat_obj4, dims = 1:15)
+  
+  ### MNN map2
+  mnn_map <- Embeddings(sub_seurat_obj4, reduction = "mnn")[rownames(sub_seurat_obj4@meta.data),1:2]
+  
+  ### get slingshot object
+  slingshot_obj_mnn <- slingshot(mnn_map,
+                                 clusterLabels = sub_seurat_obj4@meta.data$time2,
+                                 start.clus = "GMP",
+                                 end.clus = "6mo")
+  slingshot_obj_mnn <- as.SlingshotDataSet(slingshot_obj_mnn)
+  
+  ### Trajectory inference
+  png(paste0(outputDir2, "CARpos_CD8_Trajectory_Inference_Time_MNN2.png"), width = 5000, height = 3000, res = 350)
+  par(mar=c(7, 7, 7, 1), mgp=c(4,1,0))
+  plot(reducedDim(slingshot_obj_mnn),
+       main=paste("CAR+ CD8 Trajectory Inference"),
+       col = cell_colors_clust[as.character(sub_seurat_obj4@meta.data$time2)],
+       pch = 19, cex = 1, cex.lab = 3, cex.main = 3, cex.axis = 2)
+  # title(xlab="PC1", mgp=c(1,1,0), cex.lab=3)
+  # title(ylab="PC2", mgp=c(1,1,0), cex.lab=3)
+  lines(slingshot_obj_mnn, lwd = 4, type = "lineages", col = "black",
+        show.constraints = TRUE, constraints.col = cell_colors_clust)
+  legend("bottomleft", legend = names(cell_colors_clust), col = cell_colors_clust,
+         pch = 19, cex = 1.5)
+  dev.off()
+  
+  ### MNN map
+  mnn_map2 <- Embeddings(sub_seurat_obj4, reduction = "mnn")[rownames(sub_seurat_obj4@meta.data)[which(sub_seurat_obj4@meta.data$downsampled == "YES")],1:2]
+  
+  ### get slingshot object
+  slingshot_obj2_mnn <- slingshot(mnn_map2,
+                                  clusterLabels = sub_seurat_obj4@meta.data$time2[which(sub_seurat_obj4@meta.data$downsampled == "YES")],
+                                  start.clus = "GMP",
+                                  end.clus = "3mo")
+  slingshot_obj2_mnn <- as.SlingshotDataSet(slingshot_obj2_mnn)
+  
+  ### Trajectory inference
+  png(paste0(outputDir2, "CARpos_CD8_Trajectory_Inference_Time_MNN2_Downsampled.png"), width = 5000, height = 3000, res = 350)
+  par(mar=c(7, 7, 7, 1), mgp=c(4,1,0))
+  plot(reducedDim(slingshot_obj2_mnn),
+       main=paste("CAR+ CD8 Trajectory Inference"),
+       col = cell_colors_clust2[as.character(sub_seurat_obj4@meta.data$time2[which(sub_seurat_obj4@meta.data$downsampled == "YES")])],
+       pch = 19, cex = 1, cex.lab = 3, cex.main = 3, cex.axis = 2)
+  # title(xlab="PC1", mgp=c(1,1,0), cex.lab=3)
+  # title(ylab="PC2", mgp=c(1,1,0), cex.lab=3)
+  lines(slingshot_obj2_mnn, lwd = 4, type = "lineages", col = "black",
+        show.constraints = TRUE, constraints.col = cell_colors_clust2)
+  legend("bottomleft", legend = names(cell_colors_clust2), col = cell_colors_clust2,
+         pch = 19, cex = 1.5)
+  dev.off()
+  
+  ### see whether the subsisters are still in the same cluster or not
+  sub_seurat_obj4 <- RunUMAP(sub_seurat_obj4, reduction = "mnn", dims = 1:15)
+  sub_seurat_obj4 <- FindNeighbors(sub_seurat_obj4, reduction = "mnn", dims = 1:15)
+  sub_seurat_obj4 <- FindClusters(sub_seurat_obj4)
+  
+  p <- DimPlot(object = sub_seurat_obj4, reduction = "mnn",
+               group.by = "ALL_GMP_CARpos_Persister", split.by = "time2",
+               pt.size = 2, ncol = 3,
+               cols = c("NO" = "lightgray", "YES" = "red"),
+               order = c("YES", "NO")) +
+    ggtitle("") +
+    labs(color="Is_Subsistent") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 48),
+          legend.text = element_text(size = 48)) +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 1
+  ggsave(paste0(outputDir2, "MNN2_CARpos_CD8_Subsisters.png"), plot = p, width = 30, height = 20, dpi = 350)
+  
+  p <- DimPlot(object = sub_seurat_obj4, reduction = "umap",
+               group.by = "ALL_GMP_CARpos_Persister", split.by = "time2",
+               pt.size = 2, ncol = 3,
+               cols = c("NO" = "lightgray", "YES" = "red"),
+               order = c("YES", "NO")) +
+    ggtitle("") +
+    labs(color="Is_Subsistent") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 48),
+          legend.text = element_text(size = 48)) +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 1
+  ggsave(paste0(outputDir2, "MNN2_UMAP_CARpos_CD8_Subsisters.png"), plot = p, width = 30, height = 20, dpi = 350)
   
   
   ### Construct a monocle cds
@@ -7184,11 +7310,332 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   
   #
-  ### 22. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 22. Classifier - reperform with the new data and also with the subsister cluster info (not only based on the subsisters all the cluster cells)
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/22/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  #'******************************************************************************
+  #' A function to transform RNA-Seq data with VST in DESeq2 package
+  #' readCount: RNA-Seq rawcounts in a matrix or in a data frame form
+  #'            Rows are genes and columns are samples
+  #' filter_thresh: The function filters out genes that have at least one sample
+  #'                with counts larger than the 'filter_thresh' value
+  #'                e.g., if the 'filter_thresh' = 1, then it removes genes
+  #'                that have counts <= 1 across all the samples
+  #'                if 0, then there will be no filtering
+  #'******************************************************************************
+  normalizeRNASEQwithVST <- function(readCount, filter_thresh=1) {
+    
+    ### load library
+    if(!require(DESeq2, quietly = TRUE)) {
+      if(!requireNamespace("BiocManager", quietly = TRUE))
+        install.packages("BiocManager")
+      BiocManager::install("DESeq2")
+      require(DESeq2, quietly = TRUE)
+    }
+    
+    ### make a design matrix for DESeq2 data
+    condition <- data.frame(factor(rep("OneClass", ncol(readCount))))
+    
+    ### Data preparation for DESeq2 format
+    deSeqData <- DESeqDataSetFromMatrix(countData=readCount, colData=condition, design= ~0)
+    
+    if(filter_thresh > 0) {
+      ### Remove rubbish rows - this will decrease the number of rows
+      keep = apply(counts(deSeqData), 1, function(r){
+        return(sum(r > filter_thresh) > 0)
+      })
+      deSeqData <- deSeqData[keep,]
+    }
+    
+    ### VST
+    vsd <- varianceStabilizingTransformation(deSeqData)
+    transCnt <- data.frame(assay(vsd), check.names = FALSE)
+    
+    return (transCnt)
+    
+  }
+  
+  ### only get the GMP persisters and non-persisters
+  target_Seurat_Obj <- subset(Seurat_Obj, cells = rownames(Seurat_Obj@meta.data)[union(which(Seurat_Obj$GMP_CARpos_CD8_Persister == "YES"),
+                                                                                       which(Seurat_Obj$GMP_CARpos_CD8_Persister == "NO"))])
+  
+  ### only the patients we are interested
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$px)
+  target_Seurat_Obj <- subset(target_Seurat_Obj, idents = c("SJCAR19-02", "SJCAR19-04", "SJCAR19-05",
+                                                            "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
+                                                            "SJCAR19-09", "SJCAR19-10", "SJCAR19-11"))
+  
+  ### normalization
+  target_Seurat_Obj <- NormalizeData(target_Seurat_Obj,
+                                     normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### find variable genes
+  target_Seurat_Obj <- FindVariableFeatures(target_Seurat_Obj,
+                                            selection.method = "vst", nfeatures = 2000)
+  
+  ### scaling
+  target_Seurat_Obj <- ScaleData(target_Seurat_Obj,
+                                 vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  
+  ### run pca & umap
+  target_Seurat_Obj <- RunPCA(target_Seurat_Obj,
+                              features = VariableFeatures(object = target_Seurat_Obj),
+                              npcs = 15)
+  target_Seurat_Obj <- RunUMAP(target_Seurat_Obj, dims = 1:15)
+  
+  ### perform clustering
+  target_Seurat_Obj <- FindNeighbors(target_Seurat_Obj, dims = 1:10)
+  target_Seurat_Obj <- FindClusters(target_Seurat_Obj, resolution = 1.5)
+  
+  ### save the clustering result to meta.data
+  target_Seurat_Obj@meta.data$gmp_seurat_clusters <- Idents(target_Seurat_Obj)
+  
+  ### specific cluster - cluster 22
+  DimPlot(object = target_Seurat_Obj, reduction = "umap",
+          group.by = "gmp_seurat_clusters",
+          pt.size = 1)
+  target_Seurat_Obj@meta.data$gmp_seurat_clusters2 <- as.character(target_Seurat_Obj@meta.data$gmp_seurat_clusters)
+  target_Seurat_Obj@meta.data$gmp_seurat_clusters2[which(target_Seurat_Obj@meta.data$gmp_seurat_clusters2 != "22")] <- "Others"
+  DimPlot(object = target_Seurat_Obj, reduction = "umap",
+          group.by = "gmp_seurat_clusters2",
+          pt.size = 1,
+          cols = c("Others" = "lightgray", "22" = "red"),
+          order = c("22", "Others"))
+  
+  ### because of the imbalance of the two cluster sizes, we randomly choose
+  ### the same number of samples in each class and iteratively build the classifier
+  iteration <- 10
+  set.seed(2990)
+  featureSelectionNum <- 100
+  sampleNum <- 100
+  methodTypes <- c("svmLinear", "svmRadial", "gbm", "parRF", "glmboost", "knn")
+  methodNames <- c("SVMLinear", "SVMRadial", "GBM", "RandomForest", "Linear_Model", "K-NN")
+  train_control <- trainControl(method="LOOCV", classProbs = TRUE, savePredictions = TRUE, verboseIter = FALSE)
+  
+  ### a small number that will be added to the counts for normalization
+  ### log transform should not have 0 values
+  log_trans_add <- 1
+  
+  ### de result - subsisters
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister)
+  gmp_de_result <- FindMarkers(target_Seurat_Obj,
+                               ident.1 = "YES",
+                               ident.2 = "NO",
+                               min.pct = 0.2,
+                               logfc.threshold = 0.2,
+                               test.use = "wilcox")
+  
+  ### build the classifier 10 times - Subsisters
+  for(i in 1:iteration) {
+    
+    ### get random samples for each condition
+    cond1_samps <- rownames(target_Seurat_Obj@meta.data)[sample(which(target_Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "YES"), sampleNum)]
+    cond2_samps <- rownames(target_Seurat_Obj@meta.data)[sample(which(target_Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister == "NO"), sampleNum)]
+    
+    ### normalize the read counts
+    ### before the normalization, only keep the samples that will be used in the classifier
+    input_data <- normalizeRNASEQwithVST(readCount = data.frame(target_Seurat_Obj@assays$RNA@counts[rownames(gmp_de_result)[1:featureSelectionNum],
+                                                                                             c(cond1_samps,
+                                                                                               cond2_samps)] + log_trans_add,
+                                                                stringsAsFactors = FALSE, check.names = FALSE),
+                                         filter_thresh = 0)
+    
+    ### annotate class for the input data
+    input_data <- data.frame(t(input_data), stringsAsFactors = FALSE, check.names = FALSE)
+    input_data$Class <- factor(c(rep("GMP_Last", sampleNum),
+                                 rep("GMP_Not_Last", sampleNum)),
+                               levels = c("GMP_Last", "GMP_Not_Last"))
+    
+    ### build classifier and test
+    ### LOOCV
+    p <- list()
+    acc <- NULL
+    for(j in 1:length(methodTypes)) {
+      writeLines(paste(methodTypes[j]))
+      model <- train(Class~., data=input_data, trControl=train_control, method=methodTypes[j])
+      roc <- roc(model$pred$obs, model$pred$GMP_Last)
+      acc <- c(acc, round(mean(model$results$Accuracy), 3))
+      p[[j]] <- plot.roc(roc, main = paste(methodNames[j], "Using DE Genes\n",
+                                           "Accuracy =", acc[j]),
+                         legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+                         xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+      gc()
+    }
+    
+    ### draw ROC curves
+    png(paste0(outputDir2, "Classifier_GMP_CARpos_CD8_Subsisters_vs_Non-Subsisters_", featureSelectionNum, "_(", i, ").png"),
+        width = 2000, height = 2000, res = 350)
+    par(mfrow=c(3, 2))
+    for(j in 1:length(methodTypes)) {
+      plot.roc(p[[j]], main = paste(methodNames[j], "Using Gene Expressions\n",
+                                    "Accuracy =", acc[j]),
+               legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+               xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+    }
+    dev.off()
+    
+    gc()
+  }
+  
+  ### de result - cluster22
+  target_Seurat_Obj <- SetIdent(object = target_Seurat_Obj,
+                                cells = rownames(target_Seurat_Obj@meta.data),
+                                value = target_Seurat_Obj@meta.data$gmp_seurat_clusters2)
+  gmp_de_result_c22 <- FindMarkers(target_Seurat_Obj,
+                                   ident.1 = "22",
+                                   ident.2 = "Others",
+                                   min.pct = 0.2,
+                                   logfc.threshold = 0.2,
+                                   test.use = "wilcox")
+  
+  ### build the classifier 10 times - cluster22
+  set.seed(2990)
+  for(i in 1:iteration) {
+    
+    ### get random samples for each condition
+    cond1_samps <- rownames(target_Seurat_Obj@meta.data)[sample(which(target_Seurat_Obj@meta.data$gmp_seurat_clusters2 == "22"), sampleNum)]
+    cond2_samps <- rownames(target_Seurat_Obj@meta.data)[sample(which(target_Seurat_Obj@meta.data$gmp_seurat_clusters2 == "Others"), sampleNum)]
+    
+    ### normalize the read counts
+    ### before the normalization, only keep the samples that will be used in the classifier
+    input_data <- normalizeRNASEQwithVST(readCount = data.frame(target_Seurat_Obj@assays$RNA@counts[rownames(gmp_de_result_c22)[1:featureSelectionNum],
+                                                                                                    c(cond1_samps,
+                                                                                                      cond2_samps)] + log_trans_add,
+                                                                stringsAsFactors = FALSE, check.names = FALSE),
+                                         filter_thresh = 0)
+    
+    ### annotate class for the input data
+    input_data <- data.frame(t(input_data), stringsAsFactors = FALSE, check.names = FALSE)
+    input_data$Class <- factor(c(rep("GMP_Last", sampleNum),
+                                 rep("GMP_Not_Last", sampleNum)),
+                               levels = c("GMP_Last", "GMP_Not_Last"))
+    
+    ### build classifier and test
+    ### LOOCV
+    p <- list()
+    acc <- NULL
+    for(j in 1:length(methodTypes)) {
+      writeLines(paste(methodTypes[j]))
+      model <- train(Class~., data=input_data, trControl=train_control, method=methodTypes[j])
+      roc <- roc(model$pred$obs, model$pred$GMP_Last)
+      acc <- c(acc, round(mean(model$results$Accuracy), 3))
+      p[[j]] <- plot.roc(roc, main = paste(methodNames[j], "Using DE Genes\n",
+                                           "Accuracy =", acc[j]),
+                         legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+                         xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+      gc()
+    }
+    
+    ### draw ROC curves
+    png(paste0(outputDir2, "Classifier_GMP_CARpos_CD8_C22_vs_Others_", featureSelectionNum, "_(", i, ").png"),
+        width = 2000, height = 2000, res = 350)
+    par(mfrow=c(3, 2))
+    for(j in 1:length(methodTypes)) {
+      plot.roc(p[[j]], main = paste(methodNames[j], "Using Gene Expressions\n",
+                                    "Accuracy =", acc[j]),
+               legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+               xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+    }
+    dev.off()
+    
+    gc()
+  }
+  
+  #
+  ### 23. PCA/UMAP/MNN comparison with the original GMP CARpos cells
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/23/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### only get the GMP CARpos cells (no GMP-redo)
+  target_Seurat_Obj3 <- subset(Seurat_Obj, cells = rownames(Seurat_Obj@meta.data)[union(which(Seurat_Obj$time == "GMP"),
+                                                                                        which(Seurat_Obj$CAR == "CARpos"))])
+  
+  ### only the patients we are interested
+  target_Seurat_Obj3 <- SetIdent(object = target_Seurat_Obj3,
+                                 cells = rownames(target_Seurat_Obj3@meta.data),
+                                 value = target_Seurat_Obj3@meta.data$px)
+  target_Seurat_Obj3 <- subset(target_Seurat_Obj3, idents = c("SJCAR19-02", "SJCAR19-04", "SJCAR19-05",
+                                                              "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
+                                                              "SJCAR19-09", "SJCAR19-10", "SJCAR19-11"))
+  
+  ### run mnn
+  target_Seurat_Obj3.list <- SplitObject(target_Seurat_Obj3, split.by = "px")
+  target_Seurat_Obj3 <- RunFastMNN(object.list = target_Seurat_Obj3.list)
+  rm(target_Seurat_Obj3.list)
+  gc()
+  
+  ### normalization
+  target_Seurat_Obj3 <- NormalizeData(target_Seurat_Obj3,
+                                      normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### find variable genes
+  target_Seurat_Obj3 <- FindVariableFeatures(target_Seurat_Obj3,
+                                             selection.method = "vst", nfeatures = 2000)
+  
+  ### scaling
+  target_Seurat_Obj3 <- ScaleData(target_Seurat_Obj3,
+                                  vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  
+  ### run pca & umap
+  target_Seurat_Obj3 <- RunPCA(target_Seurat_Obj3,
+                               features = VariableFeatures(object = target_Seurat_Obj3),
+                               npcs = 15)
+  target_Seurat_Obj3 <- RunUMAP(target_Seurat_Obj3, dims = 1:15)
+  
+  ### draw a PCA plot
+  p <- DimPlot(object = target_Seurat_Obj3, reduction = "pca",
+               group.by = "px", pt.size = 1, label = TRUE) +
+    ggtitle("") +
+    labs(color="Patient") +
+    theme_classic(base_size = 36) +
+    theme(axis.text.x = element_text(size = 30),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 30))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir2, "PCA_Original_GMP_Only_CARpos_Px.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### draw a UMAP plot
+  p <- DimPlot(object = target_Seurat_Obj3, reduction = "umap",
+               group.by = "px", pt.size = 1, label = TRUE) +
+    ggtitle("") +
+    labs(color="Patient") +
+    theme_classic(base_size = 36) +
+    theme(axis.text.x = element_text(size = 30),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 30))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir2, "UMAP_Original_GMP_Only_CARpos_Px.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### draw a MNN plot
+  p <- DimPlot(object = target_Seurat_Obj3, reduction = "mnn",
+               group.by = "px", pt.size = 1, label = TRUE) +
+    ggtitle("") +
+    labs(color="Patient") +
+    theme_classic(base_size = 36) +
+    theme(axis.text.x = element_text(size = 30),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 30))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir2, "MNN_Original_GMP_Only_CARpos_Px.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  
+  #
+  ### 24. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/24/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
