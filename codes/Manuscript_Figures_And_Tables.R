@@ -7679,16 +7679,71 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   sub_seurat_obj4 <- ScaleData(sub_seurat_obj4,
                                vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
   
-  ### run pca & umap
+  ### run pca & umap & clustering
   sub_seurat_obj4 <- RunPCA(sub_seurat_obj4,
                             features = VariableFeatures(object = sub_seurat_obj4),
                             npcs = 15)
   sub_seurat_obj4 <- RunUMAP(sub_seurat_obj4, reduction = "mnn", dims = 1:15)
   sub_seurat_obj4 <- FindNeighbors(sub_seurat_obj4, reduction = "mnn", dims = 1:15)
-  sub_seurat_obj4 <- FindClusters(sub_seurat_obj4)
+  sub_seurat_obj4 <- FindClusters(sub_seurat_obj4, resolution = 0.5)
+  
+  ### save the clustering result to meta.data
+  sub_seurat_obj4@meta.data$clusters <- Idents(sub_seurat_obj4)
+  
+  ### UMAP with clusters by each patient
+  p <- DimPlot(object = sub_seurat_obj4, reduction = "umap",
+               group.by = "clusters", split.by = "time2",
+               pt.size = 3, ncol = 3) +
+    ggtitle("") +
+    labs(color="Clusters") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.text.x = element_text(size = 30),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 30))
+  ggsave(paste0(outputDir2, "MNN_UMAP_CARpos_CD8_Clusters.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### add GMP - PI distinguishable column
+  sub_seurat_obj4@meta.data$GMP_PI <- "PI"
+  sub_seurat_obj4@meta.data$GMP_PI[which(sub_seurat_obj4@meta.data$time2 == "GMP")] <- "GMP"
+  
+  ### UMAP with mapping for each cluster (GMP - PI)
+  p <- vector("list", length(levels(sub_seurat_obj4@meta.data$clusters)))
+  names(p) <- levels(sub_seurat_obj4@meta.data$clusters)
+  for(clstr in levels(sub_seurat_obj4@meta.data$clusters)) {
+    ### get seurat object for the given cluster
+    temp_seurat_obj <- subset(sub_seurat_obj4, cells = rownames(sub_seurat_obj4@meta.data)[which(sub_seurat_obj4@meta.data$clusters == clstr)])
+    
+    ### draw a UMAP within the given cluster - coloring with GMP & PI
+    p[[clstr]] <- DimPlot(object = temp_seurat_obj, reduction = "umap",
+                          group.by = "GMP_PI",
+                          pt.size = 3) +
+      ggtitle(paste("Cluster", clstr)) +
+      labs(color="") +
+      theme_classic(base_size = 36) +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+            axis.text.x = element_text(size = 30),
+            axis.title.x = element_blank(),
+            axis.title.y = element_text(size = 30))
+    
+    ### transpency
+    p[[clstr]][[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  }
+  
+  g <- arrangeGrob(grobs = p,
+                   nrow = 4,
+                   ncol = 3)
+  ggsave(file = paste0(outputDir2, "MNN_UMAP_GMP_PI_within_Clusters.png"), g, width = 20, height = 15, dpi = 350)
+  
+  ### how many subsisters have lineage between GMP and PI in each cluster?
   
   
   
+  
+  ### based on cluster markers
+  
+  
+  ### based on network similarity
   
   
   
