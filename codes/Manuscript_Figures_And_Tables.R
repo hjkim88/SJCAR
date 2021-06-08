@@ -7716,7 +7716,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     
     ### draw a UMAP within the given cluster - coloring with GMP & PI
     p[[clstr]] <- DimPlot(object = temp_seurat_obj, reduction = "umap",
-                          group.by = "GMP_PI",
+                          group.by = "GMP_PI", cols = c("GMP" = "blue", "PI" = "green"),
                           pt.size = 3) +
       ggtitle(paste("Cluster", clstr)) +
       labs(color="") +
@@ -7727,23 +7727,299 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
             axis.title.y = element_text(size = 30))
     
     ### transpency
-    p[[clstr]][[1]]$layers[[1]]$aes_params$alpha <- 0.5
+    p[[clstr]][[1]]$layers[[1]]$aes_params$alpha <- 0.3
   }
   
   g <- arrangeGrob(grobs = p,
                    nrow = 4,
                    ncol = 3)
-  ggsave(file = paste0(outputDir2, "MNN_UMAP_GMP_PI_within_Clusters.png"), g, width = 20, height = 15, dpi = 350)
+  ggsave(file = paste0(outputDir2, "MNN_UMAP_GMP_PI_within_Clusters.png"), g, width = 25, height = 15, dpi = 350)
   
-  ### how many subsisters have lineage between GMP and PI in each cluster?
+  ### how many subsisters have lineageS between GMP and PI in each cluster?
+  ### but this can't say whether two cells are in one lineage
+  sub_seurat_obj4@meta.data$GMP_PI2 <- sub_seurat_obj4@meta.data$GMP_PI
+  sub_seurat_obj4@meta.data$GMP_PI2[intersect(which(sub_seurat_obj4@meta.data$GMP_PI == "GMP"),
+                                              which(sub_seurat_obj4@meta.data$ALL_GMP_CARpos_Persister == "YES"))] <- "GMP_Subsister"
+  sub_seurat_obj4@meta.data$GMP_PI2[intersect(which(sub_seurat_obj4@meta.data$GMP_PI == "PI"),
+                                              which(sub_seurat_obj4@meta.data$ALL_GMP_CARpos_Persister == "YES"))] <- "PI_Subsister"
+  
+  for(clstr in levels(sub_seurat_obj4@meta.data$clusters)) {
+    ### get seurat object for the given cluster
+    temp_seurat_obj <- subset(sub_seurat_obj4, cells = rownames(sub_seurat_obj4@meta.data)[which(sub_seurat_obj4@meta.data$clusters == clstr)])
+    
+    ### get subsister lineages in the given cluster
+    temp_subsister_clones <- unique(temp_seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(temp_seurat_obj@meta.data$GMP_CARpos_CD8_Persister == "YES")])
+    temp_subsister_clones <- temp_subsister_clones[which(!is.na(temp_subsister_clones))]
+    temp_subsister_clones <- intersect(temp_subsister_clones, temp_seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(temp_seurat_obj@meta.data$GMP_PI == "PI")])
+    
+    ### define subsisters in the same lineage in the given cluster
+    temp_seurat_obj@meta.data$GMP_PI3 <- temp_seurat_obj@meta.data$GMP_PI
+    temp_seurat_obj@meta.data$GMP_PI3[intersect(which(temp_seurat_obj@meta.data$GMP_PI == "GMP"),
+                                                which(temp_seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% temp_subsister_clones))] <- "GMP_Subsister"
+    temp_seurat_obj@meta.data$GMP_PI3[intersect(which(temp_seurat_obj@meta.data$GMP_PI == "PI"),
+                                                which(temp_seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% temp_subsister_clones))] <- "PI_Subsister"
+    
+    
+    ### draw a UMAP within the given cluster - coloring with GMP & PI
+    p[[clstr]] <- DimPlot(object = temp_seurat_obj, reduction = "umap",
+                          group.by = "GMP_PI3", cols = c("GMP" = "blue", "PI" = "green", "GMP_Subsister" = "red", "PI_Subsister" = "orange"),
+                          order = c("PI_Subsister", "GMP_Subsister", "PI", "GMP"),
+                          pt.size = 3) +
+      ggtitle(paste("Cluster", clstr, "-",
+                    length(temp_subsister_clones), "Out of",
+                    length(intersect(unique(sub_seurat_obj4@meta.data$clonotype_id_by_patient_one_alpha_beta[which(sub_seurat_obj4@meta.data$GMP_PI2 == "PI_Subsister")]),
+                                     unique(temp_seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(temp_seurat_obj@meta.data$GMP_CARpos_CD8_Persister == "YES")]))))) +
+      labs(color="") +
+      theme_classic(base_size = 36) +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+            axis.text.x = element_text(size = 30),
+            axis.title.x = element_blank(),
+            axis.title.y = element_text(size = 30))
+    
+    ### transpency
+    p[[clstr]][[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  }
+  
+  g <- arrangeGrob(grobs = p,
+                   nrow = 4,
+                   ncol = 3)
+  ggsave(file = paste0(outputDir2, "MNN_UMAP_GMP_PI_within_Clusters_Subsisters.png"), g, width = 30, height = 15, dpi = 350)
+  
+  #
+  ### look at GMP subsisters in each cluster and find in which clusters they are in the PI
+  ### proportional bar graph
+  #
+  
+  ### make a data frame for the plot
+  plot_df <- data.frame(GMP_Subsister_Cluster=as.character(sapply(levels(sub_seurat_obj4@meta.data$clusters),
+                                                                  function(x) rep(x, length(levels(sub_seurat_obj4@meta.data$clusters))))),
+                        PI_Subsister_Cluster=rep(levels(sub_seurat_obj4@meta.data$clusters), length(levels(sub_seurat_obj4@meta.data$clusters))),
+                        Lineage_Num = 0,
+                        Lineage_Pct = 0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### fill out the plot_df
+  i <- 1
+  for(clstr1 in levels(sub_seurat_obj4@meta.data$clusters)) {
+    ### clstr1 indicies
+    clstr1_index <- which(sub_seurat_obj4@meta.data$clusters == clstr1)
+    clstr1_gmp_subsister_index <- intersect(clstr1_index,
+                                            which(sub_seurat_obj4@meta.data$GMP_CARpos_CD8_Persister == "YES"))
+    
+    ### get clstr1 gmp subsister clones
+    clstr1_gmp_subsister_clones <- unique(sub_seurat_obj4@meta.data$clonotype_id_by_patient_one_alpha_beta[clstr1_gmp_subsister_index])
+    clstr1_gmp_subsister_clones <- clstr1_gmp_subsister_clones[which(!is.na(clstr1_gmp_subsister_clones))]
+    
+    ### for clstr2 find GMP - PI lineage in the given clusters
+    for(clstr2 in levels(sub_seurat_obj4@meta.data$clusters)) {
+      ### clstr2 indicies
+      clstr2_index <- which(sub_seurat_obj4@meta.data$clusters == clstr2)
+      clstr2_pi_index <- intersect(clstr2_index,
+                                   which(sub_seurat_obj4@meta.data$GMP_PI == "PI"))
+      clstr1_clstr2_pi_subsister_index <- intersect(clstr2_pi_index,
+                                                    which(sub_seurat_obj4@meta.data$clonotype_id_by_patient_one_alpha_beta %in% clstr1_gmp_subsister_clones))
+      
+      ### get the GMP - PI lineage numbers
+      plot_df$Lineage_Num[i] <- length(unique(sub_seurat_obj4@meta.data$clonotype_id_by_patient_one_alpha_beta[clstr1_clstr2_pi_subsister_index]))
+      
+      ### iteration count ++
+      i <- i+1
+    }
+    
+    ### calculate the percentage
+    lineage_sum <- sum(plot_df$Lineage_Num[which(plot_df$GMP_Subsister_Cluster == clstr1)])
+    plot_df$Lineage_Pct[which(plot_df$GMP_Subsister_Cluster == clstr1)] <- round(plot_df$Lineage_Num[which(plot_df$GMP_Subsister_Cluster == clstr1)] * 100 / lineage_sum, 1)
+  }
+  
+  ### draw the proportional bar graph
+  
+  ### remove 0 rows
+  plot_df <- plot_df[which(plot_df$Lineage_Num != 0),]
+  
+  ### factorize the columns
+  plot_df$GMP_Subsister_Cluster <- factor(plot_df$GMP_Subsister_Cluster, levels = levels(sub_seurat_obj4@meta.data$clusters))
+  plot_df$PI_Subsister_Cluster <- factor(plot_df$PI_Subsister_Cluster, levels = levels(sub_seurat_obj4@meta.data$clusters))
+  
+  ### draw a proportional bar plot
+  ### pcnt < 30 -> ""
+  plot_df$Lineage_Pct[which(as.numeric(plot_df$Lineage_Pct) < 30)] <- ""
+  plot_df$Lineage_Pct <- as.character(plot_df$Lineage_Pct)
+  p <- ggplot(data=plot_df, aes_string(x="GMP_Subsister_Cluster", y="Lineage_Num", fill="PI_Subsister_Cluster", label="Lineage_Pct")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Subsister Lineages Across Clusters") +
+    geom_text(size = 5, position = position_stack(vjust = 1)) +
+    xlab("GMP_Subsister_Cluster") +
+    coord_flip() +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "GMP_CARpos_CD8_Lineages_Across_Clusters.png"), plot = p,
+         width = 25, height = 12, dpi = 350)
   
   
+  ### try with different clustering
+  sub_seurat_obj4 <- FindClusters(sub_seurat_obj4, resolution = 0.1)
+  sub_seurat_obj4@meta.data$clusters2 <- Idents(sub_seurat_obj4)
+  
+  ### UMAP with clusters by each patient
+  p <- DimPlot(object = sub_seurat_obj4, reduction = "umap",
+               group.by = "clusters2", split.by = "time2",
+               pt.size = 3, ncol = 3) +
+    ggtitle("") +
+    labs(color="Clusters") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.text.x = element_text(size = 30),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 30))
+  ggsave(paste0(outputDir2, "MNN_UMAP_CARpos_CD8_Clusters2.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### UMAP with mapping for each cluster (GMP - PI)
+  p <- vector("list", length(levels(sub_seurat_obj4@meta.data$clusters2)))
+  names(p) <- levels(sub_seurat_obj4@meta.data$clusters2)
+  for(clstr in levels(sub_seurat_obj4@meta.data$clusters2)) {
+    ### get seurat object for the given cluster
+    temp_seurat_obj <- subset(sub_seurat_obj4, cells = rownames(sub_seurat_obj4@meta.data)[which(sub_seurat_obj4@meta.data$clusters2 == clstr)])
+    
+    ### draw a UMAP within the given cluster - coloring with GMP & PI
+    p[[clstr]] <- DimPlot(object = temp_seurat_obj, reduction = "umap",
+                          group.by = "GMP_PI", cols = c("GMP" = "blue", "PI" = "green"),
+                          pt.size = 3) +
+      ggtitle(paste("Cluster2", clstr)) +
+      labs(color="") +
+      theme_classic(base_size = 36) +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+            axis.text.x = element_text(size = 30),
+            axis.title.x = element_blank(),
+            axis.title.y = element_text(size = 30))
+    
+    ### transpency
+    p[[clstr]][[1]]$layers[[1]]$aes_params$alpha <- 0.3
+  }
+  
+  g <- arrangeGrob(grobs = p,
+                   nrow = 4,
+                   ncol = 3)
+  ggsave(file = paste0(outputDir2, "MNN_UMAP_GMP_PI_within_Clusters2.png"), g, width = 25, height = 15, dpi = 350)
+  
+  for(clstr in levels(sub_seurat_obj4@meta.data$clusters2)) {
+    ### get seurat object for the given cluster
+    temp_seurat_obj <- subset(sub_seurat_obj4, cells = rownames(sub_seurat_obj4@meta.data)[which(sub_seurat_obj4@meta.data$clusters2 == clstr)])
+    
+    ### get subsister lineages in the given cluster
+    temp_subsister_clones <- unique(temp_seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(temp_seurat_obj@meta.data$GMP_CARpos_CD8_Persister == "YES")])
+    temp_subsister_clones <- temp_subsister_clones[which(!is.na(temp_subsister_clones))]
+    temp_subsister_clones <- intersect(temp_subsister_clones, temp_seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(temp_seurat_obj@meta.data$GMP_PI == "PI")])
+    
+    ### define subsisters in the same lineage in the given cluster
+    temp_seurat_obj@meta.data$GMP_PI3 <- temp_seurat_obj@meta.data$GMP_PI
+    temp_seurat_obj@meta.data$GMP_PI3[intersect(which(temp_seurat_obj@meta.data$GMP_PI == "GMP"),
+                                                which(temp_seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% temp_subsister_clones))] <- "GMP_Subsister"
+    temp_seurat_obj@meta.data$GMP_PI3[intersect(which(temp_seurat_obj@meta.data$GMP_PI == "PI"),
+                                                which(temp_seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% temp_subsister_clones))] <- "PI_Subsister"
+    
+    
+    ### draw a UMAP within the given cluster - coloring with GMP & PI
+    p[[clstr]] <- DimPlot(object = temp_seurat_obj, reduction = "umap",
+                          group.by = "GMP_PI3", cols = c("GMP" = "blue", "PI" = "green", "GMP_Subsister" = "red", "PI_Subsister" = "orange"),
+                          order = c("PI_Subsister", "GMP_Subsister", "PI", "GMP"),
+                          pt.size = 3) +
+      ggtitle(paste("Cluster", clstr, "-",
+                    length(temp_subsister_clones), "Out of",
+                    length(intersect(unique(sub_seurat_obj4@meta.data$clonotype_id_by_patient_one_alpha_beta[which(sub_seurat_obj4@meta.data$GMP_PI2 == "PI_Subsister")]),
+                                     unique(temp_seurat_obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(temp_seurat_obj@meta.data$GMP_CARpos_CD8_Persister == "YES")]))))) +
+      labs(color="") +
+      theme_classic(base_size = 36) +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+            axis.text.x = element_text(size = 30),
+            axis.title.x = element_blank(),
+            axis.title.y = element_text(size = 30))
+    
+    ### transpency
+    p[[clstr]][[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  }
+  
+  g <- arrangeGrob(grobs = p,
+                   nrow = 2,
+                   ncol = 2)
+  ggsave(file = paste0(outputDir2, "MNN_UMAP_GMP_PI_within_Clusters2_Subsisters.png"), g, width = 30, height = 15, dpi = 350)
+  
+  #
+  ### look at GMP subsisters in each cluster and find in which clusters they are in the PI
+  ### proportional bar graph
+  #
+  
+  ### make a data frame for the plot
+  plot_df <- data.frame(GMP_Subsister_Cluster=as.character(sapply(levels(sub_seurat_obj4@meta.data$clusters2),
+                                                                  function(x) rep(x, length(levels(sub_seurat_obj4@meta.data$clusters2))))),
+                        PI_Subsister_Cluster=rep(levels(sub_seurat_obj4@meta.data$clusters2), length(levels(sub_seurat_obj4@meta.data$clusters2))),
+                        Lineage_Num = 0,
+                        Lineage_Pct = 0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### fill out the plot_df
+  i <- 1
+  for(clstr1 in levels(sub_seurat_obj4@meta.data$clusters2)) {
+    ### clstr1 indicies
+    clstr1_index <- which(sub_seurat_obj4@meta.data$clusters2 == clstr1)
+    clstr1_gmp_subsister_index <- intersect(clstr1_index,
+                                            which(sub_seurat_obj4@meta.data$GMP_CARpos_CD8_Persister == "YES"))
+    
+    ### get clstr1 gmp subsister clones
+    clstr1_gmp_subsister_clones <- unique(sub_seurat_obj4@meta.data$clonotype_id_by_patient_one_alpha_beta[clstr1_gmp_subsister_index])
+    clstr1_gmp_subsister_clones <- clstr1_gmp_subsister_clones[which(!is.na(clstr1_gmp_subsister_clones))]
+    
+    ### for clstr2 find GMP - PI lineage in the given clusters
+    for(clstr2 in levels(sub_seurat_obj4@meta.data$clusters2)) {
+      ### clstr2 indicies
+      clstr2_index <- which(sub_seurat_obj4@meta.data$clusters2 == clstr2)
+      clstr2_pi_index <- intersect(clstr2_index,
+                                   which(sub_seurat_obj4@meta.data$GMP_PI == "PI"))
+      clstr1_clstr2_pi_subsister_index <- intersect(clstr2_pi_index,
+                                                    which(sub_seurat_obj4@meta.data$clonotype_id_by_patient_one_alpha_beta %in% clstr1_gmp_subsister_clones))
+      
+      ### get the GMP - PI lineage numbers
+      plot_df$Lineage_Num[i] <- length(unique(sub_seurat_obj4@meta.data$clonotype_id_by_patient_one_alpha_beta[clstr1_clstr2_pi_subsister_index]))
+      
+      ### iteration count ++
+      i <- i+1
+    }
+    
+    ### calculate the percentage
+    lineage_sum <- sum(plot_df$Lineage_Num[which(plot_df$GMP_Subsister_Cluster == clstr1)])
+    plot_df$Lineage_Pct[which(plot_df$GMP_Subsister_Cluster == clstr1)] <- round(plot_df$Lineage_Num[which(plot_df$GMP_Subsister_Cluster == clstr1)] * 100 / lineage_sum, 1)
+  }
+  
+  ### draw the proportional bar graph
+  
+  ### remove 0 rows
+  plot_df <- plot_df[which(plot_df$Lineage_Num != 0),]
+  
+  ### factorize the columns
+  plot_df$GMP_Subsister_Cluster <- factor(plot_df$GMP_Subsister_Cluster, levels = levels(sub_seurat_obj4@meta.data$clusters2))
+  plot_df$PI_Subsister_Cluster <- factor(plot_df$PI_Subsister_Cluster, levels = levels(sub_seurat_obj4@meta.data$clusters2))
+  
+  ### draw a proportional bar plot
+  ### pcnt < 20 -> ""
+  plot_df$Lineage_Pct[which(as.numeric(plot_df$Lineage_Pct) < 20)] <- ""
+  plot_df$Lineage_Pct <- as.character(plot_df$Lineage_Pct)
+  p <- ggplot(data=plot_df, aes_string(x="GMP_Subsister_Cluster", y="Lineage_Num", fill="PI_Subsister_Cluster", label="Lineage_Pct")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Subsister Lineages Across Clusters") +
+    geom_text(size = 5, position = position_stack(vjust = 1)) +
+    xlab("GMP_Subsister_Cluster") +
+    coord_flip() +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "GMP_CARpos_CD8_Lineages_Across_Clusters2.png"), plot = p,
+         width = 25, height = 12, dpi = 350)
+  
+  ### how about trying px corrected MNN? or even the original UMAP?
+  ### separate the GMP & PI
+  ### look at all the GMP & PI subsisters cells and look at them closely
   
   
-  ### based on cluster markers
-  
-  
-  ### based on network similarity
   
   
   
