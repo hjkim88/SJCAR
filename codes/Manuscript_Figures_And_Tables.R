@@ -7690,7 +7690,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### save the clustering result to meta.data
   sub_seurat_obj4@meta.data$clusters <- Idents(sub_seurat_obj4)
   
-  ### UMAP with clusters by each patient
+  ### UMAP with clusters by each time
   p <- DimPlot(object = sub_seurat_obj4, reduction = "umap",
                group.by = "clusters", split.by = "time2",
                pt.size = 3, ncol = 3) +
@@ -7698,8 +7698,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     labs(color="Clusters") +
     theme_classic(base_size = 36) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
-          axis.text.x = element_text(size = 30),
-          axis.title.x = element_blank(),
+          axis.title.x = element_text(size = 30),
           axis.title.y = element_text(size = 30))
   ggsave(paste0(outputDir2, "MNN_UMAP_CARpos_CD8_Clusters.png"), plot = p, width = 15, height = 10, dpi = 350)
   
@@ -7722,9 +7721,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       labs(color="") +
       theme_classic(base_size = 36) +
       theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
-            axis.text.x = element_text(size = 30),
             axis.title.x = element_blank(),
-            axis.title.y = element_text(size = 30))
+            axis.title.y = element_blank())
     
     ### transpency
     p[[clstr]][[1]]$layers[[1]]$aes_params$alpha <- 0.3
@@ -7772,9 +7770,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       labs(color="") +
       theme_classic(base_size = 36) +
       theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
-            axis.text.x = element_text(size = 30),
             axis.title.x = element_blank(),
-            axis.title.y = element_text(size = 30))
+            axis.title.y = element_blank())
     
     ### transpency
     p[[clstr]][[1]]$layers[[1]]$aes_params$alpha <- 0.7
@@ -7869,8 +7866,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     labs(color="Clusters") +
     theme_classic(base_size = 36) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
-          axis.text.x = element_text(size = 30),
-          axis.title.x = element_blank(),
+          axis.title.x = element_text(size = 30),
           axis.title.y = element_text(size = 30))
   ggsave(paste0(outputDir2, "MNN_UMAP_CARpos_CD8_Clusters2.png"), plot = p, width = 15, height = 10, dpi = 350)
   
@@ -7889,17 +7885,16 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       labs(color="") +
       theme_classic(base_size = 36) +
       theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
-            axis.text.x = element_text(size = 30),
             axis.title.x = element_blank(),
-            axis.title.y = element_text(size = 30))
+            axis.title.y = element_blank())
     
     ### transpency
     p[[clstr]][[1]]$layers[[1]]$aes_params$alpha <- 0.3
   }
   
   g <- arrangeGrob(grobs = p,
-                   nrow = 4,
-                   ncol = 3)
+                   nrow = 2,
+                   ncol = 2)
   ggsave(file = paste0(outputDir2, "MNN_UMAP_GMP_PI_within_Clusters2.png"), g, width = 25, height = 15, dpi = 350)
   
   for(clstr in levels(sub_seurat_obj4@meta.data$clusters2)) {
@@ -7931,9 +7926,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       labs(color="") +
       theme_classic(base_size = 36) +
       theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
-            axis.text.x = element_text(size = 30),
             axis.title.x = element_blank(),
-            axis.title.y = element_text(size = 30))
+            axis.title.y = element_blank())
     
     ### transpency
     p[[clstr]][[1]]$layers[[1]]$aes_params$alpha <- 0.7
@@ -8015,12 +8009,316 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(file = paste0(outputDir2, "GMP_CARpos_CD8_Lineages_Across_Clusters2.png"), plot = p,
          width = 25, height = 12, dpi = 350)
   
-  ### how about trying px corrected MNN? or even the original UMAP?
+  #
   ### separate the GMP & PI
-  ### look at all the GMP & PI subsisters cells and look at them closely
+  #
+  
+  ### separate the seurat object
+  sub_seurat_obj4 <- SetIdent(object = sub_seurat_obj4,
+                              cells = rownames(sub_seurat_obj4@meta.data),
+                              value = sub_seurat_obj4@meta.data$GMP_PI)
+  gmp_carpos_cd8_seurat_obj <- subset(sub_seurat_obj4, idents = c("GMP"))
+  pi_carpos_cd8_seurat_obj <- subset(sub_seurat_obj4, idents = c("PI"))
+  
+  ### preprocess each seurat object
+  
+  ### run mnn
+  gmp_carpos_cd8_seurat_obj.list <- SplitObject(gmp_carpos_cd8_seurat_obj, split.by = "library")
+  gmp_carpos_cd8_seurat_obj <- RunFastMNN(object.list = gmp_carpos_cd8_seurat_obj.list)
+  rm(gmp_carpos_cd8_seurat_obj.list)
+  gc()
+  pi_carpos_cd8_seurat_obj.list <- SplitObject(pi_carpos_cd8_seurat_obj, split.by = "library")
+  pi_carpos_cd8_seurat_obj <- RunFastMNN(object.list = pi_carpos_cd8_seurat_obj.list)
+  rm(pi_carpos_cd8_seurat_obj.list)
+  gc()
+  
+  ### normalization
+  gmp_carpos_cd8_seurat_obj <- NormalizeData(gmp_carpos_cd8_seurat_obj,
+                                             normalization.method = "LogNormalize", scale.factor = 10000)
+  pi_carpos_cd8_seurat_obj <- NormalizeData(pi_carpos_cd8_seurat_obj,
+                                            normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### find variable genes
+  gmp_carpos_cd8_seurat_obj <- FindVariableFeatures(gmp_carpos_cd8_seurat_obj,
+                                                    selection.method = "vst", nfeatures = 2000)
+  pi_carpos_cd8_seurat_obj <- FindVariableFeatures(pi_carpos_cd8_seurat_obj,
+                                                   selection.method = "vst", nfeatures = 2000)
+  
+  ### scaling
+  gmp_carpos_cd8_seurat_obj <- ScaleData(gmp_carpos_cd8_seurat_obj,
+                                         vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  pi_carpos_cd8_seurat_obj <- ScaleData(pi_carpos_cd8_seurat_obj,
+                                        vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  
+  ### run pca & umap & clustering
+  gmp_carpos_cd8_seurat_obj <- RunPCA(gmp_carpos_cd8_seurat_obj,
+                                      features = VariableFeatures(object = gmp_carpos_cd8_seurat_obj),
+                                      npcs = 15)
+  gmp_carpos_cd8_seurat_obj <- RunUMAP(gmp_carpos_cd8_seurat_obj, reduction = "mnn", dims = 1:15)
+  gmp_carpos_cd8_seurat_obj <- FindNeighbors(gmp_carpos_cd8_seurat_obj, reduction = "mnn", dims = 1:15)
+  pi_carpos_cd8_seurat_obj <- RunPCA(pi_carpos_cd8_seurat_obj,
+                                     features = VariableFeatures(object = pi_carpos_cd8_seurat_obj),
+                                     npcs = 15)
+  pi_carpos_cd8_seurat_obj <- RunUMAP(pi_carpos_cd8_seurat_obj, reduction = "mnn", dims = 1:15)
+  pi_carpos_cd8_seurat_obj <- FindNeighbors(pi_carpos_cd8_seurat_obj, reduction = "mnn", dims = 1:15)
+  
+  gmp_carpos_cd8_seurat_obj <- FindClusters(gmp_carpos_cd8_seurat_obj, resolution = 0.3)
+  pi_carpos_cd8_seurat_obj <- FindClusters(pi_carpos_cd8_seurat_obj, resolution = 0.3)
+  
+  ### save the clustering result to meta.data
+  gmp_carpos_cd8_seurat_obj@meta.data$clusters <- Idents(gmp_carpos_cd8_seurat_obj)
+  pi_carpos_cd8_seurat_obj@meta.data$clusters <- Idents(pi_carpos_cd8_seurat_obj)
+  
+  ### MNN UMAP with clusters
+  p <- DimPlot(object = gmp_carpos_cd8_seurat_obj, reduction = "umap",
+               group.by = "clusters",
+               pt.size = 3) +
+    ggtitle("") +
+    labs(color="Clusters") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.title.x = element_text(size = 30),
+          axis.title.y = element_text(size = 30))
+  ggsave(paste0(outputDir2, "MNN_UMAP_GMP_CARpos_CD8_Clusters.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  p <- DimPlot(object = pi_carpos_cd8_seurat_obj, reduction = "umap",
+               group.by = "clusters",
+               pt.size = 3) +
+    ggtitle("") +
+    labs(color="Clusters") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.title.x = element_text(size = 30),
+          axis.title.y = element_text(size = 30))
+  ggsave(paste0(outputDir2, "MNN_UMAP_PI_CARpos_CD8_Clusters.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### find all markers
+  
+  ### set cluster info as idents
+  gmp_carpos_cd8_seurat_obj <- SetIdent(object = gmp_carpos_cd8_seurat_obj,
+                                        cells = rownames(gmp_carpos_cd8_seurat_obj@meta.data),
+                                        value = gmp_carpos_cd8_seurat_obj@meta.data$clusters)
+  pi_carpos_cd8_seurat_obj <- SetIdent(object = pi_carpos_cd8_seurat_obj,
+                                       cells = rownames(pi_carpos_cd8_seurat_obj@meta.data),
+                                       value = pi_carpos_cd8_seurat_obj@meta.data$clusters)
+  
+  ### DE analysis
+  de_result <- FindAllMarkers(gmp_carpos_cd8_seurat_obj,
+                              min.pct = 0.2,
+                              logfc.threshold = 0.2,
+                              test.use = "wilcox")
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/GMP_CARpos_CD8_Clusters_AllMarkers.xlsx"),
+              sheetName = "GMP_CARpos_CD8_Clusters_AllMarkers_DE_Result", row.names = FALSE)
+  de_result <- FindAllMarkers(pi_carpos_cd8_seurat_obj,
+                              min.pct = 0.2,
+                              logfc.threshold = 0.2,
+                              test.use = "wilcox")
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/PI_CARpos_CD8_Clusters_AllMarkers.xlsx"),
+              sheetName = "PI_CARpos_CD8_Clusters_AllMarkers_DE_Result", row.names = FALSE)
+  
+  ### see feature plot of the markers genes determined by Tay
+  effector_markers <- c("LAG3", "PRF1", "GZMB", "GZMK", "GZMH", "IFNG", "TBX21", "STAT4", "KLRD1", "GNLY", "KLRG1")
+  treg_markers <- c("FOXP3", "IL2RA", "TIGIT", "CTLA4")
+  central_memory_markers <- c("SELL", "IL7R", "EOMES", "CCR7")
+  effector_memory_markers <- c("IL7R", effector_markers)
+  tissue_resident_memory_markers <- c("CD69", "ITGAE", "CXCR6", "ITGA1")
+  stem_cell_memory_markers <- c("SELL", "CCR7", "FAS", "CXCR3", "IL2RB")
+  exhaustion_markers <- c("TOX", "PDCD1", "EOMES", "LAG3", "LEF1", "TCF7", "CX3CR1")
+  
+  ### filter with the existing genes
+  effector_markers <- intersect(effector_markers, rownames(sub_seurat_obj4@assays$RNA@counts))
+  treg_markers <- intersect(treg_markers, rownames(sub_seurat_obj4@assays$RNA@counts))
+  central_memory_markers <- intersect(central_memory_markers, rownames(sub_seurat_obj4@assays$RNA@counts))
+  effector_memory_markers <- intersect(effector_memory_markers, rownames(sub_seurat_obj4@assays$RNA@counts))
+  tissue_resident_memory_markers <- intersect(tissue_resident_memory_markers, rownames(sub_seurat_obj4@assays$RNA@counts))
+  stem_cell_memory_markers <- intersect(stem_cell_memory_markers, rownames(sub_seurat_obj4@assays$RNA@counts))
+  exhaustion_markers <- intersect(exhaustion_markers, rownames(sub_seurat_obj4@assays$RNA@counts))
+  
+  ### See gene expressions on UMAP with the effector markers
+  p <- FeaturePlot(gmp_carpos_cd8_seurat_obj, features = effector_markers, cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "FeaturePlot_GMP_CARpos_CD8_Effector_Markers.png"), plot = p, width = 15, height = 10, dpi = 350)
+  p <- FeaturePlot(pi_carpos_cd8_seurat_obj, features = effector_markers, cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "FeaturePlot_PI_CARpos_CD8_Effector_Markers.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### See gene expressions on UMAP with the tregs markers
+  p <- FeaturePlot(gmp_carpos_cd8_seurat_obj, features = treg_markers, cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "FeaturePlot_GMP_CARpos_CD8_Treg_Markers.png"), plot = p, width = 15, height = 10, dpi = 350)
+  p <- FeaturePlot(pi_carpos_cd8_seurat_obj, features = treg_markers, cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "FeaturePlot_PI_CARpos_CD8_Treg_Markers.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### See gene expressions on UMAP with the central memory markers
+  p <- FeaturePlot(gmp_carpos_cd8_seurat_obj, features = central_memory_markers, cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "FeaturePlot_GMP_CARpos_CD8_Central_Memory_Markers.png"), plot = p, width = 15, height = 10, dpi = 350)
+  p <- FeaturePlot(pi_carpos_cd8_seurat_obj, features = central_memory_markers, cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "FeaturePlot_PI_CARpos_CD8_Central_Memory_Markers.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### See gene expressions on UMAP with the effector memory markers
+  p <- FeaturePlot(gmp_carpos_cd8_seurat_obj, features = effector_memory_markers, cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "FeaturePlot_GMP_CARpos_CD8_Effector_Memory_Markers.png"), plot = p, width = 15, height = 10, dpi = 350)
+  p <- FeaturePlot(pi_carpos_cd8_seurat_obj, features = effector_memory_markers, cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "FeaturePlot_PI_CARpos_CD8_Effector_Memory_Markers.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### See gene expressions on UMAP with the tissue resident memory markers
+  p <- FeaturePlot(gmp_carpos_cd8_seurat_obj, features = tissue_resident_memory_markers, cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "FeaturePlot_GMP_CARpos_CD8_Tissue_Resident_Memory_Markers.png"), plot = p, width = 15, height = 10, dpi = 350)
+  p <- FeaturePlot(pi_carpos_cd8_seurat_obj, features = tissue_resident_memory_markers, cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "FeaturePlot_PI_CARpos_CD8_Tissue_Resident_Memory_Markers.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### See gene expressions on UMAP with the stem cell memory markers
+  p <- FeaturePlot(gmp_carpos_cd8_seurat_obj, features = stem_cell_memory_markers, cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "FeaturePlot_GMP_CARpos_CD8_Stem_Cell_Memory_Markers.png"), plot = p, width = 15, height = 10, dpi = 350)
+  p <- FeaturePlot(pi_carpos_cd8_seurat_obj, features = stem_cell_memory_markers, cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "FeaturePlot_PI_CARpos_CD8_Stem_Cell_Memory_Markers.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### See gene expressions on UMAP with the exhaustion markers
+  p <- FeaturePlot(gmp_carpos_cd8_seurat_obj, features = exhaustion_markers, cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "FeaturePlot_GMP_CARpos_CD8_Exhaustion_Markers.png"), plot = p, width = 15, height = 10, dpi = 350)
+  p <- FeaturePlot(pi_carpos_cd8_seurat_obj, features = exhaustion_markers, cols = c("lightgray", "red"))
+  ggsave(paste0(outputDir2, "FeaturePlot_PI_CARpos_CD8_Exhaustion_Markers.png"), plot = p, width = 15, height = 10, dpi = 350)
   
   
+  ### Ridge plot
+  gmp_carpos_cd8_seurat_obj <- SetIdent(object = gmp_carpos_cd8_seurat_obj,
+                                        cells = rownames(gmp_carpos_cd8_seurat_obj@meta.data),
+                                        value = gmp_carpos_cd8_seurat_obj@meta.data$clusters)
+  pi_carpos_cd8_seurat_obj <- SetIdent(object = pi_carpos_cd8_seurat_obj,
+                                       cells = rownames(pi_carpos_cd8_seurat_obj@meta.data),
+                                       value = pi_carpos_cd8_seurat_obj@meta.data$clusters)
   
+  ### ridge plot with effector markers
+  p <- RidgePlot(gmp_carpos_cd8_seurat_obj, features = effector_markers)
+  for(i in 1:length(effector_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_GMP_CARpos_CD8_Effector_Markers.png"), plot = p, width = 20, height = 15, dpi = 350)
+  p <- RidgePlot(pi_carpos_cd8_seurat_obj, features = effector_markers)
+  for(i in 1:length(effector_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_PI_CARpos_CD8_Effector_Markers.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  ### ridge plot with tregs markers
+  p <- RidgePlot(gmp_carpos_cd8_seurat_obj, features = treg_markers)
+  for(i in 1:length(treg_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_GMP_CARpos_CD8_Treg_Markers.png"), plot = p, width = 20, height = 15, dpi = 350)
+  p <- RidgePlot(pi_carpos_cd8_seurat_obj, features = treg_markers)
+  for(i in 1:length(treg_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_PI_CARpos_CD8_Treg_Markers.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  ### ridge plot with central memory markers
+  p <- RidgePlot(gmp_carpos_cd8_seurat_obj, features = central_memory_markers)
+  for(i in 1:length(central_memory_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_GMP_CARpos_CD8_Central_Memory_Markers.png"), plot = p, width = 20, height = 15, dpi = 350)
+  p <- RidgePlot(pi_carpos_cd8_seurat_obj, features = central_memory_markers)
+  for(i in 1:length(central_memory_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_PI_CARpos_CD8_Central_Memory_Markers.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  ### ridge plot with effector memory markers
+  p <- RidgePlot(gmp_carpos_cd8_seurat_obj, features = effector_memory_markers)
+  for(i in 1:length(effector_memory_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_GMP_CARpos_CD8_Effector_Memory_Markers.png"), plot = p, width = 20, height = 15, dpi = 350)
+  p <- RidgePlot(pi_carpos_cd8_seurat_obj, features = effector_memory_markers)
+  for(i in 1:length(effector_memory_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_PI_CARpos_CD8_Effector_Memory_Markers.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  ### ridge plot with tissue resident memory markers
+  p <- RidgePlot(gmp_carpos_cd8_seurat_obj, features = tissue_resident_memory_markers)
+  for(i in 1:length(tissue_resident_memory_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_GMP_CARpos_CD8_Tissue_Resident_Memory_Markers.png"), plot = p, width = 20, height = 15, dpi = 350)
+  p <- RidgePlot(pi_carpos_cd8_seurat_obj, features = tissue_resident_memory_markers)
+  for(i in 1:length(tissue_resident_memory_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_PI_CARpos_CD8_Tissue_Resident_Memory_Markers.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  ### ridge plot with stem cell memory markers
+  p <- RidgePlot(gmp_carpos_cd8_seurat_obj, features = stem_cell_memory_markers)
+  for(i in 1:length(stem_cell_memory_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_GMP_CARpos_CD8_Stem_Cell_Memory_Markers.png"), plot = p, width = 20, height = 15, dpi = 350)
+  p <- RidgePlot(pi_carpos_cd8_seurat_obj, features = stem_cell_memory_markers)
+  for(i in 1:length(stem_cell_memory_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_PI_CARpos_CD8_Stem_Cell_Memory_Markers.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  ### ridge plot with exhaustion markers
+  p <- RidgePlot(gmp_carpos_cd8_seurat_obj, features = exhaustion_markers)
+  for(i in 1:length(exhaustion_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_GMP_CARpos_CD8_Exhaustion_Markers.png"), plot = p, width = 20, height = 15, dpi = 350)
+  p <- RidgePlot(pi_carpos_cd8_seurat_obj, features = exhaustion_markers)
+  for(i in 1:length(exhaustion_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_PI_CARpos_CD8_Exhaustion_Markers.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  ### look at all the GMP & PI subsister cells and look at them closely
+  ### test some genes (Ridgeplot) between subsisters and non-subsisters
+  gmp_carpos_cd8_seurat_obj <- SetIdent(object = gmp_carpos_cd8_seurat_obj,
+                                        cells = rownames(gmp_carpos_cd8_seurat_obj@meta.data),
+                                        value = gmp_carpos_cd8_seurat_obj@meta.data$GMP_CARpos_CD8_Persister)
+  pi_carpos_cd8_seurat_obj <- SetIdent(object = pi_carpos_cd8_seurat_obj,
+                                       cells = rownames(pi_carpos_cd8_seurat_obj@meta.data),
+                                       value = pi_carpos_cd8_seurat_obj@meta.data$ALL_GMP_CARpos_Persister)
+  
+  ### ridge plot with effector memory markers
+  p <- RidgePlot(gmp_carpos_cd8_seurat_obj, features = effector_memory_markers)
+  for(i in 1:length(effector_memory_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Is_Subsistent")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_GMP_CARpos_CD8_Effector_Memory_Markers_Subsister.png"), plot = p, width = 20, height = 15, dpi = 350)
+  p <- RidgePlot(pi_carpos_cd8_seurat_obj, features = effector_memory_markers)
+  for(i in 1:length(effector_memory_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Is_Subsistent")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_PI_CARpos_CD8_Effector_Memory_Markers_Subsister.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  ### ridge plot with central memory markers
+  p <- RidgePlot(gmp_carpos_cd8_seurat_obj, features = central_memory_markers)
+  for(i in 1:length(central_memory_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Is_Subsistent")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_GMP_CARpos_CD8_Central_Memory_Markers_Subsister.png"), plot = p, width = 20, height = 15, dpi = 350)
+  p <- RidgePlot(pi_carpos_cd8_seurat_obj, features = central_memory_markers)
+  for(i in 1:length(central_memory_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Is_Subsistent")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_PI_CARpos_CD8_Central_Memory_Markers_Subsister.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  ### ridge plot with exhaustion markers
+  p <- RidgePlot(gmp_carpos_cd8_seurat_obj, features = exhaustion_markers)
+  for(i in 1:length(exhaustion_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Is_Subsistent")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_GMP_CARpos_CD8_Exhaustion_Markers_Subsister.png"), plot = p, width = 20, height = 15, dpi = 350)
+  p <- RidgePlot(pi_carpos_cd8_seurat_obj, features = exhaustion_markers)
+  for(i in 1:length(exhaustion_markers)) {
+    p[[i]] <- p[[i]] + labs(y = "Is_Subsistent")
+  }
+  ggsave(paste0(outputDir2, "RidgePlot_PI_CARpos_CD8_Exhaustion_Markers_Subsister.png"), plot = p, width = 20, height = 15, dpi = 350)
   
   
   #
