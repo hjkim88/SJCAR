@@ -7645,12 +7645,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   sub_seurat_obj4 <- subset(Seurat_Obj, cells = carpos_cd8_cells)
   
   ### after gmp time points only
-  gmp_after_time_points <- c("GMP", "Wk1", "Wk2", "Wk3", "Wk4", 
+  after_gmp_time_points <- c("GMP", "Wk1", "Wk2", "Wk3", "Wk4", 
                              "Wk6", "Wk8", "3mo", "6mo", "9mo")
   sub_seurat_obj4 <- SetIdent(object = sub_seurat_obj4,
                               cells = rownames(sub_seurat_obj4@meta.data),
                               value = sub_seurat_obj4@meta.data$time2)
-  sub_seurat_obj4 <- subset(sub_seurat_obj4, idents = intersect(gmp_after_time_points,
+  sub_seurat_obj4 <- subset(sub_seurat_obj4, idents = intersect(after_gmp_time_points,
                                                                 unique(sub_seurat_obj4@meta.data$time2)))
   
   ### get seurat object for some specific patients
@@ -8297,12 +8297,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(paste0(outputDir2, "RidgePlot_PI_CARpos_CD8_Effector_Memory_Markers_Subsister.png"), plot = p, width = 20, height = 15, dpi = 350)
   
   ### ridge plot with central memory markers
-  p <- RidgePlot(gmp_carpos_cd8_seurat_obj, features = central_memory_markers)
+  p <- RidgePlot(gmp_carpos_cd8_seurat_obj, features = central_memory_markers, ncol = 2)
   for(i in 1:length(central_memory_markers)) {
     p[[i]] <- p[[i]] + labs(y = "Is_Subsistent")
   }
   ggsave(paste0(outputDir2, "RidgePlot_GMP_CARpos_CD8_Central_Memory_Markers_Subsister.png"), plot = p, width = 20, height = 15, dpi = 350)
-  p <- RidgePlot(pi_carpos_cd8_seurat_obj, features = central_memory_markers)
+  p <- RidgePlot(pi_carpos_cd8_seurat_obj, features = central_memory_markers, ncol = 2)
   for(i in 1:length(central_memory_markers)) {
     p[[i]] <- p[[i]] + labs(y = "Is_Subsistent")
   }
@@ -8319,6 +8319,340 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     p[[i]] <- p[[i]] + labs(y = "Is_Subsistent")
   }
   ggsave(paste0(outputDir2, "RidgePlot_PI_CARpos_CD8_Exhaustion_Markers_Subsister.png"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  
+  ### AFTER CHATTING WITH JEREMY,
+  ### INCLUDE ALL THE PATIENTS except pxs with insufficient samples & INCREASE THE CLUSTER #
+  
+  ### get CARpos-only seurat object
+  carpos_cd8_cells <- rownames(Seurat_Obj@meta.data)[intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                                               which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))]
+  sub_seurat_obj4 <- subset(Seurat_Obj, cells = carpos_cd8_cells)
+  
+  ### pi time points only
+  pi_time_points <- c("Wk1", "Wk2", "Wk3", "Wk4", 
+                      "Wk6", "Wk8", "3mo", "6mo", "9mo")
+  sub_seurat_obj4 <- SetIdent(object = sub_seurat_obj4,
+                              cells = rownames(sub_seurat_obj4@meta.data),
+                              value = sub_seurat_obj4@meta.data$time2)
+  sub_seurat_obj4 <- subset(sub_seurat_obj4, idents = intersect(pi_time_points,
+                                                                unique(sub_seurat_obj4@meta.data$time2)))
+  
+  ### get seurat object for some specific patients
+  sub_seurat_obj4 <- SetIdent(object = sub_seurat_obj4,
+                              cells = rownames(sub_seurat_obj4@meta.data),
+                              value = sub_seurat_obj4@meta.data$px)
+  sub_seurat_obj4 <- subset(sub_seurat_obj4, idents = c("SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05",
+                                                        "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
+                                                        "SJCAR19-09", "SJCAR19-10", "SJCAR19-11"))
+  
+  ### normalization
+  sub_seurat_obj4 <- NormalizeData(sub_seurat_obj4,
+                                   normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### find variable genes
+  sub_seurat_obj4 <- FindVariableFeatures(sub_seurat_obj4,
+                                          selection.method = "vst", nfeatures = 2000)
+  
+  ### scaling
+  sub_seurat_obj4 <- ScaleData(sub_seurat_obj4,
+                               vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  
+  ### run mnn
+  sub_seurat_obj4.list <- SplitObject(sub_seurat_obj4, split.by = "library")
+  sub_seurat_obj4 <- RunFastMNN(object.list = sub_seurat_obj4.list)
+  rm(sub_seurat_obj4.list)
+  gc()
+  
+  ### normalization
+  sub_seurat_obj4 <- NormalizeData(sub_seurat_obj4,
+                                   normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### find variable genes
+  sub_seurat_obj4 <- FindVariableFeatures(sub_seurat_obj4,
+                                          selection.method = "vst", nfeatures = 2000)
+  
+  ### scaling
+  sub_seurat_obj4 <- ScaleData(sub_seurat_obj4,
+                               vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  
+  ### run pca & umap & clustering
+  sub_seurat_obj4 <- RunPCA(sub_seurat_obj4,
+                            features = VariableFeatures(object = sub_seurat_obj4),
+                            npcs = 15)
+  sub_seurat_obj4 <- RunUMAP(sub_seurat_obj4, reduction = "mnn", dims = 1:15)
+  sub_seurat_obj4 <- FindNeighbors(sub_seurat_obj4, reduction = "mnn", dims = 1:15)
+  sub_seurat_obj4 <- FindClusters(sub_seurat_obj4)
+  
+  ### save the clustering result to meta.data
+  sub_seurat_obj4@meta.data$clusters <- Idents(sub_seurat_obj4)
+  
+  ### UMAP with clusters
+  p <- DimPlot(object = sub_seurat_obj4, reduction = "umap",
+               group.by = "clusters",
+               pt.size = 1, label = TRUE) +
+    ggtitle("") +
+    labs(color="Clusters") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.title.x = element_text(size = 30),
+          axis.title.y = element_text(size = 30))
+  ggsave(paste0(outputDir2, "PI_MNN_UMAP_CARpos_CD8_13_Clusters.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### UMAP with clusters
+  p <- DimPlot(object = sub_seurat_obj4, reduction = "umap",
+               group.by = "px",
+               pt.size = 1, label = TRUE) +
+    ggtitle("") +
+    labs(color="Clusters") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.title.x = element_text(size = 30),
+          axis.title.y = element_text(size = 30))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir2, "PI_MNN_UMAP_CARpos_CD8_Px.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  #
+  ### Jeremy's workflow
+  #
+  
+  ### get CARpos-only seurat object
+  carpos_cd8_cells <- rownames(Seurat_Obj@meta.data)[intersect(which(Seurat_Obj@meta.data$CAR == "CARpos"),
+                                                               which(Seurat_Obj@meta.data$CD4_CD8_by_Consensus == "CD8"))]
+  gmp_carpos_cd8_seurat_obj <- subset(Seurat_Obj, cells = carpos_cd8_cells)
+  pi_carpos_cd8_seurat_obj <- subset(Seurat_Obj, cells = carpos_cd8_cells)
+  
+  ### pi time points only
+  gmp_time_points <- c("GMP")
+  pi_time_points <- c("Wk1", "Wk2", "Wk3", "Wk4", 
+                      "Wk6", "Wk8", "3mo", "6mo", "9mo")
+  gmp_carpos_cd8_seurat_obj <- SetIdent(object = gmp_carpos_cd8_seurat_obj,
+                                        cells = rownames(gmp_carpos_cd8_seurat_obj@meta.data),
+                                        value = gmp_carpos_cd8_seurat_obj@meta.data$time2)
+  gmp_carpos_cd8_seurat_obj <- subset(gmp_carpos_cd8_seurat_obj, idents = intersect(gmp_time_points,
+                                                                                    unique(gmp_carpos_cd8_seurat_obj@meta.data$time2)))
+  pi_carpos_cd8_seurat_obj <- SetIdent(object = pi_carpos_cd8_seurat_obj,
+                                       cells = rownames(pi_carpos_cd8_seurat_obj@meta.data),
+                                       value = pi_carpos_cd8_seurat_obj@meta.data$time2)
+  pi_carpos_cd8_seurat_obj <- subset(pi_carpos_cd8_seurat_obj, idents = intersect(pi_time_points,
+                                                                                  unique(pi_carpos_cd8_seurat_obj@meta.data$time2)))
+  
+  ### get seurat object for some specific patients
+  gmp_carpos_cd8_seurat_obj <- SetIdent(object = gmp_carpos_cd8_seurat_obj,
+                                        cells = rownames(gmp_carpos_cd8_seurat_obj@meta.data),
+                                        value = gmp_carpos_cd8_seurat_obj@meta.data$px)
+  gmp_carpos_cd8_seurat_obj <- subset(gmp_carpos_cd8_seurat_obj, idents = c("SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05",
+                                                                            "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
+                                                                            "SJCAR19-09", "SJCAR19-10", "SJCAR19-11"))
+  pi_carpos_cd8_seurat_obj <- SetIdent(object = pi_carpos_cd8_seurat_obj,
+                                       cells = rownames(pi_carpos_cd8_seurat_obj@meta.data),
+                                       value = pi_carpos_cd8_seurat_obj@meta.data$px)
+  pi_carpos_cd8_seurat_obj <- subset(pi_carpos_cd8_seurat_obj, idents = c("SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05",
+                                                                          "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
+                                                                          "SJCAR19-09", "SJCAR19-10", "SJCAR19-11"))
+  
+  ### normalization
+  gmp_carpos_cd8_seurat_obj <- NormalizeData(gmp_carpos_cd8_seurat_obj,
+                                             normalization.method = "LogNormalize", scale.factor = 10000)
+  pi_carpos_cd8_seurat_obj <- NormalizeData(pi_carpos_cd8_seurat_obj,
+                                            normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### Lets pull out Alpha-Beta and Gamma-Delta genes and IG genes
+  ### GMP
+  TRAVgenes <- grep(pattern = "TRAV", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  TRBVgenes <- grep(pattern = "TRBV", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  TRAJgenes <- grep(pattern = "TRAJ", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  TRBJgenes <- grep(pattern = "TRBJ", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  TRACgenes <- grep(pattern = "TRAC", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  TRBCgenes <- grep(pattern = "TRBC", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  
+  AlphaBetaGenes <- c(TRAVgenes, TRBVgenes, TRAJgenes, TRBJgenes, TRACgenes, TRBCgenes)
+  
+  percent.AlphaBeta <- Matrix::colSums(GetAssayData(object = gmp_carpos_cd8_seurat_obj, slot = 'counts')[AlphaBetaGenes,]) / Matrix::colSums(GetAssayData(object = gmp_carpos_cd8_seurat_obj, slot = 'counts'))
+  gmp_carpos_cd8_seurat_obj[['percent.AlphaBeta']] <- percent.AlphaBeta
+  
+  
+  TRGVgenes <- grep(pattern = "TRGV", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  TRDVgenes <- grep(pattern = "TRDV", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  TRGJgenes <- grep(pattern = "TRGJ", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  TRDJgenes <- grep(pattern = "TRDJ", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  TRGCgenes <- grep(pattern = "TRGC", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  TRGCgenes2 <- grep(pattern = "TCRG", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  TRDCgenes <- grep(pattern = "TRDC", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  
+  GammaDeltagenes <- c(TRGVgenes, TRDVgenes, TRGJgenes, TRDVgenes, 
+                       TRGCgenes, TRDCgenes, TRGCgenes2)
+  
+  percent.GammaDelta <- Matrix::colSums(GetAssayData(object = gmp_carpos_cd8_seurat_obj, slot = 'counts')[GammaDeltagenes,]) / Matrix::colSums(GetAssayData(object = gmp_carpos_cd8_seurat_obj, slot = 'counts'))
+  gmp_carpos_cd8_seurat_obj[['percent.GammaDelta']] <- percent.GammaDelta
+  
+  
+  IGKVgenes <- grep(pattern = "IGKV", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  IGKJgenes <- grep(pattern = "IGKJ", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  IGKDgenes <- grep(pattern = "IGKD", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  IGKCgenes <- grep(pattern = "IGKC", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  IGJchaingenes <- grep(pattern = "JCHAIN", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  
+  IGHVgenes <- grep(pattern = "IGHV", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  IGHJgenes <- grep(pattern = "IGHJ", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  IGHDgenes <- grep(pattern = "IGHD", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  IGHCgenes <- grep(pattern = "IGHC", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  
+  IGLVgenes <- grep(pattern = "IGLV", x = rownames(gmp_carpos_cd8_seurat_obj), value = TRUE)
+  
+  
+  IGgenes <- c(IGKVgenes, IGKJgenes, IGKDgenes, IGKCgenes, IGHVgenes, IGHJgenes, IGHDgenes, IGHCgenes, IGJchaingenes,
+               IGLVgenes)
+  
+  percent.IG <- Matrix::colSums(GetAssayData(object = gmp_carpos_cd8_seurat_obj, slot = 'counts')[IGgenes,]) / Matrix::colSums(GetAssayData(object = gmp_carpos_cd8_seurat_obj, slot = 'counts'))
+  gmp_carpos_cd8_seurat_obj[['percent.IG']] <- percent.IG
+  
+  
+  gmp_markers.remove <- c(AlphaBetaGenes, GammaDeltagenes, IGgenes)
+  
+  ### PI
+  TRAVgenes <- grep(pattern = "TRAV", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  TRBVgenes <- grep(pattern = "TRBV", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  TRAJgenes <- grep(pattern = "TRAJ", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  TRBJgenes <- grep(pattern = "TRBJ", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  TRACgenes <- grep(pattern = "TRAC", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  TRBCgenes <- grep(pattern = "TRBC", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  
+  AlphaBetaGenes <- c(TRAVgenes, TRBVgenes, TRAJgenes, TRBJgenes, TRACgenes, TRBCgenes)
+  
+  percent.AlphaBeta <- Matrix::colSums(GetAssayData(object = pi_carpos_cd8_seurat_obj, slot = 'counts')[AlphaBetaGenes,]) / Matrix::colSums(GetAssayData(object = pi_carpos_cd8_seurat_obj, slot = 'counts'))
+  pi_carpos_cd8_seurat_obj[['percent.AlphaBeta']] <- percent.AlphaBeta
+  
+  
+  TRGVgenes <- grep(pattern = "TRGV", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  TRDVgenes <- grep(pattern = "TRDV", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  TRGJgenes <- grep(pattern = "TRGJ", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  TRDJgenes <- grep(pattern = "TRDJ", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  TRGCgenes <- grep(pattern = "TRGC", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  TRGCgenes2 <- grep(pattern = "TCRG", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  TRDCgenes <- grep(pattern = "TRDC", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  
+  GammaDeltagenes <- c(TRGVgenes, TRDVgenes, TRGJgenes, TRDVgenes, 
+                       TRGCgenes, TRDCgenes, TRGCgenes2)
+  
+  percent.GammaDelta <- Matrix::colSums(GetAssayData(object = pi_carpos_cd8_seurat_obj, slot = 'counts')[GammaDeltagenes,]) / Matrix::colSums(GetAssayData(object = pi_carpos_cd8_seurat_obj, slot = 'counts'))
+  pi_carpos_cd8_seurat_obj[['percent.GammaDelta']] <- percent.GammaDelta
+  
+  
+  IGKVgenes <- grep(pattern = "IGKV", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  IGKJgenes <- grep(pattern = "IGKJ", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  IGKDgenes <- grep(pattern = "IGKD", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  IGKCgenes <- grep(pattern = "IGKC", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  IGJchaingenes <- grep(pattern = "JCHAIN", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  
+  IGHVgenes <- grep(pattern = "IGHV", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  IGHJgenes <- grep(pattern = "IGHJ", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  IGHDgenes <- grep(pattern = "IGHD", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  IGHCgenes <- grep(pattern = "IGHC", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  
+  IGLVgenes <- grep(pattern = "IGLV", x = rownames(pi_carpos_cd8_seurat_obj), value = TRUE)
+  
+  
+  IGgenes <- c(IGKVgenes, IGKJgenes, IGKDgenes, IGKCgenes, IGHVgenes, IGHJgenes, IGHDgenes, IGHCgenes, IGJchaingenes,
+               IGLVgenes)
+  
+  percent.IG <- Matrix::colSums(GetAssayData(object = pi_carpos_cd8_seurat_obj, slot = 'counts')[IGgenes,]) / Matrix::colSums(GetAssayData(object = pi_carpos_cd8_seurat_obj, slot = 'counts'))
+  pi_carpos_cd8_seurat_obj[['percent.IG']] <- percent.IG
+  
+  
+  pi_markers.remove <- c(AlphaBetaGenes, GammaDeltagenes, IGgenes)
+  
+  ### Detect variable features
+  ### Will use 'vst' method, which Seurat3 claims is superior to the mean.var.plot method
+  gmp_carpos_cd8_seurat_obj <- FindVariableFeatures(object = gmp_carpos_cd8_seurat_obj, selection.method = 'vst')
+  pi_carpos_cd8_seurat_obj <- FindVariableFeatures(object = pi_carpos_cd8_seurat_obj, selection.method = 'vst')
+  
+  ##Let's get rid of the TCR genes from Variable Genes so that clonotype info isn't affecting anything at this stage
+  #This is important because of the way that the alignment works. If a read maps to more than one gene equally well,
+  #then it is discounted entirely. Some TCR gene segments are more distinct than others, so this could cause bias.
+  NumFeaturesToRemove <- length(VariableFeatures(gmp_carpos_cd8_seurat_obj)[VariableFeatures(gmp_carpos_cd8_seurat_obj) %in% gmp_markers.remove])
+  gmp_carpos_cd8_seurat_obj <- FindVariableFeatures(object = gmp_carpos_cd8_seurat_obj, selection.method = 'vst', nfeatures = (2000 +NumFeaturesToRemove) )
+  gmp_carpos_cd8_seurat_obj@assays$RNA@var.features <- gmp_carpos_cd8_seurat_obj@assays$RNA@var.features[!(gmp_carpos_cd8_seurat_obj@assays$RNA@var.features %in% gmp_markers.remove)]
+  
+  NumFeaturesToRemove <- length(VariableFeatures(pi_carpos_cd8_seurat_obj)[VariableFeatures(pi_carpos_cd8_seurat_obj) %in% pi_markers.remove])
+  pi_carpos_cd8_seurat_obj <- FindVariableFeatures(object = pi_carpos_cd8_seurat_obj, selection.method = 'vst', nfeatures = (2000 +NumFeaturesToRemove) )
+  pi_carpos_cd8_seurat_obj@assays$RNA@var.features <- pi_carpos_cd8_seurat_obj@assays$RNA@var.features[!(pi_carpos_cd8_seurat_obj@assays$RNA@var.features %in% pi_markers.remove)]
+  
+  ### run mnn
+  gmp_carpos_cd8_seurat_obj.list <- SplitObject(gmp_carpos_cd8_seurat_obj, split.by = "library")
+  gmp_carpos_cd8_seurat_obj <- RunFastMNN(object.list = gmp_carpos_cd8_seurat_obj.list)
+  rm(gmp_carpos_cd8_seurat_obj.list)
+  gc()
+  
+  pi_carpos_cd8_seurat_obj.list <- SplitObject(pi_carpos_cd8_seurat_obj, split.by = "library")
+  pi_carpos_cd8_seurat_obj <- RunFastMNN(object.list = pi_carpos_cd8_seurat_obj.list)
+  rm(pi_carpos_cd8_seurat_obj.list)
+  gc()
+  
+  ### run umap and find clusters
+  gmp_carpos_cd8_seurat_obj <- RunUMAP(gmp_carpos_cd8_seurat_obj, reduction = "mnn", dims = 1:50)
+  gmp_carpos_cd8_seurat_obj <- FindNeighbors(gmp_carpos_cd8_seurat_obj, reduction = "mnn", dims = 1:50)
+  gmp_carpos_cd8_seurat_obj <- FindClusters(gmp_carpos_cd8_seurat_obj)
+  
+  pi_carpos_cd8_seurat_obj <- RunUMAP(pi_carpos_cd8_seurat_obj, reduction = "mnn", dims = 1:50)
+  pi_carpos_cd8_seurat_obj <- FindNeighbors(pi_carpos_cd8_seurat_obj, reduction = "mnn", dims = 1:50)
+  pi_carpos_cd8_seurat_obj <- FindClusters(pi_carpos_cd8_seurat_obj)
+  
+  ### save the clustering result to meta.data
+  gmp_carpos_cd8_seurat_obj@meta.data$clusters <- Idents(gmp_carpos_cd8_seurat_obj)
+  pi_carpos_cd8_seurat_obj@meta.data$clusters <- Idents(pi_carpos_cd8_seurat_obj)
+  
+  ### UMAP with clusters
+  p <- DimPlot(object = gmp_carpos_cd8_seurat_obj, reduction = "umap",
+               group.by = "clusters",
+               pt.size = 1, label = TRUE) +
+    ggtitle("") +
+    labs(color="Clusters") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.title.x = element_text(size = 30),
+          axis.title.y = element_text(size = 30))
+  ggsave(paste0(outputDir2, "GMP_MNN_UMAP_CARpos_CD8_Clusters.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  p <- DimPlot(object = pi_carpos_cd8_seurat_obj, reduction = "umap",
+               group.by = "clusters",
+               pt.size = 1, label = TRUE) +
+    ggtitle("") +
+    labs(color="Clusters") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.title.x = element_text(size = 30),
+          axis.title.y = element_text(size = 30))
+  ggsave(paste0(outputDir2, "PI_MNN_UMAP_CARpos_CD8_Clusters.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  
+  ### cluster markers
+  gmp_carpos_cd8_seurat_obj <- SetIdent(object = gmp_carpos_cd8_seurat_obj,
+                                        cells = rownames(gmp_carpos_cd8_seurat_obj@meta.data),
+                                        value = gmp_carpos_cd8_seurat_obj@meta.data$clusters)
+  de_result <- FindAllMarkers(gmp_carpos_cd8_seurat_obj,
+                              min.pct = 0.2,
+                              logfc.threshold = 0.2,
+                              test.use = "wilcox")
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/GMP_CARpos_CD8_Clusters_AllMarkers2.xlsx"),
+              sheetName = "GMP_CARpos_CD8_Clusters_AllMarkers_DE_Result", row.names = FALSE)
+  
+  pi_carpos_cd8_seurat_obj <- SetIdent(object = pi_carpos_cd8_seurat_obj,
+                                       cells = rownames(pi_carpos_cd8_seurat_obj@meta.data),
+                                       value = pi_carpos_cd8_seurat_obj@meta.data$clusters)
+  de_result <- FindAllMarkers(pi_carpos_cd8_seurat_obj,
+                              min.pct = 0.2,
+                              logfc.threshold = 0.2,
+                              test.use = "wilcox")
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/PI_CARpos_CD8_Clusters_AllMarkers2.xlsx"),
+              sheetName = "PI_CARpos_CD8_Clusters_AllMarkers_DE_Result", row.names = FALSE)
+  
   
   
   #
