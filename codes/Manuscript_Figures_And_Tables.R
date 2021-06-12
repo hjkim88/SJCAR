@@ -176,6 +176,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     install.packages("pROC")
     require(pROC, quietly = TRUE)
   }
+  if(!require(scDblFinder, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("scDblFinder")
+    require(scDblFinder, quietly = TRUE)
+  }
   
   ### create outputDir
   dir.create(outputDir, showWarnings = FALSE, recursive = TRUE)
@@ -7118,9 +7124,19 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   # peakcar <- c(4215, 6178, 28867, 33667, 16709)
   peakcar <- c(199054, 42149, 61777, 288670, 224445, 167092, 4806, 142422,
                301705, 356424, 64212, 5835)
+  wk1car_ug <- c(3114, 13912, 61777, 3745, 224445, 1011, 657, 46046,
+                 268449, 356424, 8071, 5835)
+  wk1car_ml <- c(9341, 296787, 947250, 24967, 1122227, 50700, 7561, 314646,
+                 268449, 1960334, 236747, 66126)
   names(peakcar) <- c("SJCAR19-01", "SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05",
                       "SJCAR19-06", "SJCAR19-07", "SJCAR19-08", "SJCAR19-09", "SJCAR19-10",
                       "SJCAR19-11", "SJCAR19-12")
+  names(wk1car_ug) <- c("SJCAR19-01", "SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05",
+                        "SJCAR19-06", "SJCAR19-07", "SJCAR19-08", "SJCAR19-09", "SJCAR19-10",
+                        "SJCAR19-11", "SJCAR19-12")
+  names(wk1car_ml) <- c("SJCAR19-01", "SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05",
+                        "SJCAR19-06", "SJCAR19-07", "SJCAR19-08", "SJCAR19-09", "SJCAR19-10",
+                        "SJCAR19-11", "SJCAR19-12")
   dose_level_table <- read.xlsx2(file = paste0(outputDir, "/8/Estimated_CD4_CD8_Subsister_#_In_GMP.xlsx"),
                                  sheetIndex = 1, row.names = 1,
                                  stringsAsFactors = FALSE, check.names = FALSE)
@@ -7138,6 +7154,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   plot_df <- data.frame(CD8_Subsister_Dose_Level=cd8_subsister_dose_level,
                         CD8_Cluster22_Dose_Level=cd8_cluster22_dose_level,
                         PeakCAR=peakcar,
+                        Wk1CAR_ug=wk1car_ug,
+                        Wk1CAR_ml=wk1car_ml,
                         tumor_burden,
                         stringsAsFactors = FALSE, check.names = FALSE)
   
@@ -8578,6 +8596,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   pi_carpos_cd8_seurat_obj <- FindVariableFeatures(object = pi_carpos_cd8_seurat_obj, selection.method = 'vst', nfeatures = (2000 +NumFeaturesToRemove) )
   pi_carpos_cd8_seurat_obj@assays$RNA@var.features <- pi_carpos_cd8_seurat_obj@assays$RNA@var.features[!(pi_carpos_cd8_seurat_obj@assays$RNA@var.features %in% pi_markers.remove)]
   
+  ### exclude the weird cluster (13) in PI
+  
+  
+  
   ### run mnn
   gmp_carpos_cd8_seurat_obj.list <- SplitObject(gmp_carpos_cd8_seurat_obj, split.by = "library")
   gmp_carpos_cd8_seurat_obj <- RunFastMNN(object.list = gmp_carpos_cd8_seurat_obj.list)
@@ -8624,6 +8646,37 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           axis.title.x = element_text(size = 30),
           axis.title.y = element_text(size = 30))
   ggsave(paste0(outputDir2, "PI_MNN_UMAP_CARpos_CD8_Clusters.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### find doublets & multiplets
+  NumFeaturesToRemove <- length(VariableFeatures(gmp_carpos_cd8_seurat_obj)[VariableFeatures(gmp_carpos_cd8_seurat_obj) %in% gmp_markers.remove])
+  gmp_carpos_cd8_seurat_obj <- FindVariableFeatures(object = gmp_carpos_cd8_seurat_obj, selection.method = 'vst', nfeatures = (2000 +NumFeaturesToRemove) )
+  gmp_carpos_cd8_seurat_obj@assays$RNA@var.features <- gmp_carpos_cd8_seurat_obj@assays$RNA@var.features[!(gmp_carpos_cd8_seurat_obj@assays$RNA@var.features %in% gmp_markers.remove)]
+  
+  NumFeaturesToRemove <- length(VariableFeatures(pi_carpos_cd8_seurat_obj)[VariableFeatures(pi_carpos_cd8_seurat_obj) %in% pi_markers.remove])
+  pi_carpos_cd8_seurat_obj <- FindVariableFeatures(object = pi_carpos_cd8_seurat_obj, selection.method = 'vst', nfeatures = (2000 +NumFeaturesToRemove) )
+  pi_carpos_cd8_seurat_obj@assays$RNA@var.features <- pi_carpos_cd8_seurat_obj@assays$RNA@var.features[!(pi_carpos_cd8_seurat_obj@assays$RNA@var.features %in% pi_markers.remove)]
+  
+  set.seed(1234)
+  gmp_carpos_cd8_seurat_obj@meta.data$doublet_score <- computeDoubletDensity(as.SingleCellExperiment(gmp_carpos_cd8_seurat_obj), subset.row=gmp_carpos_cd8_seurat_obj@assays$RNA@var.features)
+  pi_carpos_cd8_seurat_obj@meta.data$doublet_score <- computeDoubletDensity(as.SingleCellExperiment(pi_carpos_cd8_seurat_obj), subset.row=pi_carpos_cd8_seurat_obj@assays$RNA@var.features)
+  
+  p <- FeaturePlot(gmp_carpos_cd8_seurat_obj, features = "doublet_score", cols = c("lightgray", "red")) +
+    ggtitle("") +
+    labs(color="Doublet Score") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.title.x = element_text(size = 30),
+          axis.title.y = element_text(size = 30))
+  ggsave(paste0(outputDir2, "GMP_MNN_UMAP_CARpos_CD8_Doublet_Score.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  p <- FeaturePlot(pi_carpos_cd8_seurat_obj, features = "doublet_score", cols = c("lightgray", "red")) +
+    ggtitle("") +
+    labs(color="Doublet Score") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.title.x = element_text(size = 30),
+          axis.title.y = element_text(size = 30))
+  ggsave(paste0(outputDir2, "PI_MNN_UMAP_CARpos_CD8_Doublet_Score.png"), plot = p, width = 15, height = 10, dpi = 350)
   
   
   ### cluster markers
