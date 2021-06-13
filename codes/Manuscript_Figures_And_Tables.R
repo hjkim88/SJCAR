@@ -342,6 +342,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                               carpos_idx)
   gmp_cd8_carpos_idx <- intersect(cd8_carpos_idx,
                                   which(Seurat_Obj@meta.data$time2 == "GMP"))
+  no_tcr_idx <- which(is.na(Seurat_Obj@meta.data$cdr3_aa))
   lineages_idx <- vector("list", length = length(total_lineages))
   names(lineages_idx) <- names(total_lineages)
   for(type in names(lineages_idx)) {
@@ -361,34 +362,37 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### including all the time points
   ### "YES": All CAR+ Persister Cells
   ### "NO": CAR+ cells that are not in the lineages (non-persisters)
-  ### NA: CAR- cells
+  ### NA: CAR- cells and CAR+ cells that don't have TCR info
   Seurat_Obj@meta.data$ALL_CARpos_Persister <- NA
   Seurat_Obj@meta.data$ALL_CARpos_Persister[intersect(lineages_idx[["One_From_Each"]],
                                                       carpos_idx)] <- "YES"
-  Seurat_Obj@meta.data$ALL_CARpos_Persister[setdiff(carpos_idx,
-                                                    lineages_idx[["One_From_Each"]])] <- "NO"
+  Seurat_Obj@meta.data$ALL_CARpos_Persister[setdiff(setdiff(carpos_idx,
+                                                            lineages_idx[["One_From_Each"]]),
+                                                    no_tcr_idx)] <- "NO"
   
   ### CAR+ lineages that have GMP time point (and at least one more post-infusion time point)
   ### Cells in the GMP time point ONLY
   ### "YES": GMP CAR+ Persister cells
   ### "NO": GMP CAR+ cells that are non-persisters
-  ### NA: Others
+  ### NA: Others including cells that don't have TCR info
   Seurat_Obj@meta.data$GMP_CARpos_Persister <- NA
   Seurat_Obj@meta.data$GMP_CARpos_Persister[intersect(gmp_lineages_idx[["One_From_Each"]],
                                                       gmp_carpos_idx)] <- "YES"
-  Seurat_Obj@meta.data$GMP_CARpos_Persister[setdiff(gmp_carpos_idx,
-                                                    gmp_lineages_idx[["One_From_Each"]])] <- "NO"
+  Seurat_Obj@meta.data$GMP_CARpos_Persister[setdiff(setdiff(gmp_carpos_idx,
+                                                            gmp_lineages_idx[["One_From_Each"]]),
+                                                    no_tcr_idx)] <- "NO"
   
   ### CD8 cells in CAR+ lineages that have GMP time point (and at least one more post-infusion time point)
   ### CD8 Cells in the GMP time point ONLY
   ### "YES": GMP CAR+ CD8 Persister cells
   ### "NO": GMP CAR+ CD8 cells that are non-persisters
-  ### NA: Others
+  ### NA: Others including cells that don't have TCR info
   Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister <- NA
   Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister[intersect(gmp_lineages_idx[["One_From_Each"]],
                                                           gmp_cd8_carpos_idx)] <- "YES"
-  Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister[setdiff(gmp_cd8_carpos_idx,
-                                                        gmp_lineages_idx[["One_From_Each"]])] <- "NO"
+  Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister[setdiff(setdiff(gmp_cd8_carpos_idx,
+                                                                gmp_lineages_idx[["One_From_Each"]]),
+                                                        no_tcr_idx)] <- "NO"
   
   ### lineages
   all_gmp_persister_clones <- unique(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta[which(Seurat_Obj@meta.data$GMP_CARpos_Persister == "YES")])
@@ -397,13 +401,25 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### including all the time points
   ### "YES": CAR+ Persister cells in GMP lineages (all time)
   ### "NO": CAR+ cells that are not in the GMP lineages
-  ### NA: Others
+  ### NA: Others including cells that don't have TCR info
   Seurat_Obj@meta.data$ALL_GMP_CARpos_Persister <- NA
   Seurat_Obj@meta.data$ALL_GMP_CARpos_Persister[intersect(which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% all_gmp_persister_clones),
                                                           carpos_idx)] <- "YES"
-  Seurat_Obj@meta.data$ALL_GMP_CARpos_Persister[setdiff(carpos_idx,
-                                                        which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% all_gmp_persister_clones))] <- "NO"
+  Seurat_Obj@meta.data$ALL_GMP_CARpos_Persister[setdiff(setdiff(carpos_idx,
+                                                                which(Seurat_Obj@meta.data$clonotype_id_by_patient_one_alpha_beta %in% all_gmp_persister_clones)),
+                                                        no_tcr_idx)] <- "NO"
   
+  ### filter out some insufficient patients
+  Seurat_Obj <- SetIdent(object = Seurat_Obj,
+                         cells = rownames(Seurat_Obj@meta.data),
+                         value = Seurat_Obj@meta.data$px)
+  Seurat_Obj <- subset(Seurat_Obj, idents = c("SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05",
+                                              "SJCAR19-06", "SJCAR19-07", "SJCAR19-08",
+                                              "SJCAR19-09", "SJCAR19-10", "SJCAR19-11"))
+  
+  ### remove some trash meta.data columns
+  Seurat_Obj@meta.data$RNA_snn_res.0.5 <- NULL
+  Seurat_Obj@meta.data$seurat_clusters <- NULL
   
   ### theme that draws dotted lines for each y-axis ticks
   ### this function is from "immunarch" package
