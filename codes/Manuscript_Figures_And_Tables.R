@@ -7129,7 +7129,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   
   #
-  ### 21. Multiple regression to estimate peakcar using both dose level & tumor burden
+  ### 21. Multiple regression to estimate peakcar & wk1car using both dose level & tumor burden
   #
   
   ### create outputDir
