@@ -43,7 +43,8 @@
 #               22. Classifier - reperform with the new data and also with the subsister cluster info (not only based on the subsisters all the cluster cells)
 #               23. PCA/UMAP/MNN comparison with the original GMP CARpos cells
 #               24. Mapping GMP clusters to PI clusters
-#               25. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#               25. 06/14/2021 - Re-analyze everything with the PB-Px filtered data with different CD4/CD8 definition
+#               26. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -8723,13 +8724,39 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
               sheetName = "PI_CARpos_CD8_Clusters_AllMarkers_DE_Result", row.names = FALSE)
   
   
-  
   #
-  ### 25. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 25. 06/14/2021 - Re-analyze everything with the PB-Px filtered data with different CD4/CD8 definition
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/25/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### load the seurat object that I gave to Jeremy
+  final_seurat_obj <- readRDS(file = "Z:/ResearchHome/Groups/thomagrp/home/common/Hyunjin/JCC212_SJCAR19/data/SJCAR19_Jun2021_PB_Px_Filtered.RDS")
+  
+  ### rownames in the meta.data should be in the same order as colnames in the counts
+  final_seurat_obj@meta.data <- final_seurat_obj@meta.data[colnames(final_seurat_obj@assays$RNA@counts),]
+  print(identical(rownames(final_seurat_obj@meta.data), colnames(final_seurat_obj@assays$RNA@counts)))
+  
+  ### active assay = "RNA"
+  final_seurat_obj@active.assay <- "RNA"
+  
+  ### check whether the orders are the same
+  print(identical(names(Idents(object = final_seurat_obj)), rownames(final_seurat_obj@meta.data)))
+  
+  
+  
+  
+  
+  
+  
+  #
+  ### 26. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/26/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
