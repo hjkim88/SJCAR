@@ -44,7 +44,8 @@
 #               23. PCA/UMAP/MNN comparison with the original GMP CARpos cells
 #               24. Mapping GMP clusters to PI clusters
 #               25. 06/14/2021 - Re-analyze everything with the PB-Px filtered data with different CD4/CD8 definition
-#               26. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#               26. New Task - 3D plane mapping between GMP & PI clusters
+#               27. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -183,6 +184,15 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     BiocManager::install("scDblFinder")
     require(scDblFinder, quietly = TRUE)
   }
+  if(!require(plot3D, quietly = TRUE)) {
+    install.packages("plot3D")
+    require(plot3D, quietly = TRUE)
+  }
+  if(!require(plot3Drgl, quietly = TRUE)) {
+    install.packages("plot3Drgl")
+    require(plot3Drgl, quietly = TRUE)
+  }
+  
   
   ### create outputDir
   dir.create(outputDir, showWarnings = FALSE, recursive = TRUE)
@@ -8746,17 +8756,191 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   print(identical(names(Idents(object = final_seurat_obj)), rownames(final_seurat_obj@meta.data)))
   
   
-  
-  
-  
-  
-  
   #
-  ### 26. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 26. New Task - 3D plane mapping between GMP & PI clusters
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/26/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### load the seurat object that I gave to Jeremy
+  final_seurat_obj <- readRDS(file = "Z:/ResearchHome/Groups/thomagrp/home/common/Hyunjin/JCC212_SJCAR19/data/SJCAR19_Jun2021_PB_Px_Filtered.RDS")
+  
+  ### rownames in the meta.data should be in the same order as colnames in the counts
+  final_seurat_obj@meta.data <- final_seurat_obj@meta.data[colnames(final_seurat_obj@assays$RNA@counts),]
+  print(identical(rownames(final_seurat_obj@meta.data), colnames(final_seurat_obj@assays$RNA@counts)))
+  
+  ### active assay = "RNA"
+  final_seurat_obj@active.assay <- "RNA"
+  
+  ### check whether the orders are the same
+  print(identical(names(Idents(object = final_seurat_obj)), rownames(final_seurat_obj@meta.data)))
+  
+  ### only use the time points we are interested
+  gmp_after_time_points <- c("GMP", "Wk1", "Wk2", "Wk3", "Wk4", 
+                             "Wk6", "Wk8", "3mo", "6mo", "9mo")
+  final_seurat_obj <- SetIdent(object = final_seurat_obj,
+                               cells = rownames(final_seurat_obj@meta.data),
+                               value = final_seurat_obj@meta.data$time2)
+  final_seurat_obj <- subset(final_seurat_obj, idents = intersect(gmp_after_time_points,
+                                                                  unique(final_seurat_obj@meta.data$time2)))
+  
+  ### add GMP - PI distinguishable column
+  final_seurat_obj@meta.data$GMP_PI <- "PI"
+  final_seurat_obj@meta.data$GMP_PI[which(final_seurat_obj@meta.data$time2 == "GMP")] <- "GMP"
+  
+  ### normalization
+  final_seurat_obj <- NormalizeData(final_seurat_obj,
+                                    normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### find variable genes
+  final_seurat_obj <- FindVariableFeatures(final_seurat_obj,
+                                           selection.method = "vst", nfeatures = 2000)
+  
+  ### scaling
+  final_seurat_obj <- ScaleData(final_seurat_obj,
+                                vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  
+  ### run mnn
+  final_seurat_obj.list <- SplitObject(final_seurat_obj, split.by = "library")
+  final_seurat_obj <- RunFastMNN(object.list = final_seurat_obj.list)
+  rm(final_seurat_obj.list)
+  gc()
+  
+  ### normalization
+  final_seurat_obj <- NormalizeData(final_seurat_obj,
+                                    normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### find variable genes
+  final_seurat_obj <- FindVariableFeatures(final_seurat_obj,
+                                           selection.method = "vst", nfeatures = 2000)
+  
+  ### scaling
+  final_seurat_obj <- ScaleData(final_seurat_obj,
+                                vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  
+  ### run umap and find clusters
+  final_seurat_obj <- RunUMAP(final_seurat_obj, reduction = "mnn", dims = 1:30)
+  final_seurat_obj <- FindNeighbors(final_seurat_obj, reduction = "mnn", dims = 1:30)
+  final_seurat_obj <- FindClusters(final_seurat_obj)
+  
+  ### save the clustering result to meta.data
+  final_seurat_obj@meta.data$clusters <- Idents(final_seurat_obj)
+  
+  # ### temporary save
+  # saveRDS(object = final_seurat_obj, file = "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/final_seurat_obj_mnn_performed.rds")
+  
+  ### only pick CARpos cells
+  final_seurat_obj <- subset(final_seurat_obj, cells = rownames(final_seurat_obj@meta.data)[which(final_seurat_obj@meta.data$CAR == "CARpos")])
+  
+  ### color generation for the clusters
+  gg_color_hue <- function(n) {
+    hues = seq(15, 375, length = n + 1)
+    hcl(h = hues, l = 65, c = 100)[1:n]
+  }
+  color_scale <- gg_color_hue(length(levels(final_seurat_obj@meta.data$clusters)))
+  names(color_scale) <- levels(final_seurat_obj@meta.data$clusters)
+  show_col(color_scale)
+  
+  ### Combined UMAP plot
+  p <- DimPlot(object = final_seurat_obj, reduction = "umap",
+               group.by = "clusters",
+               cols = color_scale[as.character(final_seurat_obj@meta.data$clusters)],
+               pt.size = 1, label = TRUE) +
+    ggtitle("") +
+    labs(color="Clusters") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.title.x = element_text(size = 30),
+          axis.title.y = element_text(size = 30))
+  ggsave(paste0(outputDir2, "MNN_UMAP_CARpos_Combined_Clusters.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### split gmp & pi umap
+  gmp_umap <- Embeddings(final_seurat_obj, reduction = "umap")[rownames(final_seurat_obj@meta.data)[which(final_seurat_obj@meta.data$GMP_PI == "GMP")], 1:2]
+  pi_umap <- Embeddings(final_seurat_obj, reduction = "umap")[rownames(final_seurat_obj@meta.data)[which(final_seurat_obj@meta.data$GMP_PI == "PI")], 1:2]
+  
+  ### draw in 3D
+  shift_x <- 50
+  shift_z <- 20
+  plot_df <- data.frame(x=c(gmp_umap[,1], pi_umap[,1]+shift_x),
+                        y=c(gmp_umap[,2], pi_umap[,2]),
+                        z=c(rep(0, nrow(gmp_umap)), rep(shift_z, nrow(pi_umap))),
+                        cluster=as.character(c(final_seurat_obj@meta.data[rownames(gmp_umap),"clusters"],
+                                               final_seurat_obj@meta.data[rownames(pi_umap),"clusters"])),
+                        clone=as.character(c(final_seurat_obj@meta.data[rownames(gmp_umap),"clonotype_id_by_patient_one_alpha_beta"],
+                                             final_seurat_obj@meta.data[rownames(pi_umap),"clonotype_id_by_patient_one_alpha_beta"])),
+                        color=c(rep("red", nrow(gmp_umap)), rep("blue", nrow(pi_umap))),
+                        gmp_pi=c(rep("GMP", nrow(gmp_umap)), rep("PI", nrow(pi_umap))),
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  plot_df$color <- color_scale[as.character(plot_df$cluster)]
+  rownames(plot_df) <- c(rownames(gmp_umap), rownames(pi_umap))
+  
+  ### find connections between GMP & PI
+  gmp_pi_connection_clones <- intersect(final_seurat_obj@meta.data[rownames(gmp_umap),"clonotype_id_by_patient_one_alpha_beta"],
+                                        final_seurat_obj@meta.data[rownames(pi_umap),"clonotype_id_by_patient_one_alpha_beta"])
+  gmp_pi_connection_clones <- gmp_pi_connection_clones[which(!is.na(gmp_pi_connection_clones))]
+  
+  ### define the subsister column
+  ### one gmp -> one pi
+  gmp_subsisters_idx <- which(final_seurat_obj@meta.data[rownames(gmp_umap),"clonotype_id_by_patient_one_alpha_beta"] %in% gmp_pi_connection_clones)
+  temp <- final_seurat_obj@meta.data[rownames(gmp_umap),"clonotype_id_by_patient_one_alpha_beta"][gmp_subsisters_idx]
+  gmp_subsisters_name <- rownames(gmp_umap)[gmp_subsisters_idx[which(!duplicated(temp))]]
+  names(gmp_subsisters_name) <- final_seurat_obj@meta.data[gmp_subsisters_name,"clonotype_id_by_patient_one_alpha_beta"]
+  gmp_subsisters_name <- gmp_subsisters_name[order(names(gmp_subsisters_name))]
+  
+  pi_subsisters_idx <- which(final_seurat_obj@meta.data[rownames(pi_umap),"clonotype_id_by_patient_one_alpha_beta"] %in% gmp_pi_connection_clones)
+  temp <- final_seurat_obj@meta.data[rownames(pi_umap),"clonotype_id_by_patient_one_alpha_beta"][pi_subsisters_idx]
+  pi_subsisters_name <- rownames(pi_umap)[pi_subsisters_idx[which(!duplicated(temp))]]
+  names(pi_subsisters_name) <- final_seurat_obj@meta.data[pi_subsisters_name,"clonotype_id_by_patient_one_alpha_beta"]
+  pi_subsisters_name <- pi_subsisters_name[order(names(pi_subsisters_name))]
+  
+  plot_df2 <- data.frame(x0 = plot_df[gmp_subsisters_name, "x"],
+                         y0 = plot_df[gmp_subsisters_name, "y"],
+                         z0 = plot_df[gmp_subsisters_name, "z"]-0.5,
+                         x1 = plot_df[pi_subsisters_name, "x"],
+                         y1 = plot_df[pi_subsisters_name, "y"],
+                         z1 = plot_df[pi_subsisters_name, "z"]+0.5,
+                         stringsAsFactors = FALSE, check.names = FALSE)
+  plot_df2 <- plot_df2[sample(nrow(plot_df2), 5),]
+  
+  ### 2D
+  png(filename = paste0(outputDir2, "/", "MNN_UMAP_CARpos_GMP_PI_Mapping_2D.png"), width = 2500, height = 1500, res = 350)
+  plot(plot_df$x, plot_df$y, col = plot_df$color, pch = 19,
+       main = "GMP-PI MNN-UMAP in 2D", xlab = "UMAP1", ylab = "UMAP2")
+  dev.off()
+  
+  ### 3D
+  png(filename = paste0(outputDir2, "/", "MNN_UMAP_CARpos_GMP_PI_Mapping_3D.png"), width = 2000, height = 1500, res = 350)
+  scatter3D(plot_df$x, plot_df$y, plot_df$z,
+            colvar = NULL,
+            col = plot_df$color,
+            pch = 19,  theta = 0, phi = -90,
+            main = "GMP-PI MNN-UMAP IN 3D", xlab = "UMAP1",
+            ylab ="UMAP2", zlab = "",
+            colkey = FALSE)
+  arrows3D(plot_df2$x0, plot_df2$y0, plot_df2$z0,
+           plot_df2$x1, plot_df2$y1, plot_df2$z1,
+           colvar = NULL, col = "black",
+           lwd = 2, d = 3,
+           main = "", ticktype = "detailed",
+           add = TRUE)
+  dev.off()
+  
+  ### make it interactive
+  plotrgl()
+  htmlwidgets::saveWidget(rglwidget(width = 1200, height = 1200), 
+                          file = paste0(outputDir2, "MNN_UMAP_CARpos_GMP_PI_Mapping_3D_INTERACTIVE.html"),
+                          selfcontained = TRUE)
+  
+  
+  
+  #
+  ### 27. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/27/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
