@@ -8861,8 +8861,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   pi_umap <- Embeddings(final_seurat_obj, reduction = "umap")[rownames(final_seurat_obj@meta.data)[which(final_seurat_obj@meta.data$GMP_PI == "PI")], 1:2]
   
   ### draw in 3D
-  shift_x <- 50
-  shift_z <- 20
+  shift_x <- 0
+  shift_z <- 5
   plot_df <- data.frame(x=c(gmp_umap[,1], pi_umap[,1]+shift_x),
                         y=c(gmp_umap[,2], pi_umap[,2]),
                         z=c(rep(0, nrow(gmp_umap)), rep(shift_z, nrow(pi_umap))),
@@ -8897,16 +8897,17 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   plot_df2 <- data.frame(x0 = plot_df[gmp_subsisters_name, "x"],
                          y0 = plot_df[gmp_subsisters_name, "y"],
-                         z0 = plot_df[gmp_subsisters_name, "z"]-0.5,
+                         z0 = plot_df[gmp_subsisters_name, "z"]-0.1,
                          x1 = plot_df[pi_subsisters_name, "x"],
                          y1 = plot_df[pi_subsisters_name, "y"],
-                         z1 = plot_df[pi_subsisters_name, "z"]+0.5,
+                         z1 = plot_df[pi_subsisters_name, "z"]+0.1,
                          stringsAsFactors = FALSE, check.names = FALSE)
-  plot_df2 <- plot_df2[sample(nrow(plot_df2), 5),]
+  plot_df2 <- plot_df2[sample(nrow(plot_df2), 10),]
+  plot_df2$color <- c(rep("darkgray", 5), rep("black", 5))
   
   ### 2D
   png(filename = paste0(outputDir2, "/", "MNN_UMAP_CARpos_GMP_PI_Mapping_2D.png"), width = 2500, height = 1500, res = 350)
-  plot(plot_df$x, plot_df$y, col = plot_df$color, pch = 19,
+  plot(c(gmp_umap[,1], pi_umap[,1]+50), plot_df$y, col = plot_df$color, pch = 19,
        main = "GMP-PI MNN-UMAP in 2D", xlab = "UMAP1", ylab = "UMAP2")
   dev.off()
   
@@ -8915,16 +8916,16 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   scatter3D(plot_df$x, plot_df$y, plot_df$z,
             colvar = NULL,
             col = plot_df$color,
-            pch = 19,  theta = 0, phi = -90,
+            pch = 19,  theta = 90, phi = 30,
             main = "GMP-PI MNN-UMAP IN 3D", xlab = "UMAP1",
             ylab ="UMAP2", zlab = "",
-            colkey = FALSE)
+            colkey = FALSE, bty = "n")
   arrows3D(plot_df2$x0, plot_df2$y0, plot_df2$z0,
            plot_df2$x1, plot_df2$y1, plot_df2$z1,
-           colvar = NULL, col = "black",
+           colvar = NULL, col = plot_df2$color,
            lwd = 2, d = 3,
            main = "", ticktype = "detailed",
-           add = TRUE)
+           add = TRUE, bty = "n")
   dev.off()
   
   ### make it interactive
