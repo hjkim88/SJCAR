@@ -45,7 +45,8 @@
 #               24. Mapping GMP clusters to PI clusters
 #               25. 06/14/2021 - Re-analyze everything with the PB-Px filtered data with different CD4/CD8 definition
 #               26. New Task - 3D plane mapping between GMP & PI clusters
-#               27. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#               27. 06/21/2021 - Pseudotime (Slingshot & Monocle2) analysis on Jeremy's object
+#               28. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -103,6 +104,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       install.packages("BiocManager")
     BiocManager::install("slingshot")
     require(slingshot, quietly = TRUE)
+  }
+  if(!require(tradeSeq, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("tradeSeq")
+    require(tradeSeq, quietly = TRUE)
   }
   if(!require(scales, quietly = TRUE)) {
     install.packages("scales")
@@ -8861,7 +8868,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   pi_umap <- Embeddings(final_seurat_obj, reduction = "umap")[rownames(final_seurat_obj@meta.data)[which(final_seurat_obj@meta.data$GMP_PI == "PI")], 1:2]
   
   ### draw in 3D
-  shift_x <- 0
+  shift_x <- 10
   shift_z <- 5
   plot_df <- data.frame(x=c(gmp_umap[,1], pi_umap[,1]+shift_x),
                         y=c(gmp_umap[,2], pi_umap[,2]),
@@ -8902,8 +8909,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                          y1 = plot_df[pi_subsisters_name, "y"],
                          z1 = plot_df[pi_subsisters_name, "z"]+0.1,
                          stringsAsFactors = FALSE, check.names = FALSE)
-  plot_df2 <- plot_df2[sample(nrow(plot_df2), 10),]
-  plot_df2$color <- c(rep("darkgray", 5), rep("black", 5))
+  set.seed(1234)
+  plot_df2 <- plot_df2[sample(nrow(plot_df2), 5),]
+  plot_df2$color <- c(rep("black", 3), rep("black", 2))
   
   ### 2D
   png(filename = paste0(outputDir2, "/", "MNN_UMAP_CARpos_GMP_PI_Mapping_2D.png"), width = 2500, height = 1500, res = 350)
@@ -8916,32 +8924,300 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   scatter3D(plot_df$x, plot_df$y, plot_df$z,
             colvar = NULL,
             col = plot_df$color,
-            pch = 19,  theta = 90, phi = 30,
+            pch = ".",  theta = 0, phi = 0,
             main = "GMP-PI MNN-UMAP IN 3D", xlab = "UMAP1",
             ylab ="UMAP2", zlab = "",
             colkey = FALSE, bty = "n")
   arrows3D(plot_df2$x0, plot_df2$y0, plot_df2$z0,
            plot_df2$x1, plot_df2$y1, plot_df2$z1,
            colvar = NULL, col = plot_df2$color,
-           lwd = 2, d = 3,
-           main = "", ticktype = "detailed",
+           lwd = 1, d = 1,
+           main = "", ticktype = "simple",
            add = TRUE, bty = "n")
   dev.off()
   
   ### make it interactive
-  plotrgl()
+  plotrgl(lighting = TRUE, smooth = TRUE)
   htmlwidgets::saveWidget(rglwidget(width = 1200, height = 1200), 
                           file = paste0(outputDir2, "MNN_UMAP_CARpos_GMP_PI_Mapping_3D_INTERACTIVE.html"),
                           selfcontained = TRUE)
   
   
-  
   #
-  ### 27. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 27. 06/21/2021 - Pseudotime (Slingshot & Monocle2) analysis on Jeremy's object
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/27/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### load Jeremy's object
+  JCC_Seurat_Obj <- readRDS(file = "./data/NEW_SJCAR_SEURAT_OBJ/CARpos_JCC.rds")
+  
+  ### check whether the orders are the same
+  print(identical(rownames(JCC_Seurat_Obj@meta.data), colnames(JCC_Seurat_Obj@assays$RNA@counts)))
+  print(identical(names(Idents(object = JCC_Seurat_Obj)), rownames(JCC_Seurat_Obj@meta.data)))
+  
+  ### draw a UMAP to confirm that the UMAP I see is the same as his
+  DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+          group.by = "AllSeuratClusters", label = TRUE,
+          pt.size = 0.5)
+  
+  #
+  ### perform monocle2 first (since this is faster than the slingshot)
+  #
+  
+  ### cell # for each time point
+  cell_num <- sapply(unique(JCC_Seurat_Obj@meta.data$time2), function(x) {
+    return(length(which(JCC_Seurat_Obj@meta.data$time2 == x)))
+  })
+  
+  ### remove wk6 & 6mo data since there are only 1 & 7 cells
+  cell_num <- cell_num[-c(6,9)]
+  
+  ### the data is too big (can't run for monocle), so we down-sample the cells in each time point
+  set.seed(1234)
+  fixed_min_cell_num <- min(cell_num)
+  JCC_Seurat_Obj@meta.data$downsampled <- "NO"
+  for(tp in names(cell_num)) {
+    JCC_Seurat_Obj@meta.data$downsampled[sample(which(JCC_Seurat_Obj@meta.data$time2 == tp), fixed_min_cell_num)] <- "YES"
+  }
+  
+  ### Construct a monocle cds
+  monocle_metadata <- JCC_Seurat_Obj@meta.data[rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj@meta.data$downsampled == "YES")],]
+  monocle_metadata$time2 <- factor(monocle_metadata$time2, levels = unique(monocle_metadata$time2))
+  monocle_cds <- newCellDataSet(as(as.matrix(JCC_Seurat_Obj@assays$RNA@data[,rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj@meta.data$downsampled == "YES")]]), 'sparseMatrix'),
+                                phenoData = new('AnnotatedDataFrame', data = monocle_metadata),
+                                featureData = new('AnnotatedDataFrame', data = data.frame(gene_short_name = row.names(JCC_Seurat_Obj@assays$RNA@data),
+                                                                                          row.names = row.names(JCC_Seurat_Obj@assays$RNA@data),
+                                                                                          stringsAsFactors = FALSE, check.names = FALSE)),
+                                lowerDetectionLimit = 0.5,
+                                expressionFamily = negbinomial.size())
+  
+  ### run monocle
+  monocle_cds <- estimateSizeFactors(monocle_cds)
+  monocle_cds <- estimateDispersions(monocle_cds)
+  monocle_cds <- reduceDimension(monocle_cds, reduction_method = "DDRTree")
+  monocle_cds <- orderCells(monocle_cds)
+  
+  ### determine the beginning state
+  plot_cell_trajectory(monocle_cds, color_by = "time2")
+  plot_cell_trajectory(monocle_cds, color_by = "State")
+  plot_complex_cell_trajectory(monocle_cds, color_by = "time2")
+  plot_complex_cell_trajectory(monocle_cds, color_by = "State")
+  monocle_cds <- orderCells(monocle_cds, root_state = "6")
+  
+  ### draw monocle plots
+  p <- plot_cell_trajectory(monocle_cds, color_by = "time2", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Time_Monocle2.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_cell_trajectory(monocle_cds, color_by = "Pseudotime", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 16))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Pseudotime_Monocle2.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_cell_trajectory(monocle_cds, color_by = "State", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_State_Monocle2.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_cell_trajectory(monocle_cds, color_by = "AllSeuratClusters", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Cluster_Monocle2.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_cell_trajectory(monocle_cds, color_by = "AllSeuratClusters", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30)) +
+    facet_wrap(~AllSeuratClusters, nrow = 5, ncol = 6)
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Cluster2_Monocle2.png"),
+         plot = p,
+         width = 15, height = 20, dpi = 350)
+  
+  p <- plot_complex_cell_trajectory(monocle_cds, color_by = "time2", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Time_Complex_Monocle2.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_complex_cell_trajectory(monocle_cds, color_by = "Pseudotime", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 10))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Pseudotime_Complex_Monocle2.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_complex_cell_trajectory(monocle_cds, color_by = "State", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_State_Complex_Monocle2.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_complex_cell_trajectory(monocle_cds, color_by = "AllSeuratClusters", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Cluster_Complex_Monocle2.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  ### get DE genes based on pseudotime
+  degs <- differentialGeneTest(monocle_cds,
+                               fullModelFormulaStr = "~sm.ns(Pseudotime)",
+                               cores = 4)
+  degs <- degs[order(degs$qval),]
+  
+  ### write out the DE genes
+  write.xlsx2(data.frame(Gene=rownames(degs),
+                         degs,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/CARpos_Trajectory_Inference_Pseudotime_DEGs.xlsx"),
+              sheetName = "CARpos_Trajectory_Inference_Pseudotime_DEGs", row.names = FALSE)
+  
+  ### gene expression plots
+  interesting_genes <- degs$gene_short_name[1:9]
+  cds_subset <- monocle_cds[interesting_genes,]
+  p <- plot_genes_in_pseudotime(cds_subset, color_by = "time2",
+                                cell_size = 5, ncol = 3) +
+    labs(color = "Time") +
+    theme_classic(base_size = 20) +
+    theme(legend.title = element_text(size = 30),
+          legend.text = element_text(size = 20))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Pseudotime_DEGs.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_genes_in_pseudotime(cds_subset, color_by = "Pseudotime",
+                                cell_size = 5, ncol = 3) +
+    labs(color = "Time") +
+    theme_classic(base_size = 20) +
+    theme(legend.title = element_text(size = 30),
+          legend.text = element_text(size = 20))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Pseudotime_DEGs2.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  #
+  ### Now it's time for Slingshot
+  #
+  
+  ### MNN map
+  mnn_map <- Embeddings(JCC_Seurat_Obj, reduction = "mnn")[rownames(JCC_Seurat_Obj@meta.data),1:2]
+  
+  ### remove wk6 & 6mo data since there are only 1 & 7 cells
+  usable_idx <- which(JCC_Seurat_Obj@meta.data$time2 %in% c("GMP", "Wk1", "Wk2", "Wk3", "Wk4", "Wk8", "3mo"))
+  mnn_map <- mnn_map[rownames(JCC_Seurat_Obj@meta.data)[usable_idx],]
+  mnn_map_time <- JCC_Seurat_Obj@meta.data$time2[usable_idx]
+  mnn_map_exp <- JCC_Seurat_Obj@assays$RNA@counts[,rownames(JCC_Seurat_Obj@meta.data)[usable_idx]]
+  
+  ### get slingshot object
+  slingshot_obj_mnn <- slingshot(mnn_map,
+                                 clusterLabels = mnn_map_time,
+                                 start.clus = "GMP",
+                                 end.clus = "3mo")
+  slingshot_obj_mnn <- as.SlingshotDataSet(slingshot_obj_mnn)
+  
+  ### get colors for the clustering result
+  cell_colors_clust <- cell_pal(unique(mnn_map_time), hue_pal())
+  
+  ### Trajectory inference
+  png(paste0(outputDir2, "CARpos_CD8_Trajectory_Inference_Time_MNN.png"), width = 5000, height = 3000, res = 350)
+  par(mar=c(7, 7, 7, 1), mgp=c(4,1,0))
+  plot(reducedDim(slingshot_obj_mnn),
+       main=paste("CAR+ Trajectory Inference"),
+       col = cell_colors_clust[as.character(mnn_map_time)],
+       pch = 19, cex = 1, cex.lab = 3, cex.main = 3, cex.axis = 2)
+  lines(slingshot_obj_mnn, lwd = 4, type = "lineages", col = "black",
+        show.constraints = TRUE, constraints.col = cell_colors_clust)
+  legend("bottomleft", legend = names(cell_colors_clust), col = cell_colors_clust,
+         pch = 19, cex = 1.5)
+  dev.off()
+  
+  ### the matrix is too large
+  ### so we are down-sampling them
+  mnn_map <- mnn_map[rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj@meta.data$downsampled == "YES")],]
+  mnn_map_time <- JCC_Seurat_Obj@meta.data$time2[which(JCC_Seurat_Obj@meta.data$downsampled == "YES")]
+  mnn_map_exp <- JCC_Seurat_Obj@assays$RNA@counts[,rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj@meta.data$downsampled == "YES")]]
+  
+  ### get slingshot object
+  slingshot_obj_mnn <- slingshot(mnn_map,
+                                 clusterLabels = mnn_map_time,
+                                 start.clus = "GMP",
+                                 end.clus = "3mo")
+  slingshot_obj_mnn <- as.SlingshotDataSet(slingshot_obj_mnn)
+  
+  ### Trajectory inference
+  png(paste0(outputDir2, "CARpos_CD8_Trajectory_Inference_Time_MNN_DOWNSAMPLED.png"), width = 5000, height = 3000, res = 350)
+  par(mar=c(7, 7, 7, 1), mgp=c(4,1,0))
+  plot(reducedDim(slingshot_obj_mnn),
+       main=paste("CAR+ Trajectory Inference"),
+       col = cell_colors_clust[as.character(mnn_map_time)],
+       pch = 19, cex = 1, cex.lab = 3, cex.main = 3, cex.axis = 2)
+  lines(slingshot_obj_mnn, lwd = 4, type = "lineages", col = "black",
+        show.constraints = TRUE, constraints.col = cell_colors_clust)
+  legend("bottomleft", legend = names(cell_colors_clust), col = cell_colors_clust,
+         pch = 19, cex = 1.5)
+  dev.off()
+  
+  ### find genes that change their expression over the course of development
+  sce <- fitGAM(counts = mnn_map_exp, sds = slingshot_obj_mnn)
+  ATres <- associationTest(as.PseudotimeOrdering(slingshot_obj_mnn))
+  
+  ###
+  topgenes <- rownames(ATres[order(ATres$pvalue), ])[1:250]
+  pst.ord <- order(sce$slingPseudotime_1, na.last = NA)
+  heatdata <- assays(sce)$counts[topgenes, pst.ord]
+  heatclus <- sce$GMM[pst.ord]
+  
+  heatmap(log1p(heatdata), Colv = NA,
+          ColSideColors = brewer.pal(9,"Set1")[heatclus])
+  
+  
+  
+  #
+  ### 28. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/28/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
