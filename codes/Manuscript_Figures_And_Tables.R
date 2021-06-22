@@ -199,6 +199,14 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     install.packages("plot3Drgl")
     require(plot3Drgl, quietly = TRUE)
   }
+  if(!require(gplots, quietly = TRUE)) {
+    install.packages("gplots")
+    require(gplots, quietly = TRUE)
+  }
+  if(!require(RColorBrewer, quietly = TRUE)) {
+    install.packages("RColorBrewer")
+    require(RColorBrewer, quietly = TRUE)
+  }
   
   
   ### create outputDir
@@ -9159,7 +9167,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   cell_colors_clust <- cell_pal(unique(mnn_map_time), hue_pal())
   
   ### Trajectory inference
-  png(paste0(outputDir2, "CARpos_CD8_Trajectory_Inference_Time_MNN.png"), width = 5000, height = 3000, res = 350)
+  png(paste0(outputDir2, "CARpos_Trajectory_Inference_Time_MNN.png"), width = 5000, height = 3000, res = 350)
   par(mar=c(7, 7, 7, 1), mgp=c(4,1,0))
   plot(reducedDim(slingshot_obj_mnn),
        main=paste("CAR+ Trajectory Inference"),
@@ -9185,7 +9193,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   slingshot_obj_mnn <- as.SlingshotDataSet(slingshot_obj_mnn)
   
   ### Trajectory inference
-  png(paste0(outputDir2, "CARpos_CD8_Trajectory_Inference_Time_MNN_DOWNSAMPLED.png"), width = 5000, height = 3000, res = 350)
+  png(paste0(outputDir2, "CARpos_Trajectory_Inference_Time_MNN_DOWNSAMPLED.png"), width = 5000, height = 3000, res = 350)
   par(mar=c(7, 7, 7, 1), mgp=c(4,1,0))
   plot(reducedDim(slingshot_obj_mnn),
        main=paste("CAR+ Trajectory Inference"),
@@ -9198,18 +9206,207 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   dev.off()
   
   ### find genes that change their expression over the course of development
+  ###  If "consecutive", then consecutive points along each lineage will be used as contrasts
   sce <- fitGAM(counts = mnn_map_exp, sds = slingshot_obj_mnn)
-  ATres <- associationTest(as.PseudotimeOrdering(slingshot_obj_mnn))
+  ATres <- associationTest(sce, contrastType = "consecutive")
   
-  ###
-  topgenes <- rownames(ATres[order(ATres$pvalue), ])[1:250]
-  pst.ord <- order(sce$slingPseudotime_1, na.last = NA)
+  ### give FDR
+  ATres <- ATres[order(ATres$pvalue),]
+  ATres$FDR <- p.adjust(p = ATres$pvalue, method = "BH")
+  
+  ### save the result
+  write.xlsx2(data.frame(Gene=rownames(ATres),
+                         ATres,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/CARpos_Trajectory_Inference_Pseudotime_DEGs_Slingshot.xlsx"),
+              sheetName = "CARpos_Trajectory_Inference_Pseudotime_DEGs_Slingshot", row.names = FALSE)
+  
+  ### get those genes from the Slingshot
+  topgenes <- rownames(ATres[order(ATres$FDR), ])[1:100]
+  pst.ord <- order(sce$slingshot$pseudotime.Lineage1, na.last = NA)
   heatdata <- assays(sce)$counts[topgenes, pst.ord]
-  heatclus <- sce$GMM[pst.ord]
+  heatclus <- JCC_Seurat_Obj@meta.data[colnames(heatdata),"time2"]
   
-  heatmap(log1p(heatdata), Colv = NA,
-          ColSideColors = brewer.pal(9,"Set1")[heatclus])
+  ### draw the heatmap
+  png(paste0(outputDir2, "CARpos_Trajectory_Inference_Pseudotime_DEGs_Slingshot_Heatmap.png"),
+      width = 3000, height = 3000, res = 350)
+  par(oma=c(0,3,0,3))
+  heatmap.2(log1p(heatdata), col = colorpanel(24, low = "blue", high = "red"),
+            scale = "none", dendrogram = "row", trace = "none",
+            cexRow = 0.5, key.title = "", main = "Top 100 Genes Associated With The Pseudotime",
+            Colv = FALSE, labCol = FALSE,  key.xlab = "log(Count+1)", key.ylab = "Frequency",
+            ColSideColors = cell_colors_clust[heatclus])
+  legend("left", inset = -0.1,
+         box.lty = 0, cex = 0.8,
+         title = "Time", xpd = TRUE,
+         legend=names(cell_colors_clust),
+         col=cell_colors_clust,
+         pch=15)
+  dev.off()
   
+  ### compare DEGs of Monocle2 and Slingshot
+  print(length(intersect(degs$gene_short_name[which(degs$qval < 0.01)],
+                         rownames(ATres)[which(ATres$FDR < 0.01)])))
+  print(length(which(degs$qval < 0.01)))
+  print(length(which(ATres$FDR < 0.01)))
+  
+  
+  ### draw a pie chart to show the percentage of time points in each state
+  plot_df <- data.frame(State=as.character(sapply(levels(monocle_cds@phenoData@data$State), function(x) rep(x, length(levels(monocle_cds@phenoData@data$time2))))),
+                        Time_Point=rep(levels(monocle_cds@phenoData@data$time2), length(levels(monocle_cds@phenoData@data$State))),
+                        Numbers=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### calculate numbers
+  cnt <- 1
+  for(state in levels(monocle_cds@phenoData@data$State)) {
+    for(tp in levels(monocle_cds@phenoData@data$time2)) {
+      plot_df$Numbers[cnt] <- length(intersect(which(monocle_cds@phenoData@data$State == state),
+                                               which(monocle_cds@phenoData@data$time2 == tp)))
+      cnt <- cnt + 1
+    }
+  }
+  
+  ### calculate percentages
+  state_sum <- rep(0, length(levels(monocle_cds$State)))
+  names(state_sum) <- levels(monocle_cds$State)
+  for(i in 1:length(levels(monocle_cds$State))) {
+    state_sum[i] <- sum(plot_df[which(plot_df$State == levels(monocle_cds$State)[i]),"Numbers"])
+    plot_df$Pcnt[which(plot_df$State == levels(monocle_cds$State)[i])] <- round(plot_df$Numbers[which(plot_df$State == levels(monocle_cds$State)[i])] * 100 / state_sum[i], 1)
+  }
+  
+  ### remove NaN rows
+  plot_df <- plot_df[which(!is.nan(plot_df$Pcnt)),]
+  
+  ### factorize the time point & state
+  plot_df$Time_Point <- factor(plot_df$Time_Point, levels = levels(monocle_cds$time2))
+  plot_df$State <- factor(plot_df$State, levels = unique(plot_df$State))
+  
+  ### draw the pie charts
+  plot_df <- plot_df[order(as.numeric(plot_df$State)),]
+  p <- vector("list", length = length(levels(plot_df$State)))
+  names(p) <- levels(plot_df$State)
+  for(state in levels(plot_df$State)) {
+    p[[state]] <- ggplot(data = plot_df[which(plot_df$State == state),],
+                aes(x = "", y = Numbers, fill = Time_Point)) +
+      geom_bar(stat = "identity", width = 1) +
+      coord_polar(theta="y") +
+      labs(x = NULL, y = NULL, title = paste("State", state)) +
+      scale_fill_discrete(name = "Time", labels = paste0(as.character(plot_df$Time_Point[which(plot_df$State == state)]), ": ",
+                                                          plot_df$Numbers[which(plot_df$State == state)], " (",
+                                                          plot_df$Pcnt[which(plot_df$State == state)], "%)")) +
+      theme_classic(base_size = 48) +
+      theme(plot.title = element_text(hjust = 0.5, color = "black", size = 48),
+            axis.line = element_blank(),
+            axis.ticks = element_blank(),
+            axis.text = element_blank())
+  }
+  
+  ### combine plots into one
+  g <- arrangeGrob(grobs = p,
+                   nrow = 3,
+                   ncol = 2,
+                   top = "")
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_DOWNSAMPLED_Monocle_Pie.png"), g, width = 25, height = 20, dpi = 350)
+  
+  ### draw a proportional bar plot
+  ### pcnt < 10 -> ""
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) < 10)] <- ""
+  plot_df$Pcnt <- as.character(plot_df$Pcnt)
+  ### state_sum < 100 -> ""
+  blank_state <- names(state_sum)[which(state_sum < 100)]
+  plot_df$Pcnt[which(plot_df$State %in% blank_state)] <- ""
+  p <- ggplot(data=plot_df, aes_string(x="State", y="Numbers", fill="Time_Point", label="Pcnt")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Proportion of Cells") +
+    xlab("State") + ylab("Cell #") +
+    geom_text(size = 5, position = position_stack(vjust = 1)) +
+    coord_flip() +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_DOWNSAMPLED_Monocle_Bar.png"), plot = p,
+         width = 20, height = 10, dpi = 350)
+  
+  
+  ### Now in the inverted way
+  ### what states are in each time point
+  
+  ### draw a pie chart to show the percentage of time points in each state
+  plot_df <- data.frame(State=as.character(sapply(levels(monocle_cds@phenoData@data$State), function(x) rep(x, length(levels(monocle_cds@phenoData@data$time2))))),
+                        Time_Point=rep(levels(monocle_cds@phenoData@data$time2), length(levels(monocle_cds@phenoData@data$State))),
+                        Numbers=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### calculate numbers
+  cnt <- 1
+  for(state in levels(monocle_cds@phenoData@data$State)) {
+    for(tp in levels(monocle_cds@phenoData@data$time2)) {
+      plot_df$Numbers[cnt] <- length(intersect(which(monocle_cds@phenoData@data$State == state),
+                                               which(monocle_cds@phenoData@data$time2 == tp)))
+      cnt <- cnt + 1
+    }
+  }
+  
+  ### calculate percentages
+  tp_sum <- rep(0, length(levels(monocle_cds$time2)))
+  names(tp_sum) <- levels(monocle_cds$time2)
+  for(i in 1:length(levels(monocle_cds$time2))) {
+    tp_sum[i] <- sum(plot_df[which(plot_df$Time_Point == levels(monocle_cds$time2)[i]),"Numbers"])
+    plot_df$Pcnt[which(plot_df$Time_Point == levels(monocle_cds$time2)[i])] <- round(plot_df$Numbers[which(plot_df$Time_Point == levels(monocle_cds$time2)[i])] * 100 / tp_sum[i], 1)
+  }
+  
+  ### remove NaN rows
+  plot_df <- plot_df[which(!is.nan(plot_df$Pcnt)),]
+  
+  ### factorize the time point & state
+  plot_df$Time_Point <- factor(plot_df$Time_Point, levels = levels(monocle_cds$time2))
+  plot_df$State <- factor(plot_df$State, levels = unique(plot_df$State))
+  
+  ### draw the pie charts
+  plot_df <- plot_df[order(plot_df$Time_Point),]
+  p <- vector("list", length = length(levels(plot_df$Time_Point)))
+  names(p) <- levels(plot_df$Time_Point)
+  for(tp in levels(plot_df$Time_Point)) {
+    p[[tp]] <- ggplot(data = plot_df[which(plot_df$Time_Point == tp),],
+                         aes(x = "", y = Numbers, fill = State)) +
+      geom_bar(stat = "identity", width = 1) +
+      coord_polar(theta="y") +
+      labs(x = NULL, y = NULL, title = paste("", tp)) +
+      scale_fill_discrete(name = "State", labels = paste0(as.character(plot_df$State[which(plot_df$Time_Point == tp)]), ": ",
+                                                          plot_df$Numbers[which(plot_df$Time_Point == tp)], " (",
+                                                          plot_df$Pcnt[which(plot_df$Time_Point == tp)], "%)")) +
+      theme_classic(base_size = 48) +
+      theme(plot.title = element_text(hjust = 0.5, color = "black", size = 48),
+            axis.line = element_blank(),
+            axis.ticks = element_blank(),
+            axis.text = element_blank())
+  }
+  
+  ### combine plots into one
+  g <- arrangeGrob(grobs = p,
+                   nrow = 4,
+                   ncol = 2,
+                   top = "")
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_DOWNSAMPLED_Monocle_Pie2.png"), g, width = 25, height = 22, dpi = 350)
+  
+  ### draw a proportional bar plot
+  ### pcnt < 10 -> ""
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) < 10)] <- ""
+  plot_df$Pcnt <- as.character(plot_df$Pcnt)
+  p <- ggplot(data=plot_df, aes_string(x="Time_Point", y="Numbers", fill="State", label="Pcnt")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Proportion of Cells") +
+    xlab("Time") + ylab("Cell #") +
+    geom_text(size = 5, position = position_stack(vjust = 1)) +
+    coord_flip() +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_DOWNSAMPLED_Monocle_Bar2.png"), plot = p,
+         width = 20, height = 10, dpi = 350)
   
   
   #
