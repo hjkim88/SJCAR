@@ -9117,7 +9117,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   write.xlsx2(data.frame(Gene=rownames(degs),
                          degs,
                          stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir2, "/CARpos_Trajectory_Inference_Pseudotime_DEGs.xlsx"),
+              file = paste0(outputDir2, "/CARpos_Trajectory_Inference_Pseudotime_DEGs_Monocle.xlsx"),
               sheetName = "CARpos_Trajectory_Inference_Pseudotime_DEGs", row.names = FALSE)
   
   ### gene expression plots
@@ -9142,6 +9142,37 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Pseudotime_DEGs2.png"),
          plot = p,
          width = 15, height = 10, dpi = 350)
+  
+  #
+  ### FindAllMarkers based on the monocle states
+  #
+  
+  ### make the down-sampled seurat object
+  downsampled_seurat_obj <- subset(JCC_Seurat_Obj,
+                                   cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj@meta.data$downsampled == "YES")])
+  downsampled_seurat_obj$monocle_state <- monocle_cds@phenoData@data[rownames(downsampled_seurat_obj@meta.data),"State"]
+  
+  print(identical(rownames(downsampled_seurat_obj@meta.data), colnames(downsampled_seurat_obj@assays$RNA@counts)))
+  print(identical(names(Idents(object = downsampled_seurat_obj)), rownames(downsampled_seurat_obj@meta.data)))
+  
+  ### set monocle state as idents
+  downsampled_seurat_obj <- SetIdent(object = downsampled_seurat_obj,
+                                     cells = rownames(downsampled_seurat_obj@meta.data),
+                                     value = downsampled_seurat_obj@meta.data$monocle_state)
+  
+  ### DE analysis
+  de_result <- FindAllMarkers(downsampled_seurat_obj,
+                              min.pct = 0.2,
+                              logfc.threshold = 0.2,
+                              test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/CARpos_Monocle_State_AllMarkers.xlsx"),
+              sheetName = "CARpos_Monocle_State_AllMarkers_DE_Result", row.names = FALSE)
+  
   
   #
   ### Now it's time for Slingshot
