@@ -46,7 +46,12 @@
 #               25. 06/14/2021 - Re-analyze everything with the PB-Px filtered data with different CD4/CD8 definition
 #               26. New Task - 3D plane mapping between GMP & PI clusters
 #               27. 06/21/2021 - Pseudotime (Slingshot & Monocle2) analysis on Jeremy's object
-#               28. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#                   06/23/2021 - change the number of states
+#               28. state 1 vs. state 4 subsisters & cluster8 subsisters that are ONLY in state1 VS cluster 8 subsisters ONLY in state4
+#               29. tracking those subsisters in cluster 3 & 8 back to GMP.
+#                   figuring out those subsisters in GMP and where they exist?
+#                   differences between those subsisters and the other GMP subsisters or even vs. everything else
+#               30. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -9439,13 +9444,337 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_DOWNSAMPLED_Monocle_Bar2.png"), plot = p,
          width = 20, height = 10, dpi = 350)
   
-  
   #
-  ### 28. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 28. state 1 vs. state 4 subsisters & cluster8 subsisters that are ONLY in state1 VS cluster 8 subsisters ONLY in state4
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/28/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### set monocle state as idents
+  downsampled_seurat_obj <- SetIdent(object = downsampled_seurat_obj,
+                                     cells = rownames(downsampled_seurat_obj@meta.data),
+                                     value = downsampled_seurat_obj@meta.data$monocle_state)
+  
+  ### state 1 vs state 4 all
+  de_result <- FindMarkers(downsampled_seurat_obj,
+                           ident.1 = "1",
+                           ident.2 = "4",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/CARpos_State1_vs_State4.xlsx"),
+              sheetName = "CARpos_State1_vs_State4", row.names = FALSE)
+  
+  ### violin plot
+  downsampled_seurat_obj <- SetIdent(object = downsampled_seurat_obj,
+                                     cells = rownames(downsampled_seurat_obj@meta.data),
+                                     value = downsampled_seurat_obj@meta.data$monocle_state)
+  p <- VlnPlot(downsampled_seurat_obj, features = rownames(de_result)[1:9],
+               pt.size = 0)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + geom_boxplot(width=0.1) +
+      # stat_compare_means(size = 8) +
+      xlab("Monocle State") +
+      stat_summary(fun=mean, geom="point", size=3, color="red") +
+      theme_classic(base_size = 32) +
+      theme(legend.position = "none",
+            axis.title.x = element_blank())
+  }
+  
+  ### save the violin plot
+  ggsave(file = paste0(outputDir2, "Violin_CARpos_State1_vs_State4_DE_Genes.png"), plot = p, width = 30, height = 20, dpi = 350)
+  
+  
+  ### can't compare state1 gmp vs state4 gmp - because there is no gmp cells in the state4
+  print(length(intersect(which(downsampled_seurat_obj$monocle_state == "1"),
+                         which(downsampled_seurat_obj$time2 == "GMP"))))
+  print(length(intersect(which(downsampled_seurat_obj$monocle_state == "4"),
+                         which(downsampled_seurat_obj$time2 == "GMP"))))
+  
+  ### can't compare state1 subsisters vs state4 subsisters - because there is no subsister cells in the state4
+  print(length(intersect(which(downsampled_seurat_obj$monocle_state == "1"),
+                         which(downsampled_seurat_obj$ALL_CARpos_Persister == "YES"))))
+  print(length(intersect(which(downsampled_seurat_obj$monocle_state == "4"),
+                         which(downsampled_seurat_obj$ALL_CARpos_Persister == "YES"))))
+  
+  ### cluster 8 in state1 vs cluster 8 in state4
+  print(length(intersect(which(downsampled_seurat_obj$monocle_state == "1"),
+                         which(downsampled_seurat_obj$AllSeuratClusters == "8"))))
+  print(length(intersect(which(downsampled_seurat_obj$monocle_state == "4"),
+                         which(downsampled_seurat_obj$AllSeuratClusters == "8"))))
+  
+  downsampled_seurat_obj$cluster8_state1_state4 <- NA
+  downsampled_seurat_obj$cluster8_state1_state4[intersect(which(downsampled_seurat_obj$monocle_state == "1"),
+                                                          which(downsampled_seurat_obj$AllSeuratClusters == "8"))] <- "Cluster8_State1"
+  downsampled_seurat_obj$cluster8_state1_state4[intersect(which(downsampled_seurat_obj$monocle_state == "4"),
+                                                          which(downsampled_seurat_obj$AllSeuratClusters == "8"))] <- "Cluster8_State4"
+  
+  downsampled_seurat_obj <- SetIdent(object = downsampled_seurat_obj,
+                                     cells = rownames(downsampled_seurat_obj@meta.data),
+                                     value = downsampled_seurat_obj@meta.data$cluster8_state1_state4)
+  de_result <- FindMarkers(downsampled_seurat_obj,
+                           ident.1 = "Cluster8_State1",
+                           ident.2 = "Cluster8_State4",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/CARpos_Cluster8_State1_vs_State4.xlsx"),
+              sheetName = "CARpos_Cluster8_State1_vs_State4", row.names = FALSE)
+  
+  ### violin plot
+  downsampled_seurat_obj <- SetIdent(object = downsampled_seurat_obj,
+                                     cells = rownames(downsampled_seurat_obj@meta.data),
+                                     value = downsampled_seurat_obj@meta.data$monocle_state)
+  p <- VlnPlot(downsampled_seurat_obj, features = rownames(de_result)[1:9],
+               pt.size = 0)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + geom_boxplot(width=0.1) +
+      # stat_compare_means(size = 8) +
+      xlab("Monocle State") +
+      stat_summary(fun=mean, geom="point", size=3, color="red") +
+      theme_classic(base_size = 32) +
+      theme(legend.position = "none",
+            axis.title.x = element_blank())
+  }
+  
+  ### save the violin plot
+  ggsave(file = paste0(outputDir2, "Violin_CARpos_Cluster8_State1_vs_State4_DE_Genes.png"), plot = p, width = 30, height = 20, dpi = 350)
+  
+  
+  ### the data is too big (can't run for monocle), so we down-sample the cells in each time point
+  ### BUT THIS TIME, INCLUDE ALL THE SUBSISTERS (IN ADDITION TO THE ORIGINAL DOWNSAMPLED ONES)
+  JCC_Seurat_Obj@meta.data$downsampled2 <- JCC_Seurat_Obj@meta.data$downsampled
+  JCC_Seurat_Obj@meta.data$downsampled2[which(JCC_Seurat_Obj@meta.data$ALL_CARpos_Persister == "YES")] <- "YES"
+  
+  ### Construct a monocle cds
+  monocle_metadata <- JCC_Seurat_Obj@meta.data[rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj@meta.data$downsampled2 == "YES")],]
+  monocle_metadata$time2 <- factor(monocle_metadata$time2, levels = unique(monocle_metadata$time2))
+  monocle_cds2 <- newCellDataSet(as(as.matrix(JCC_Seurat_Obj@assays$RNA@data[,rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj@meta.data$downsampled2 == "YES")]]), 'sparseMatrix'),
+                                 phenoData = new('AnnotatedDataFrame', data = monocle_metadata),
+                                 featureData = new('AnnotatedDataFrame', data = data.frame(gene_short_name = row.names(JCC_Seurat_Obj@assays$RNA@data),
+                                                                                           row.names = row.names(JCC_Seurat_Obj@assays$RNA@data),
+                                                                                           stringsAsFactors = FALSE, check.names = FALSE)),
+                                 lowerDetectionLimit = 0.5,
+                                 expressionFamily = negbinomial.size())
+  
+  ### run monocle
+  monocle_cds2 <- estimateSizeFactors(monocle_cds2)
+  monocle_cds2 <- estimateDispersions(monocle_cds2)
+  monocle_cds2 <- reduceDimension(monocle_cds2, reduction_method = "DDRTree")
+  monocle_cds2 <- orderCells(monocle_cds2)
+  
+  ### determine the beginning state
+  plot_cell_trajectory(monocle_cds2, color_by = "time2")
+  plot_cell_trajectory(monocle_cds2, color_by = "State")
+  plot_complex_cell_trajectory(monocle_cds2, color_by = "time2")
+  plot_complex_cell_trajectory(monocle_cds2, color_by = "State")
+  monocle_cds2 <- orderCells(monocle_cds2, root_state = "6")
+  
+  ### add previous monocle_state to the current one
+  monocle_cds2$Original_State <- "NEW"
+  monocle_cds2@phenoData@data[rownames(monocle_cds@phenoData@data),"Original_State"] <- monocle_cds$State
+  
+  ### draw monocle plots
+  p <- plot_cell_trajectory(monocle_cds2, color_by = "time2", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="Time") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Time_Monocle2_Subsisters_Added.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_complex_cell_trajectory(monocle_cds2, color_by = "time2", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="Time") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Time_Complex_Monocle2_Subsisters_Added.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_cell_trajectory(monocle_cds2, color_by = "State", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="New State") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_State_Monocle2_Subsisters_Added.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_complex_cell_trajectory(monocle_cds2, color_by = "State", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="New State") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_State_Complex_Monocle2_Subsisters_Added.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_cell_trajectory(monocle_cds2, color_by = "Original_State", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="Original State") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Original_State_Monocle2_Subsisters_Added.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_complex_cell_trajectory(monocle_cds2, color_by = "Original_State", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="Original State") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Original_State_Complex_Monocle2_Subsisters_Added.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_cell_trajectory(monocle_cds2, color_by = "ALL_CARpos_Persister", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="ALL Subsisters") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Subsistency_Monocle2_Subsisters_Added.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  p <- plot_complex_cell_trajectory(monocle_cds2, color_by = "ALL_CARpos_Persister", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="ALL Subsisters") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Subsistency_Complex_Monocle2_Subsisters_Added.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  ### make the down-sampled seurat object
+  downsampled_seurat_obj2 <- subset(JCC_Seurat_Obj,
+                                    cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj@meta.data$downsampled2 == "YES")])
+  downsampled_seurat_obj2$monocle_state <- monocle_cds2@phenoData@data[rownames(downsampled_seurat_obj2@meta.data),"State"]
+  
+  print(identical(rownames(downsampled_seurat_obj2@meta.data), colnames(downsampled_seurat_obj2@assays$RNA@counts)))
+  print(identical(names(Idents(object = downsampled_seurat_obj2)), rownames(downsampled_seurat_obj2@meta.data)))
+  
+  ### subsisters in state 1,2,3,7 vs subsisters in state 5
+  downsampled_seurat_obj2$subsisters_state <- NA
+  downsampled_seurat_obj2$subsisters_state[intersect(which(downsampled_seurat_obj2$monocle_state %in% c("1", "2", "3", "7")),
+                                                          which(downsampled_seurat_obj2$ALL_CARpos_Persister == "YES"))] <- "State1237_Subsisters"
+  downsampled_seurat_obj2$subsisters_state[intersect(which(downsampled_seurat_obj2$monocle_state == "5"),
+                                                          which(downsampled_seurat_obj2$ALL_CARpos_Persister == "YES"))] <- "State5_Subsisters"
+  
+  downsampled_seurat_obj2 <- SetIdent(object = downsampled_seurat_obj2,
+                                     cells = rownames(downsampled_seurat_obj2@meta.data),
+                                     value = downsampled_seurat_obj2@meta.data$subsisters_state)
+  de_result <- FindMarkers(downsampled_seurat_obj2,
+                           ident.1 = "State1237_Subsisters",
+                           ident.2 = "State5_Subsisters",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/CARpos_Subsisters_NEW_State1237_vs_State5.xlsx"),
+              sheetName = "CARpos_Subsisters_NEW_State1237_vs_State5", row.names = FALSE)
+  
+  ### violin plot
+  downsampled_seurat_obj2 <- SetIdent(object = downsampled_seurat_obj2,
+                                      cells = rownames(downsampled_seurat_obj2@meta.data),
+                                      value = downsampled_seurat_obj2@meta.data$monocle_state)
+  p <- VlnPlot(downsampled_seurat_obj2, features = rownames(de_result)[1:9],
+               pt.size = 0)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + geom_boxplot(width=0.1) +
+      # stat_compare_means(size = 8) +
+      xlab("Monocle State") +
+      stat_summary(fun=mean, geom="point", size=3, color="red") +
+      theme_classic(base_size = 32) +
+      theme(legend.position = "none",
+            axis.title.x = element_blank())
+  }
+  
+  ### save the violin plot
+  ggsave(file = paste0(outputDir2, "Violin_CARpos_Subsisters_NEW_State1237_vs_State5_DE_Genes.png"), plot = p, width = 30, height = 20, dpi = 350)
+  
+  
+  
+  #
+  ### 29. tracking those subsisters in cluster 3 & 8 back to GMP.
+  ###     figuring out those subsisters in GMP and where they exist?
+  ###     differences between those subsisters and the other GMP subsisters or even vs. everything else
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/29/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### PI subsisters in the cluster3&8
+  cluster3_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                         which(JCC_Seurat_Obj$AllSeuratClusters == "3"))]
+  cluster8_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                         which(JCC_Seurat_Obj$AllSeuratClusters == "8"))]
+  
+  ### PI subsister clones in the cluster3&8
+  cluster3_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster3_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
+  cluster8_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster8_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
+  
+  ### remove NA clones
+  cluster3_pi_subsister_clones <- cluster3_pi_subsister_clones[which(!is.na(cluster3_pi_subsister_clones))]
+  cluster8_pi_subsister_clones <- cluster8_pi_subsister_clones[which(!is.na(cluster8_pi_subsister_clones))]
+  
+  
+  
+  ### GMP subsister vs non-subsisters
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj@meta.data$GMP_CARpos_Persister)
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "YES",
+                           ident.2 = "NO",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/CARpos_GMP_Subsisters_vs_Non-Subsisters.xlsx"),
+              sheetName = "CARpos_GMP_Subsisters_vs_Non-Subsisters", row.names = FALSE)
+  
+  
+  
+  
+  
+  
+  #
+  ### 30. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/30/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
