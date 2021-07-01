@@ -9719,7 +9719,6 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(file = paste0(outputDir2, "Violin_CARpos_Subsisters_NEW_State1237_vs_State5_DE_Genes.png"), plot = p, width = 30, height = 20, dpi = 350)
   
   
-  
   #
   ### 29. tracking those subsisters in cluster 3 & 8 back to GMP.
   ###     figuring out those subsisters in GMP and where they exist?
@@ -9731,19 +9730,193 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### PI subsisters in the cluster3&8
-  cluster3_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(which(JCC_Seurat_Obj$GMP == "PI"),
-                                                                         which(JCC_Seurat_Obj$AllSeuratClusters == "3"))]
-  cluster8_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(which(JCC_Seurat_Obj$GMP == "PI"),
-                                                                         which(JCC_Seurat_Obj$AllSeuratClusters == "8"))]
+  cluster3_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                   which(JCC_Seurat_Obj$AllSeuratClusters == "3")),
+                                                                         which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]
+  cluster8_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                   which(JCC_Seurat_Obj$AllSeuratClusters == "8")),
+                                                                         which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]
+  cluster38_pi_subsisters <- c(cluster3_pi_subsisters, cluster8_pi_subsisters)
   
   ### PI subsister clones in the cluster3&8
   cluster3_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster3_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
   cluster8_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster8_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
+  cluster38_pi_subsister_clones <- unique(c(cluster3_pi_subsister_clones, cluster8_pi_subsister_clones))
   
   ### remove NA clones
   cluster3_pi_subsister_clones <- cluster3_pi_subsister_clones[which(!is.na(cluster3_pi_subsister_clones))]
   cluster8_pi_subsister_clones <- cluster8_pi_subsister_clones[which(!is.na(cluster8_pi_subsister_clones))]
+  cluster38_pi_subsister_clones <- cluster38_pi_subsister_clones[which(!is.na(cluster38_pi_subsister_clones))]
   
+  ### get the GMP subsister indicies that end up in PI cluster 3 & 8
+  GMP_Subsisters_PI_Cluster38_idx <- intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                               which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% cluster38_pi_subsister_clones))
+  
+  ### add a column for the info
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 <- "Others"
+  JCC_Seurat_Obj@meta.data[cluster38_pi_subsisters, "GMP_Subsisters_End_Up_In_Cluster38"] <- "PI_Subsisters_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38[GMP_Subsisters_PI_Cluster38_idx] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38[intersect(which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "Others"),
+                                                              which(JCC_Seurat_Obj$GMP_CARpos_Persister == "YES"))] <- "Other_GMP_Subsisters"
+  
+  ### UMAP the info
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = FALSE,
+               group.by = "GMP_Subsisters_End_Up_In_Cluster38",
+               pt.size = 3, cols = c("GMP_Subsisters_End_Up_In_Cluster_3_And_8" = "red", "PI_Subsisters_In_Cluster_3_And_8" = "orange", "Other_GMP_Subsisters" = "blue", "Others" = "lightgray"),
+               order = c("GMP_Subsisters_End_Up_In_Cluster_3_And_8", "PI_Subsisters_In_Cluster_3_And_8", "Other_GMP_Subsisters", "Others")) +
+    ggtitle("") +
+    labs(color="") +
+    theme_classic(base_size = 48) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_text(size = 48),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 24),
+          legend.text = element_text(size = 24))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_End_Up_In_Cluster_3_And_8.png"), plot = p, width = 20, height = 10, dpi = 400)
+  
+  ### GMP subsisters end up in cluster3 and 8 vs other GMP subsisters
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38)
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "GMP_Subsisters_End_Up_In_Cluster_3_And_8",
+                           ident.2 = "Other_GMP_Subsisters",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/DE_Genes_CARpos_GMP_Subsisters_End_Up_In_Cluster_3_And_8_vs_Other_GMP_Subsisters.xlsx"),
+              sheetName = "CARpos_GMP_Subsisters_End_Up_In_Cluster_3_And_8", row.names = FALSE)
+  
+  ### Ridge plot
+  features <- rownames(de_result)[1:9]
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj@meta.data$AllSeuratClusters)
+  
+  ### draw the ridge plot
+  p <- RidgePlot(JCC_Seurat_Obj, features = features, ncol = 3)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + labs(y = "Seurat Clusters")
+  }
+  ggsave(paste0(outputDir2, "DE_Genes_CARpos_GMP_Subsisters_End_Up_In_Cluster_3_And_8_vs_Other_GMP_Subsisters.png"), plot = p, width = 20, height = 20, dpi = 350)
+  
+  ### GMP subsisters end up in cluster3 and 8 vs other CD8 GMP subsisters
+  JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_CD8 <- "Others"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_CD8[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_CD8[intersect(which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20")),
+                                                                  which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "Other_GMP_Subsisters"))] <- "Other_CD8_GMP_Subsisters"
+  
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_CD8)
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "GMP_Subsisters_End_Up_In_Cluster_3_And_8",
+                           ident.2 = "Other_CD8_GMP_Subsisters",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/DE_Genes_CARpos_GMP_Subsisters_End_Up_In_Cluster_3_And_8_vs_Other_CD8_GMP_Subsisters.xlsx"),
+              sheetName = "CARpos_GMP_Subsisters_End_Up_In_Cluster_3_And_8", row.names = FALSE)
+  
+  ### Ridge plot
+  features <- rownames(de_result)[1:9]
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj@meta.data$AllSeuratClusters)
+  
+  ### draw the ridge plot
+  p <- RidgePlot(JCC_Seurat_Obj, features = features, ncol = 3)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + labs(y = "Seurat Clusters")
+  }
+  ggsave(paste0(outputDir2, "DE_Genes_CARpos_GMP_Subsisters_End_Up_In_Cluster_3_And_8_vs_Other_CD8_GMP_Subsisters.png"), plot = p, width = 20, height = 20, dpi = 350)
+  
+  
+  ### GMP subsisters end up in cluster3 and 8 vs all other GMPs
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2 <- "Others"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2[setdiff(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                              which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"))] <- "Other_GMPs"
+  
+  ### GMP subsisters end up in cluster3 and 8 vs other GMP subsisters
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_2)
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "GMP_Subsisters_End_Up_In_Cluster_3_And_8",
+                           ident.2 = "Other_GMPs",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/DE_Genes_CARpos_GMP_Subsisters_End_Up_In_Cluster_3_And_8_vs_All_Other_GMPs.xlsx"),
+              sheetName = "CARpos_GMP_Subsisters_End_Up_In_Cluster_3_And_8", row.names = FALSE)
+  
+  ### Ridge plot
+  features <- rownames(de_result)[1:9]
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj@meta.data$AllSeuratClusters)
+  
+  ### draw the ridge plot
+  p <- RidgePlot(JCC_Seurat_Obj, features = features, ncol = 3)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + labs(y = "Seurat Clusters")
+  }
+  ggsave(paste0(outputDir2, "DE_Genes_CARpos_GMP_Subsisters_End_Up_In_Cluster_3_And_8_vs_All_Other_GMPs.png"), plot = p, width = 20, height = 20, dpi = 350)
+  
+  ### GMP subsisters end up in cluster3 and 8 vs all other CD8 GMPs
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 <- "Others"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8[intersect(which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20")),
+                                                                    which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2 == "Other_GMPs"))] <- "Other_CD8_GMPs"
+  
+  ### GMP subsisters end up in cluster3 and 8 vs other GMP subsisters
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_2_CD8)
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "GMP_Subsisters_End_Up_In_Cluster_3_And_8",
+                           ident.2 = "Other_CD8_GMPs",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/DE_Genes_CARpos_GMP_Subsisters_End_Up_In_Cluster_3_And_8_vs_All_Other_CD8_GMPs.xlsx"),
+              sheetName = "CARpos_GMP_Subsisters_End_Up_In_Cluster_3_And_8", row.names = FALSE)
+  
+  ### Ridge plot
+  features <- rownames(de_result)[1:9]
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj@meta.data$AllSeuratClusters)
+  
+  ### draw the ridge plot
+  p <- RidgePlot(JCC_Seurat_Obj, features = features, ncol = 3)
+  for(i in 1:9) {
+    p[[i]] <- p[[i]] + labs(y = "Seurat Clusters")
+  }
+  ggsave(paste0(outputDir2, "DE_Genes_CARpos_GMP_Subsisters_End_Up_In_Cluster_3_And_8_vs_All_Other_CD8_GMPs.png"), plot = p, width = 20, height = 20, dpi = 350)
   
   
   ### GMP subsister vs non-subsisters
@@ -9764,6 +9937,21 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
               file = paste0(outputDir2, "/CARpos_GMP_Subsisters_vs_Non-Subsisters.xlsx"),
               sheetName = "CARpos_GMP_Subsisters_vs_Non-Subsisters", row.names = FALSE)
   
+  ### CD4/CD8 annotation
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = FALSE,
+               group.by = "CD4_CD8_by_Exp",
+               pt.size = 3) +
+    ggtitle("") +
+    labs(color="") +
+    theme_classic(base_size = 48) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_text(size = 48),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 24),
+          legend.text = element_text(size = 24))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  ggsave(paste0(outputDir2, "UMAP_CARpos_CD4_CD8_by_EXP.png"), plot = p, width = 13, height = 10, dpi = 350)
   
   
   
