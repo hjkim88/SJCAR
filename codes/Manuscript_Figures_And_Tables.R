@@ -8955,6 +8955,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                           file = paste0(outputDir2, "MNN_UMAP_CARpos_GMP_PI_Mapping_3D_INTERACTIVE.html"),
                           selfcontained = TRUE)
   
+  ### version 2 recover and GMP&PI -> GMP&PI rather than GMP -> PI
+  
+  
+  
+  
+  
   
   #
   ### 27. 06/21/2021 - Pseudotime (Slingshot & Monocle2) analysis on Jeremy's object
