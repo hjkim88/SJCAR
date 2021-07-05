@@ -8957,6 +8957,41 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   ### version 2 recover and GMP&PI -> GMP&PI rather than GMP -> PI
   
+  #
+  ### do the same thing with Jeremy's object
+  #
+  
+  ### load Jeremy's object
+  JCC_Seurat_Obj <- readRDS(file = "./data/NEW_SJCAR_SEURAT_OBJ/CARpos_JCC.rds")
+  
+  ### check whether the orders are the same
+  print(identical(rownames(JCC_Seurat_Obj@meta.data), colnames(JCC_Seurat_Obj@assays$RNA@counts)))
+  print(identical(names(Idents(object = JCC_Seurat_Obj)), rownames(JCC_Seurat_Obj@meta.data)))
+  
+  ### split gmp & pi umap
+  gmp_umap <- Embeddings(final_seurat_obj, reduction = "umap")[rownames(final_seurat_obj@meta.data)[which(final_seurat_obj@meta.data$GMP_PI == "GMP")], 1:2]
+  pi_umap <- Embeddings(final_seurat_obj, reduction = "umap")[rownames(final_seurat_obj@meta.data)[which(final_seurat_obj@meta.data$GMP_PI == "PI")], 1:2]
+  
+  ### draw in 3D
+  shift_x <- 10
+  shift_z <- 5
+  plot_df <- data.frame(x=c(gmp_umap[,1], pi_umap[,1]+shift_x),
+                        y=c(gmp_umap[,2], pi_umap[,2]),
+                        z=c(rep(0, nrow(gmp_umap)), rep(shift_z, nrow(pi_umap))),
+                        cluster=as.character(c(final_seurat_obj@meta.data[rownames(gmp_umap),"clusters"],
+                                               final_seurat_obj@meta.data[rownames(pi_umap),"clusters"])),
+                        clone=as.character(c(final_seurat_obj@meta.data[rownames(gmp_umap),"clonotype_id_by_patient_one_alpha_beta"],
+                                             final_seurat_obj@meta.data[rownames(pi_umap),"clonotype_id_by_patient_one_alpha_beta"])),
+                        color=c(rep("red", nrow(gmp_umap)), rep("blue", nrow(pi_umap))),
+                        gmp_pi=c(rep("GMP", nrow(gmp_umap)), rep("PI", nrow(pi_umap))),
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  plot_df$color <- color_scale[as.character(plot_df$cluster)]
+  rownames(plot_df) <- c(rownames(gmp_umap), rownames(pi_umap))
+  
+  ### find connections between GMP & PI
+  gmp_pi_connection_clones <- intersect(final_seurat_obj@meta.data[rownames(gmp_umap),"clonotype_id_by_patient_one_alpha_beta"],
+                                        final_seurat_obj@meta.data[rownames(pi_umap),"clonotype_id_by_patient_one_alpha_beta"])
+  gmp_pi_connection_clones <- gmp_pi_connection_clones[which(!is.na(gmp_pi_connection_clones))]
   
   
   
