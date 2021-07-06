@@ -8968,31 +8968,129 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   print(identical(rownames(JCC_Seurat_Obj@meta.data), colnames(JCC_Seurat_Obj@assays$RNA@counts)))
   print(identical(names(Idents(object = JCC_Seurat_Obj)), rownames(JCC_Seurat_Obj@meta.data)))
   
-  ### split gmp & pi umap
-  gmp_umap <- Embeddings(final_seurat_obj, reduction = "umap")[rownames(final_seurat_obj@meta.data)[which(final_seurat_obj@meta.data$GMP_PI == "GMP")], 1:2]
-  pi_umap <- Embeddings(final_seurat_obj, reduction = "umap")[rownames(final_seurat_obj@meta.data)[which(final_seurat_obj@meta.data$GMP_PI == "PI")], 1:2]
+  ### PI subsisters in the cluster3&8
+  cluster3_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                   which(JCC_Seurat_Obj$AllSeuratClusters == "3")),
+                                                                         which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]
+  cluster8_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                   which(JCC_Seurat_Obj$AllSeuratClusters == "8")),
+                                                                         which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]
+  cluster38_pi_subsisters <- c(cluster3_pi_subsisters, cluster8_pi_subsisters)
+  
+  ### PI subsister clones in the cluster3&8
+  cluster3_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster3_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
+  cluster8_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster8_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
+  cluster38_pi_subsister_clones <- unique(c(cluster3_pi_subsister_clones, cluster8_pi_subsister_clones))
+  
+  ### remove NA clones
+  cluster3_pi_subsister_clones <- cluster3_pi_subsister_clones[which(!is.na(cluster3_pi_subsister_clones))]
+  cluster8_pi_subsister_clones <- cluster8_pi_subsister_clones[which(!is.na(cluster8_pi_subsister_clones))]
+  cluster38_pi_subsister_clones <- cluster38_pi_subsister_clones[which(!is.na(cluster38_pi_subsister_clones))]
+  
+  ### get the GMP subsister indicies that end up in PI cluster 3 & 8
+  GMP_Subsisters_PI_Cluster38_idx <- intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                               which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% cluster38_pi_subsister_clones))
+  
+  ### add a column for the info
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 <- "Others"
+  JCC_Seurat_Obj@meta.data[cluster38_pi_subsisters, "GMP_Subsisters_End_Up_In_Cluster38"] <- "PI_Subsisters_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38[GMP_Subsisters_PI_Cluster38_idx] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38[intersect(which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "Others"),
+                                                              which(JCC_Seurat_Obj$GMP_CARpos_Persister == "YES"))] <- "Other_GMP_Subsisters"
+  
+  ### split it to 2 planes (but the planes themselves have both GMP & PI cells)
+  gmp_umap <- Embeddings(JCC_Seurat_Obj, reduction = "umap")[,1:2]
+  pi_umap <- Embeddings(JCC_Seurat_Obj, reduction = "umap")[,1:2]
+  
+  ### color generation for the clusters
+  gg_color_hue <- function(n) {
+    hues = seq(15, 375, length = n + 1)
+    hcl(h = hues, l = 65, c = 100)[1:n]
+  }
+  color_scale <- gg_color_hue(length(levels(JCC_Seurat_Obj$AllSeuratClusters)))
+  names(color_scale) <- levels(JCC_Seurat_Obj$AllSeuratClusters)
+  show_col(color_scale)
   
   ### draw in 3D
-  shift_x <- 10
+  shift_x <- 20
   shift_z <- 5
   plot_df <- data.frame(x=c(gmp_umap[,1], pi_umap[,1]+shift_x),
                         y=c(gmp_umap[,2], pi_umap[,2]),
                         z=c(rep(0, nrow(gmp_umap)), rep(shift_z, nrow(pi_umap))),
-                        cluster=as.character(c(final_seurat_obj@meta.data[rownames(gmp_umap),"clusters"],
-                                               final_seurat_obj@meta.data[rownames(pi_umap),"clusters"])),
-                        clone=as.character(c(final_seurat_obj@meta.data[rownames(gmp_umap),"clonotype_id_by_patient_one_alpha_beta"],
-                                             final_seurat_obj@meta.data[rownames(pi_umap),"clonotype_id_by_patient_one_alpha_beta"])),
+                        cluster=as.character(c(JCC_Seurat_Obj@meta.data[rownames(gmp_umap),"AllSeuratClusters"],
+                                               JCC_Seurat_Obj@meta.data[rownames(pi_umap),"AllSeuratClusters"])),
+                        clone=as.character(c(JCC_Seurat_Obj@meta.data[rownames(gmp_umap),"clonotype_id_by_patient_one_alpha_beta"],
+                                             JCC_Seurat_Obj@meta.data[rownames(pi_umap),"clonotype_id_by_patient_one_alpha_beta"])),
                         color=c(rep("red", nrow(gmp_umap)), rep("blue", nrow(pi_umap))),
-                        gmp_pi=c(rep("GMP", nrow(gmp_umap)), rep("PI", nrow(pi_umap))),
+                        plane_no=c(rep("1", nrow(gmp_umap)), rep("2", nrow(pi_umap))),
+                        gmp_pi=c(JCC_Seurat_Obj$GMP, JCC_Seurat_Obj$GMP),
                         stringsAsFactors = FALSE, check.names = FALSE)
   plot_df$color <- color_scale[as.character(plot_df$cluster)]
-  rownames(plot_df) <- c(rownames(gmp_umap), rownames(pi_umap))
+  rownames(plot_df) <- c(paste0(rownames(gmp_umap), "_1"), paste0(rownames(pi_umap), "_2"))
   
-  ### find connections between GMP & PI
-  gmp_pi_connection_clones <- intersect(final_seurat_obj@meta.data[rownames(gmp_umap),"clonotype_id_by_patient_one_alpha_beta"],
-                                        final_seurat_obj@meta.data[rownames(pi_umap),"clonotype_id_by_patient_one_alpha_beta"])
-  gmp_pi_connection_clones <- gmp_pi_connection_clones[which(!is.na(gmp_pi_connection_clones))]
+  ### [GMP Subsisters end up in the cluster 3 & 8 (tracing the PI subsisters in the cluster 3 & 8 back to GMP)] and [Other GMP subsisters]
+  gmp_subsisters_38_name <- rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")]
+  pi_subsisters_38_name <- rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "PI_Subsisters_In_Cluster_3_And_8")]
+  other_subsisters_name <- rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "Other_GMP_Subsisters")]
   
+  ### color the specific dots
+  plot_df[paste0(gmp_subsisters_38_name, "_1"), "color"] <- "red"
+  plot_df[paste0(pi_subsisters_38_name, "_2"), "color"] <- "yellow"
+  plot_df[paste0(other_subsisters_name, "_1"), "color"] <- "blue"
+  
+  ### arrow
+  plot_df2 <- data.frame(x0 = plot_df[gmp_subsisters_name, "x"],
+                         y0 = plot_df[gmp_subsisters_name, "y"],
+                         z0 = plot_df[gmp_subsisters_name, "z"]-0.1,
+                         x1 = plot_df[pi_subsisters_name, "x"],
+                         y1 = plot_df[pi_subsisters_name, "y"],
+                         z1 = plot_df[pi_subsisters_name, "z"]+0.1,
+                         stringsAsFactors = FALSE, check.names = FALSE)
+  set.seed(1234)
+  plot_df2 <- plot_df2[sample(nrow(plot_df2), 5),]
+  plot_df2$color <- c(rep("black", 3), rep("black", 2))
+  
+  ### plot_df ordering based on color
+  plot_df <- plot_df[c(which(!(plot_df$color %in% c("red", "yellow", "blue"))),
+                       which(plot_df$color %in% c("red", "yellow", "blue"))),]
+  
+  ### 2D
+  png(filename = paste0(outputDir2, "/", "MNN_UMAP_CARpos_GMP_PI_38_Mapping_2D.png"), width = 2800, height = 1500, res = 350)
+  plot(plot_df$x, plot_df$y, col = plot_df$color, pch = 19,
+       xlab = "UMAP1", ylab = "UMAP2")
+  title("GMP-PI MNN-UMAP in 2D", adj = 0)
+  legend("topright", horiz = FALSE,
+         legend = c("GMP_Subsisters_End_Up_In_Cluster_3_And_8",
+                    "PI_Subsisters_In_Cluster_3_And_8",
+                    "Other_GMP_Subsisters"),
+         col = c("red", "yellow", "blue"),
+         pch = 19, cex = 0.8, xpd = TRUE,
+         x.intersp = 0.5,
+         inset = c(-0.05, -0.3))
+  dev.off()
+  
+  ### 3D
+  png(filename = paste0(outputDir2, "/", "MNN_UMAP_CARpos_GMP_PI_38_Mapping_3D.png"), width = 2000, height = 1500, res = 350)
+  scatter3D(plot_df$x, plot_df$y, plot_df$z,
+            colvar = NULL,
+            col = plot_df$color,
+            pch = 19,  theta = 0, phi = 0,
+            main = "GMP-PI MNN-UMAP IN 3D", xlab = "UMAP1",
+            ylab ="UMAP2", zlab = "",
+            colkey = FALSE, bty = "n")
+  arrows3D(plot_df2$x0, plot_df2$y0, plot_df2$z0,
+           plot_df2$x1, plot_df2$y1, plot_df2$z1,
+           colvar = NULL, col = plot_df2$color,
+           lwd = 1, d = 1,
+           main = "", ticktype = "simple",
+           add = TRUE, bty = "n")
+  dev.off()
+  
+  ### make it interactive
+  plotrgl(lighting = TRUE, smooth = TRUE)
+  htmlwidgets::saveWidget(rglwidget(width = 1200, height = 1200), 
+                          file = paste0(outputDir2, "MNN_UMAP_CARpos_GMP_PI_38_Mapping_3D_INTERACTIVE.html"),
+                          selfcontained = TRUE)
   
   
   
