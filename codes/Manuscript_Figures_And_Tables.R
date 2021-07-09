@@ -51,7 +51,8 @@
 #               29. tracking those subsisters in cluster 3 & 8 back to GMP.
 #                   figuring out those subsisters in GMP and where they exist?
 #                   differences between those subsisters and the other GMP subsisters or even vs. everything else
-#               30. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#               30. 07/07/2021 - Fig2. C & E - graphs of cluster make-up: GMP vs PI & CD4 vs CD8
+#               31. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -10093,15 +10094,260 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(paste0(outputDir2, "UMAP_CARpos_CD4_CD8_by_EXP.png"), plot = p, width = 13, height = 10, dpi = 350)
   
   
-  
-  
-  
   #
-  ### 30. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 30. 07/07/2021 - Fig2. C & E - graphs of cluster make-up: GMP vs PI & CD4 vs CD8
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/30/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### load Jeremy's object
+  JCC_Seurat_Obj <- readRDS(file = "./data/NEW_SJCAR_SEURAT_OBJ/CARpos_JCC.rds")
+  
+  ### check whether the orders are the same
+  print(identical(rownames(JCC_Seurat_Obj@meta.data), colnames(JCC_Seurat_Obj@assays$RNA@counts)))
+  print(identical(names(Idents(object = JCC_Seurat_Obj)), rownames(JCC_Seurat_Obj@meta.data)))
+  
+  ### draw a UMAP to confirm that the UMAP I see is the same as his
+  DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+          group.by = "tissue",
+          order = c("BM", "PB", "GMP"),
+          pt.size = 1)
+  
+  ### CD4/CD8 annotation
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters <- "NA"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "2", "9", "10", "11", "14", "15", "18"))] <- "CD4"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20"))] <- "CD8"
+  
+  ### draw a stacked bar chart to show the percentage of CD4/CD8 in each cluster
+  plot_df <- data.frame(Cluster=as.character(sapply(levels(JCC_Seurat_Obj$AllSeuratClusters), function(x) rep(x, length(unique(JCC_Seurat_Obj$CD4_CD8_by_Clusters))))),
+                        CD4_CD8=rep(unique(JCC_Seurat_Obj$CD4_CD8_by_Clusters), length(levels(JCC_Seurat_Obj$AllSeuratClusters))),
+                        Numbers=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### calculate numbers
+  cnt <- 1
+  for(clstr in levels(JCC_Seurat_Obj$AllSeuratClusters)) {
+    for(cd in unique(JCC_Seurat_Obj$CD4_CD8_by_Clusters)) {
+      plot_df$Numbers[cnt] <- length(intersect(which(JCC_Seurat_Obj$AllSeuratClusters == clstr),
+                                               which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == cd)))
+      cnt <- cnt + 1
+    }
+  }
+  
+  ### calculate percentages
+  clstr_sum <- rep(0, length(levels(JCC_Seurat_Obj$AllSeuratClusters)))
+  names(clstr_sum) <- levels(JCC_Seurat_Obj$AllSeuratClusters)
+  for(i in 1:length(levels(JCC_Seurat_Obj$AllSeuratClusters))) {
+    clstr_sum[i] <- sum(plot_df[which(plot_df$Cluster == levels(JCC_Seurat_Obj$AllSeuratClusters)[i]),"Numbers"])
+    plot_df$Pcnt[which(plot_df$Cluster == levels(JCC_Seurat_Obj$AllSeuratClusters)[i])] <- round(plot_df$Numbers[which(plot_df$Cluster == levels(JCC_Seurat_Obj$AllSeuratClusters)[i])] * 100 / clstr_sum[i], 1)
+  }
+  
+  ### remove NaN rows
+  plot_df <- plot_df[which(!is.nan(plot_df$Pcnt)),]
+  
+  ### pcnt < 10 -> ""
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) < 10)] <- ""
+  plot_df$Pcnt <- as.character(plot_df$Pcnt)
+  
+  ### annotate "%"
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) != 0)] <- paste0(plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) != 0)], "%")
+  plot_df$Pcnt[which(plot_df$Pcnt == 0)] <- ""
+  
+  ### factorize the time point & state
+  plot_df$CD4_CD8 <- factor(plot_df$CD4_CD8, levels = unique(plot_df$CD4_CD8))
+  plot_df$Cluster <- factor(plot_df$Cluster, levels = unique(plot_df$Cluster))
+  
+  ### add cluster2 column
+  plot_df$CD4_CD8_2 <- ""
+  plot_df$CD4_CD8_2[which(as.numeric(plot_df$Numbers) != 0)] <- as.character(plot_df$CD4_CD8[which(as.numeric(plot_df$Numbers) != 0)])
+  
+  ### draw a proportional bar plot
+  p <- ggplot(data=plot_df, aes_string(x="Cluster", y="Numbers", fill="CD4_CD8", label="Pcnt")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Proportion of Cells (CD4/CD8)") +
+    xlab("Clusters") + ylab("Cell #") +
+    geom_text(size = 5, position = position_stack(vjust = 0.5), hjust = -1, color = "blue") +
+    geom_text(aes_string(x="Cluster", y="Numbers", label = "CD4_CD8_2"),
+              position = position_stack(vjust = 0.5),
+              size = 6, color = "black") +
+    coord_flip() +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "CARpos_CD4_CD8_Proportions_In_Clusters.png"), plot = p,
+         width = 20, height = 10, dpi = 350)
+  
+  ### Now in the inverted way
+  ### what clusters are in each CD4/CD8
+  
+  ### order the plot_df in a CD4/CD8 - oriented way
+  plot_df <- plot_df[order(plot_df$CD4_CD8),]
+  
+  ### calculate percentages
+  cd4_cd8_sum <- rep(0, length(unique(plot_df$CD4_CD8)))
+  names(cd4_cd8_sum) <- unique(plot_df$CD4_CD8)
+  for(i in 1:length(unique(plot_df$CD4_CD8))) {
+    cd4_cd8_sum[i] <- sum(plot_df[which(plot_df$CD4_CD8 == unique(plot_df$CD4_CD8)[i]),"Numbers"])
+    plot_df$Pcnt[which(plot_df$CD4_CD8 == unique(plot_df$CD4_CD8)[i])] <- round(plot_df$Numbers[which(plot_df$CD4_CD8 == unique(plot_df$CD4_CD8)[i])] * 100 / cd4_cd8_sum[i], 1)
+  }
+  
+  ### remove NaN rows
+  plot_df <- plot_df[which(!is.nan(plot_df$Pcnt)),]
+  
+  # ### pcnt < 5 -> ""
+  # plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) < 5)] <- ""
+  # plot_df$Pcnt <- as.character(plot_df$Pcnt)
+  
+  ### annotate "%"
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) != 0)] <- paste0(plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) != 0)], "%")
+  plot_df$Pcnt[which(plot_df$Pcnt == 0)] <- ""
+  
+  ### factorize the time point & state
+  plot_df$CD4_CD8 <- factor(plot_df$CD4_CD8, levels = unique(plot_df$CD4_CD8))
+  plot_df$Cluster <- factor(plot_df$Cluster, levels = unique(plot_df$Cluster))
+  
+  ### add cluster2 column
+  plot_df$Cluster2 <- ""
+  plot_df$Cluster2[which(as.numeric(plot_df$Numbers) != 0)] <- as.character(plot_df$Cluster[which(as.numeric(plot_df$Numbers) != 0)])
+  
+  ### draw a proportional bar plot
+  p <- ggplot(data=plot_df, aes_string(x="CD4_CD8", y="Numbers", fill="Cluster", label="Pcnt")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Proportion of Cells") +
+    xlab("CD4/CD8") + ylab("Cell #") +
+    geom_text(size = 3.5, position = position_stack(vjust = 0.5), vjust = 3, color = "blue") +
+    geom_text(aes_string(x="CD4_CD8", y="Numbers", label = "Cluster2"),
+              position = position_stack(vjust = 0.5),
+              size = 6, color = "black") +
+    coord_flip() +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "CARpos_Cluster_Proportions_In_CD4_CD8.png"), plot = p,
+         width = 20, height = 10, dpi = 350)
+  
+  
+  ### draw a stacked bar chart to show the percentage of GMP & PI in each cluster
+  plot_df <- data.frame(Cluster=as.character(sapply(levels(JCC_Seurat_Obj$AllSeuratClusters), function(x) rep(x, length(unique(JCC_Seurat_Obj$GMP))))),
+                        GMP_PI=rep(unique(JCC_Seurat_Obj$GMP), length(levels(JCC_Seurat_Obj$AllSeuratClusters))),
+                        Numbers=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### calculate numbers
+  cnt <- 1
+  for(clstr in levels(JCC_Seurat_Obj$AllSeuratClusters)) {
+    for(fctr in unique(JCC_Seurat_Obj$GMP)) {
+      plot_df$Numbers[cnt] <- length(intersect(which(JCC_Seurat_Obj$AllSeuratClusters == clstr),
+                                               which(JCC_Seurat_Obj$GMP == fctr)))
+      cnt <- cnt + 1
+    }
+  }
+  
+  ### calculate percentages
+  clstr_sum <- rep(0, length(levels(JCC_Seurat_Obj$AllSeuratClusters)))
+  names(clstr_sum) <- levels(JCC_Seurat_Obj$AllSeuratClusters)
+  for(i in 1:length(levels(JCC_Seurat_Obj$AllSeuratClusters))) {
+    clstr_sum[i] <- sum(plot_df[which(plot_df$Cluster == levels(JCC_Seurat_Obj$AllSeuratClusters)[i]),"Numbers"])
+    plot_df$Pcnt[which(plot_df$Cluster == levels(JCC_Seurat_Obj$AllSeuratClusters)[i])] <- round(plot_df$Numbers[which(plot_df$Cluster == levels(JCC_Seurat_Obj$AllSeuratClusters)[i])] * 100 / clstr_sum[i], 1)
+  }
+  
+  ### remove NaN rows
+  plot_df <- plot_df[which(!is.nan(plot_df$Pcnt)),]
+  
+  # ### pcnt < 10 -> ""
+  # plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) < 10)] <- ""
+  # plot_df$Pcnt <- as.character(plot_df$Pcnt)
+  
+  ### clstr_sum < 300 -> ""
+  plot_df$Pcnt[which(plot_df$Cluster %in% names(clstr_sum)[which(clstr_sum < 300)])] <- ""
+  plot_df$Pcnt <- as.character(plot_df$Pcnt)
+  
+  ### annotate "%"
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) != 0)] <- paste0(plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) != 0)], "%")
+  plot_df$Pcnt[which(plot_df$Pcnt == 0)] <- ""
+  
+  ### factorize the time point & state
+  plot_df$GMP_PI <- factor(plot_df$GMP_PI, levels = unique(plot_df$GMP_PI))
+  plot_df$Cluster <- factor(plot_df$Cluster, levels = unique(plot_df$Cluster))
+  
+  ### add GMP_PI2 column
+  plot_df$GMP_PI_2 <- ""
+  plot_df$GMP_PI_2[which(as.numeric(plot_df$Numbers) != 0)] <- as.character(plot_df$GMP_PI[which(as.numeric(plot_df$Numbers) != 0)])
+  
+  ### draw a proportional bar plot
+  p <- ggplot(data=plot_df, aes_string(x="Cluster", y="Numbers", fill="GMP_PI", label="Pcnt")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Proportion of Cells (GMP/PI)") +
+    xlab("Clusters") + ylab("Cell #") +
+    geom_text(size = 5, position = position_stack(vjust = 0.5), hjust = 0.5, color = "blue") +
+    coord_flip() +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "CARpos_GMP_PI_Proportions_In_Clusters.png"), plot = p,
+         width = 20, height = 10, dpi = 350)
+  
+  ### Now in the inverted way
+  ### what clusters are in each GMP/PI
+  
+  ### order the plot_df in a GMP/PI - oriented way
+  plot_df <- plot_df[order(plot_df$GMP_PI),]
+  
+  ### calculate percentages
+  gmp_pi_sum <- rep(0, length(unique(plot_df$GMP_PI)))
+  names(gmp_pi_sum) <- unique(plot_df$GMP_PI)
+  for(i in 1:length(unique(plot_df$GMP_PI))) {
+    gmp_pi_sum[i] <- sum(plot_df[which(plot_df$GMP_PI == unique(plot_df$GMP_PI)[i]),"Numbers"])
+    plot_df$Pcnt[which(plot_df$GMP_PI == unique(plot_df$GMP_PI)[i])] <- round(plot_df$Numbers[which(plot_df$GMP_PI == unique(plot_df$GMP_PI)[i])] * 100 / gmp_pi_sum[i], 1)
+  }
+  
+  ### remove NaN rows
+  plot_df <- plot_df[which(!is.nan(plot_df$Pcnt)),]
+  
+  ### pcnt < 5 -> ""
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) < 5)] <- ""
+  plot_df$Pcnt <- as.character(plot_df$Pcnt)
+  
+  ### add cluster2 column
+  plot_df$Cluster2 <- ""
+  plot_df$Cluster2[which(as.numeric(plot_df$Numbers) != 0)] <- as.character(plot_df$Cluster[which(as.numeric(plot_df$Numbers) != 0)])
+  plot_df$Cluster2[which(plot_df$Pcnt == "")] <- ""
+  
+  ### annotate "%"
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) != 0)] <- paste0(plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) != 0)], "%")
+  plot_df$Pcnt[which(plot_df$Pcnt == 0)] <- ""
+  
+  ### factorize the time point & state
+  plot_df$GMP_PI <- factor(plot_df$GMP_PI, levels = unique(plot_df$GMP_PI))
+  plot_df$Cluster <- factor(plot_df$Cluster, levels = unique(plot_df$Cluster))
+  
+  ### draw a proportional bar plot
+  p <- ggplot(data=plot_df, aes_string(x="GMP_PI", y="Numbers", fill="Cluster", label="Pcnt")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Proportion of Cells") +
+    xlab("GMP/PI") + ylab("Cell #") +
+    geom_text(size = 3.5, position = position_stack(vjust = 0.5), vjust = 3, color = "blue") +
+    geom_text(aes_string(x="GMP_PI", y="Numbers", label = "Cluster2"),
+              position = position_stack(vjust = 0.5),
+              size = 6, color = "black") +
+    coord_flip() +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "CARpos_Cluster_Proportions_In_GMP_PI.png"), plot = p,
+         width = 20, height = 10, dpi = 350)
+  
+  
+  #
+  ### 31. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/31/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
