@@ -10093,6 +10093,189 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
   ggsave(paste0(outputDir2, "UMAP_CARpos_CD4_CD8_by_EXP.png"), plot = p, width = 13, height = 10, dpi = 350)
   
+  ### overlay two UMAPs - pre-settings
+  JCC_Seurat_Obj$ALL_CARpos_Persister2 <- JCC_Seurat_Obj$ALL_CARpos_Persister
+  JCC_Seurat_Obj$ALL_CARpos_Persister2[which(is.na(JCC_Seurat_Obj$ALL_CARpos_Persister2))] <- "NO"
+  DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+          group.by = "AllSeuratClusters", label = TRUE,
+          pt.size = 0.5)
+  DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+          group.by = "ALL_CARpos_Persister2",
+          cols = c("YES" = "red", "NO" = "lightgray"),
+          order = c("YES", "NO"),
+          pt.size = 1)
+  DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+          group.by = "time2", label = TRUE,
+          pt.size = 1)
+  
+  ### color generation for the clusters
+  gg_color_hue <- function(n) {
+    hues = seq(15, 375, length = n + 1)
+    hcl(h = hues, l = 65, c = 100)[1:n]
+  }
+  color_scale <- gg_color_hue(length(levels(JCC_Seurat_Obj$AllSeuratClusters)))
+  names(color_scale) <- levels(JCC_Seurat_Obj$AllSeuratClusters)
+  show_col(color_scale)
+  
+  ### overlay two UMAPs - Seurat clusters & Subsisters (black)
+  JCC_Seurat_Obj$Seurat_Clusters_Subsisters <- as.character(JCC_Seurat_Obj$AllSeuratClusters)
+  JCC_Seurat_Obj$Seurat_Clusters_Subsisters[which(JCC_Seurat_Obj$ALL_CARpos_Persister2 == "YES")] <- "Subsisters"
+  
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = FALSE,
+               group.by = "Seurat_Clusters_Subsisters",
+               pt.size = 1,
+               cols = c("Subsisters" = "black", color_scale),
+               order = c("Subsisters", levels(JCC_Seurat_Obj$AllSeuratClusters))) +
+    ggtitle("") +
+    labs(color="") +
+    theme_classic(base_size = 48) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_text(size = 48),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 24),
+          legend.text = element_text(size = 24))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_In_Clusters.png"), plot = p, width = 13, height = 10, dpi = 350)
+  
+  ### UMAP: Non-Subsisters - lightgray, subsisters colored based on time
+  JCC_Seurat_Obj$Seurat_Clusters_Subsisters2 <- JCC_Seurat_Obj$ALL_CARpos_Persister2
+  JCC_Seurat_Obj$Seurat_Clusters_Subsisters2[which(JCC_Seurat_Obj$Seurat_Clusters_Subsisters2 == "YES")] <- JCC_Seurat_Obj$time2[which(JCC_Seurat_Obj$Seurat_Clusters_Subsisters2 == "YES")]
+  JCC_Seurat_Obj$Seurat_Clusters_Subsisters2[which(JCC_Seurat_Obj$Seurat_Clusters_Subsisters2 == "NO")] <- "Non-Subsisters"
+  
+  color_scale <- gg_color_hue(length(unique(JCC_Seurat_Obj$time2)))
+  names(color_scale) <- unique(JCC_Seurat_Obj$time2)
+  
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = FALSE,
+               group.by = "Seurat_Clusters_Subsisters2",
+               pt.size = 3,
+               cols = c("Non-Subsisters" = "lightgray", color_scale),
+               order = rev(unique(JCC_Seurat_Obj$Seurat_Clusters_Subsisters2))) +
+    ggtitle("") +
+    labs(color="") +
+    theme_classic(base_size = 48) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_text(size = 48),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 24),
+          legend.text = element_text(size = 24))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.8
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### arrow data frame
+  gmp_subsisters_clones <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                                                                  which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))])
+  pi_subsister_clones <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                                which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))])
+  print(identical(gmp_subsisters_clones[order(gmp_subsisters_clones)], pi_subsister_clones[order(pi_subsister_clones)]))
+  
+  arrow_df <- data.frame(x1=0,
+                         y1=0,
+                         x2=0,
+                         y2=0,
+                         stringsAsFactors = FALSE, check.names = FALSE)
+  umap_map <- Embeddings(JCC_Seurat_Obj, reduction = "umap")[rownames(JCC_Seurat_Obj@meta.data), 1:2]
+  print(identical(rownames(umap_map), rownames(JCC_Seurat_Obj@meta.data)))
+  cnt <- 1
+  for(i in 1:length(gmp_subsisters_clones)) {
+    target_indicies <- which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == gmp_subsisters_clones[i])
+    existing_time <- unique(JCC_Seurat_Obj$time2[target_indicies])
+    for(j in 1:(length(existing_time)-1)) {
+      target_indicies2 <- intersect(target_indicies,
+                                    which(JCC_Seurat_Obj$time2 == existing_time[j]))
+      arrow_df <- rbind(arrow_df, c(0, 0, 0, 0))
+      arrow_df$x1[cnt] <- mean(umap_map[target_indicies2,
+                                        "UMAP_1"])
+      arrow_df$y1[cnt] <- mean(umap_map[target_indicies2,
+                                        "UMAP_2"])
+      target_indicies2 <- intersect(target_indicies,
+                                    which(JCC_Seurat_Obj$time2 == existing_time[j+1]))
+      arrow_df$x2[cnt] <- mean(umap_map[target_indicies2,
+                                        "UMAP_1"])
+      arrow_df$y2[cnt] <- mean(umap_map[target_indicies2,
+                                        "UMAP_2"])
+      cnt <- cnt + 1
+    }
+  }
+  arrow_df <- arrow_df[-nrow(arrow_df),]
+  
+  ### add arrows to the previous UMAP
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = FALSE,
+          group.by = "Seurat_Clusters_Subsisters2",
+          pt.size = 3,
+          cols = c("Non-Subsisters" = "lightgray", color_scale),
+          order = rev(unique(JCC_Seurat_Obj$Seurat_Clusters_Subsisters2))) +
+    ggtitle("") +
+    labs(color="") +
+    theme_classic(base_size = 48) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_text(size = 48),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 24),
+          legend.text = element_text(size = 24)) +
+    geom_curve(
+      aes(x = x1, y = y1, xend = x2, yend = y2),
+      data = arrow_df,
+      arrow = arrow(length = unit(0.03, "npc"))
+    )
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### remove 'FROM GMP' arrows
+  arrow_df <- data.frame(x1=0,
+                         y1=0,
+                         x2=0,
+                         y2=0,
+                         stringsAsFactors = FALSE, check.names = FALSE)
+  cnt <- 1
+  for(i in 1:length(gmp_subsisters_clones)) {
+    target_indicies <- which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == gmp_subsisters_clones[i])
+    existing_time <- unique(JCC_Seurat_Obj$time2[target_indicies])
+    for(j in 1:(length(existing_time)-1)) {
+      if(existing_time[j] != "GMP") {
+        target_indicies2 <- intersect(target_indicies,
+                                      which(JCC_Seurat_Obj$time2 == existing_time[j]))
+        arrow_df <- rbind(arrow_df, c(0, 0, 0, 0))
+        arrow_df$x1[cnt] <- mean(umap_map[target_indicies2,
+                                          "UMAP_1"])
+        arrow_df$y1[cnt] <- mean(umap_map[target_indicies2,
+                                          "UMAP_2"])
+        target_indicies2 <- intersect(target_indicies,
+                                      which(JCC_Seurat_Obj$time2 == existing_time[j+1]))
+        arrow_df$x2[cnt] <- mean(umap_map[target_indicies2,
+                                          "UMAP_1"])
+        arrow_df$y2[cnt] <- mean(umap_map[target_indicies2,
+                                          "UMAP_2"])
+        cnt <- cnt + 1
+      }
+    }
+  }
+  arrow_df <- arrow_df[-nrow(arrow_df),]
+  
+  ### add arrows to the previous UMAP - no GMP
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = FALSE,
+               group.by = "Seurat_Clusters_Subsisters2",
+               pt.size = 3,
+               cols = c("Non-Subsisters" = "lightgray", color_scale),
+               order = rev(unique(JCC_Seurat_Obj$Seurat_Clusters_Subsisters2))) +
+    ggtitle("") +
+    labs(color="") +
+    theme_classic(base_size = 48) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_text(size = 48),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 24),
+          legend.text = element_text(size = 24)) +
+    geom_curve(
+      aes(x = x1, y = y1, xend = x2, yend = y2),
+      data = arrow_df,
+      arrow = arrow(length = unit(0.03, "npc"))
+    )
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow_PI_ONLY.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  
   
   #
   ### 30. 07/07/2021 - Fig2. C & E - graphs of cluster make-up: GMP vs PI & CD4 vs CD8
