@@ -10275,6 +10275,111 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     )
   ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow_PI_ONLY.png"), plot = p, width = 15, height = 10, dpi = 350)
   
+  ### those that have at least two PI time points in the lineage
+  arrow_df <- data.frame(x1=0,
+                         y1=0,
+                         x2=0,
+                         y2=0,
+                         stringsAsFactors = FALSE, check.names = FALSE)
+  cnt <- 1
+  for(i in 1:length(gmp_subsisters_clones)) {
+    target_indicies <- which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == gmp_subsisters_clones[i])
+    existing_time <- unique(JCC_Seurat_Obj$time2[target_indicies])
+    if(length(existing_time) > 2) {
+      for(j in 1:(length(existing_time)-1)) {
+        target_indicies2 <- intersect(target_indicies,
+                                      which(JCC_Seurat_Obj$time2 == existing_time[j]))
+        arrow_df <- rbind(arrow_df, c(0, 0, 0, 0))
+        arrow_df$x1[cnt] <- mean(umap_map[target_indicies2,
+                                          "UMAP_1"])
+        arrow_df$y1[cnt] <- mean(umap_map[target_indicies2,
+                                          "UMAP_2"])
+        target_indicies2 <- intersect(target_indicies,
+                                      which(JCC_Seurat_Obj$time2 == existing_time[j+1]))
+        arrow_df$x2[cnt] <- mean(umap_map[target_indicies2,
+                                          "UMAP_1"])
+        arrow_df$y2[cnt] <- mean(umap_map[target_indicies2,
+                                          "UMAP_2"])
+        cnt <- cnt + 1
+      }
+    }
+  }
+  arrow_df <- arrow_df[-nrow(arrow_df),]
+  
+  ### add arrows to the previous UMAP - those that have at least two PI time points in the lineage
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = FALSE,
+               group.by = "Seurat_Clusters_Subsisters2",
+               pt.size = 3,
+               cols = c("Non-Subsisters" = "lightgray", color_scale),
+               order = rev(unique(JCC_Seurat_Obj$Seurat_Clusters_Subsisters2))) +
+    ggtitle("") +
+    labs(color="") +
+    theme_classic(base_size = 48) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_text(size = 48),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 24),
+          legend.text = element_text(size = 24)) +
+    geom_curve(
+      aes(x = x1, y = y1, xend = x2, yend = y2),
+      data = arrow_df,
+      arrow = arrow(length = unit(0.03, "npc"))
+    )
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow_PI_ONLY_With_GMP.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### those that have at least two PI time points (should include Wk1) in the lineage
+  arrow_df <- data.frame(x1=0,
+                         y1=0,
+                         x2=0,
+                         y2=0,
+                         stringsAsFactors = FALSE, check.names = FALSE)
+  cnt <- 1
+  for(i in 1:length(gmp_subsisters_clones)) {
+    target_indicies <- which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == gmp_subsisters_clones[i])
+    existing_time <- unique(JCC_Seurat_Obj$time2[target_indicies])
+    if(length(existing_time) > 2 && length(which(existing_time %in% c("Wk1")))) {
+      for(j in 1:(length(existing_time)-1)) {
+        target_indicies2 <- intersect(target_indicies,
+                                      which(JCC_Seurat_Obj$time2 == existing_time[j]))
+        arrow_df <- rbind(arrow_df, c(0, 0, 0, 0))
+        arrow_df$x1[cnt] <- mean(umap_map[target_indicies2,
+                                          "UMAP_1"])
+        arrow_df$y1[cnt] <- mean(umap_map[target_indicies2,
+                                          "UMAP_2"])
+        target_indicies2 <- intersect(target_indicies,
+                                      which(JCC_Seurat_Obj$time2 == existing_time[j+1]))
+        arrow_df$x2[cnt] <- mean(umap_map[target_indicies2,
+                                          "UMAP_1"])
+        arrow_df$y2[cnt] <- mean(umap_map[target_indicies2,
+                                          "UMAP_2"])
+        cnt <- cnt + 1
+      }
+    }
+  }
+  arrow_df <- arrow_df[-nrow(arrow_df),]
+  
+  ### add arrows to the previous UMAP - those that have at least two PI time points (should include Wk1) in the lineage
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = FALSE,
+               group.by = "Seurat_Clusters_Subsisters2",
+               pt.size = 3,
+               cols = c("Non-Subsisters" = "lightgray", color_scale),
+               order = rev(unique(JCC_Seurat_Obj$Seurat_Clusters_Subsisters2))) +
+    ggtitle("") +
+    labs(color="") +
+    theme_classic(base_size = 48) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_text(size = 48),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 24),
+          legend.text = element_text(size = 24)) +
+    geom_curve(
+      aes(x = x1, y = y1, xend = x2, yend = y2),
+      data = arrow_df,
+      arrow = arrow(length = unit(0.03, "npc"))
+    )
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow_PI_ONLY_With_GMP_Wk1.png"), plot = p, width = 15, height = 10, dpi = 350)
   
   
   #
