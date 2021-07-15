@@ -52,7 +52,8 @@
 #                   figuring out those subsisters in GMP and where they exist?
 #                   differences between those subsisters and the other GMP subsisters or even vs. everything else
 #               30. 07/07/2021 - Fig2. C & E - graphs of cluster make-up: GMP vs PI & CD4 vs CD8
-#               31. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#               31. TIGIT, CD62L (SELL), CD27 - CAR+ and CAR+ CD8 cell percentage
+#               32. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -10629,13 +10630,176 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(file = paste0(outputDir2, "CARpos_Cluster_Proportions_In_GMP_PI.png"), plot = p,
          width = 20, height = 10, dpi = 350)
   
-  
   #
-  ### 31. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 31. TIGIT, CD62L (SELL), CD27 - CAR+ and CAR+ CD8 cell percentage
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/31/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### CD4/CD8 annotation
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters <- "NA"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "2", "9", "10", "11", "14", "15", "18"))] <- "CD4"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20"))] <- "CD8"
+  
+  ### remember that this is Px11 only
+  px11_gmp_index <- intersect(which(JCC_Seurat_Obj$px == "SJCAR19-11"),
+                              which(JCC_Seurat_Obj$GMP == "GMP"))
+  
+  ### what is the threshold for positive & negative?
+  ### draw a density of the 3 gene signatures
+  ### and 2D dot plots - 3 x 3 multi-dimensional
+  png(filename = paste0(outputDir2, "Density_TIGIT_Px11_GMP.png"), width = 2500, height = 1500, res = 350)
+  plot(density(JCC_Seurat_Obj@assays$RNA@counts["TIGIT",px11_gmp_index]), main = "TIGIT EXP")
+  dev.off()
+  
+  png(filename = paste0(outputDir2, "Density_SELL_Px11_GMP.png"), width = 2500, height = 1500, res = 350)
+  plot(density(JCC_Seurat_Obj@assays$RNA@counts["SELL",px11_gmp_index]), main = "SELL EXP")
+  dev.off()
+  
+  png(filename = paste0(outputDir2, "Density_CD27_Px11_GMP.png"), width = 2500, height = 1500, res = 350)
+  plot(density(JCC_Seurat_Obj@assays$RNA@counts["CD27",px11_gmp_index]), main = "CD27 EXP")
+  dev.off()
+  
+  print(identical(rownames(JCC_Seurat_Obj@meta.data), colnames(JCC_Seurat_Obj@assays$RNA@counts)))
+  
+  ### make a data frame with the 3 gene expressions
+  plot_df <- data.frame(Cell=colnames(JCC_Seurat_Obj@assays$RNA@counts)[px11_gmp_index],
+                        CAR=JCC_Seurat_Obj$CAR[px11_gmp_index],
+                        CD4_CD8=JCC_Seurat_Obj$CD4_CD8_by_Clusters[px11_gmp_index],
+                        TIGIT=JCC_Seurat_Obj@assays$RNA@counts["TIGIT",px11_gmp_index],
+                        SELL=JCC_Seurat_Obj@assays$RNA@counts["SELL",px11_gmp_index],
+                        CD27=JCC_Seurat_Obj@assays$RNA@counts["CD27",px11_gmp_index],
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### make a correlation plot with the 3 gene exps
+  png(filename = paste0(outputDir2, "Correlation_Between_Gene_Signatures_Px11_GMP.png"), width = 2500, height = 1500, res = 350)
+  pairs(data=plot_df,
+        ~TIGIT + SELL + CD27,
+        pch = 19)
+  dev.off()
+  
+  ### pre-calculated nums
+  carpos_num <- length(intersect(px11_gmp_index,
+                                 which(JCC_Seurat_Obj$CAR == "CARpos")))
+  cd8_num <- length(intersect(px11_gmp_index,
+                              which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))
+  carpos_cd8_num <- length(intersect(px11_gmp_index,
+                                     intersect(which(JCC_Seurat_Obj$CAR == "CARpos"),
+                                               which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"))))
+  
+  ### negative: exp = 0, positive: exp > 0 (SELL EXP > 2)
+  result_df <- data.frame(matrix(0, nrow = 3, ncol = 6),
+                          stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(result_df) <- c("%_CAR+", "%_CD8+", "%_CAR+_CD8+")
+  colnames(result_df) <- c("TIGIT+", "SELL+", "CD27+", "TIGIT-", "SELL+_CD27+", "SELL-_CD27-")
+  
+  result_df["%_CAR+", "TIGIT+"] <- length(intersect(which(JCC_Seurat_Obj$CAR == "CARpos"),
+                                                    intersect(px11_gmp_index,
+                                                              which(JCC_Seurat_Obj@assays$RNA@counts["TIGIT",] > 0)))) / carpos_num
+  result_df["%_CD8+", "TIGIT+"] <- length(intersect(which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"),
+                                                    intersect(px11_gmp_index,
+                                                              which(JCC_Seurat_Obj@assays$RNA@counts["TIGIT",] > 0)))) / cd8_num
+  result_df["%_CAR+_CD8+", "TIGIT+"] <- length(intersect(intersect(which(JCC_Seurat_Obj$CAR == "CARpos"),
+                                                                   which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")),
+                                                         intersect(px11_gmp_index,
+                                                                   which(JCC_Seurat_Obj@assays$RNA@counts["TIGIT",] > 0)))) / carpos_cd8_num
+  
+  result_df["%_CAR+", "TIGIT-"] <- length(intersect(which(JCC_Seurat_Obj$CAR == "CARpos"),
+                                                    intersect(px11_gmp_index,
+                                                              which(JCC_Seurat_Obj@assays$RNA@counts["TIGIT",] == 0)))) / carpos_num
+  result_df["%_CD8+", "TIGIT-"] <- length(intersect(which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"),
+                                                    intersect(px11_gmp_index,
+                                                              which(JCC_Seurat_Obj@assays$RNA@counts["TIGIT",] == 0)))) / cd8_num
+  result_df["%_CAR+_CD8+", "TIGIT-"] <- length(intersect(intersect(which(JCC_Seurat_Obj$CAR == "CARpos"),
+                                                                   which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")),
+                                                         intersect(px11_gmp_index,
+                                                                   which(JCC_Seurat_Obj@assays$RNA@counts["TIGIT",] == 0)))) / carpos_cd8_num
+  
+  result_df["%_CAR+", "SELL+"] <- length(intersect(which(JCC_Seurat_Obj$CAR == "CARpos"),
+                                                   intersect(px11_gmp_index,
+                                                             which(JCC_Seurat_Obj@assays$RNA@counts["SELL",] > 2)))) / carpos_num
+  result_df["%_CD8+", "SELL+"] <- length(intersect(which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"),
+                                                   intersect(px11_gmp_index,
+                                                             which(JCC_Seurat_Obj@assays$RNA@counts["SELL",] > 2)))) / cd8_num
+  result_df["%_CAR+_CD8+", "SELL+"] <- length(intersect(intersect(which(JCC_Seurat_Obj$CAR == "CARpos"),
+                                                                  which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")),
+                                                        intersect(px11_gmp_index,
+                                                                  which(JCC_Seurat_Obj@assays$RNA@counts["SELL",] > 2)))) / carpos_cd8_num
+  
+  result_df["%_CAR+", "CD27+"] <- length(intersect(which(JCC_Seurat_Obj$CAR == "CARpos"),
+                                                   intersect(px11_gmp_index,
+                                                             which(JCC_Seurat_Obj@assays$RNA@counts["CD27",] > 0)))) / carpos_num
+  result_df["%_CD8+", "CD27+"] <- length(intersect(which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"),
+                                                   intersect(px11_gmp_index,
+                                                             which(JCC_Seurat_Obj@assays$RNA@counts["CD27",] > 0)))) / cd8_num
+  result_df["%_CAR+_CD8+", "CD27+"] <- length(intersect(intersect(which(JCC_Seurat_Obj$CAR == "CARpos"),
+                                                                  which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")),
+                                                        intersect(px11_gmp_index,
+                                                                  which(JCC_Seurat_Obj@assays$RNA@counts["CD27",] > 0)))) / carpos_cd8_num
+  
+  result_df["%_CAR+", "SELL+_CD27+"] <- length(intersect(intersect(which(JCC_Seurat_Obj$CAR == "CARpos"),
+                                                                   which(JCC_Seurat_Obj@assays$RNA@counts["CD27",] > 0)),
+                                                         intersect(px11_gmp_index,
+                                                                   which(JCC_Seurat_Obj@assays$RNA@counts["SELL",] > 2)))) / carpos_num
+  result_df["%_CD8+", "SELL+_CD27+"] <- length(intersect(intersect(which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"),
+                                                                   which(JCC_Seurat_Obj@assays$RNA@counts["CD27",] > 0)),
+                                                         intersect(px11_gmp_index,
+                                                                   which(JCC_Seurat_Obj@assays$RNA@counts["SELL",] > 2)))) / cd8_num
+  result_df["%_CAR+_CD8+", "SELL+_CD27+"] <- length(intersect(intersect(which(JCC_Seurat_Obj$CAR == "CARpos"),
+                                                                        which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")),
+                                                              intersect(intersect(px11_gmp_index,
+                                                                                  which(JCC_Seurat_Obj@assays$RNA@counts["SELL",] > 2)),
+                                                                        which(JCC_Seurat_Obj@assays$RNA@counts["CD27",] > 0)))) / carpos_cd8_num
+  
+  result_df["%_CAR+", "SELL-_CD27-"] <- length(intersect(intersect(which(JCC_Seurat_Obj$CAR == "CARpos"),
+                                                                   which(JCC_Seurat_Obj@assays$RNA@counts["CD27",] == 0)),
+                                                         intersect(px11_gmp_index,
+                                                                   which(JCC_Seurat_Obj@assays$RNA@counts["SELL",] <= 2)))) / carpos_num
+  result_df["%_CD8+", "SELL-_CD27-"] <- length(intersect(intersect(which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"),
+                                                                   which(JCC_Seurat_Obj@assays$RNA@counts["CD27",] == 0)),
+                                                         intersect(px11_gmp_index,
+                                                                   which(JCC_Seurat_Obj@assays$RNA@counts["SELL",] <= 2)))) / cd8_num
+  result_df["%_CAR+_CD8+", "SELL-_CD27-"] <- length(intersect(intersect(which(JCC_Seurat_Obj$CAR == "CARpos"),
+                                                                        which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")),
+                                                              intersect(intersect(px11_gmp_index,
+                                                                                  which(JCC_Seurat_Obj@assays$RNA@counts["SELL",] <= 2)),
+                                                                        which(JCC_Seurat_Obj@assays$RNA@counts["CD27",] == 0)))) / carpos_cd8_num
+  
+  ### calculate percentage
+  result_df <- round(result_df * 100, 2)
+  
+  ### write out the result_df
+  write.xlsx2(data.frame(Patient11=rownames(result_df),
+                         result_df,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "/Gene_Signature_Cell_Percentages_Px11_GMP.xlsx"),
+              sheetName = "Gene_Signature_Cell_Percentages_Px11_GMP", row.names = FALSE)
+  
+  ### calculate few more things
+  tigit_pos_num <- length(intersect(px11_gmp_index,
+                                    which(JCC_Seurat_Obj@assays$RNA@counts["TIGIT",] > 0)))
+  tigit_neg_num <- length(intersect(px11_gmp_index,
+                                    which(JCC_Seurat_Obj@assays$RNA@counts["TIGIT",] == 0)))
+  
+  length(intersect(intersect(px11_gmp_index,
+                             which(JCC_Seurat_Obj@assays$RNA@counts["TIGIT",] > 0)),
+                   intersect(which(JCC_Seurat_Obj@assays$RNA@counts["SELL",] <= 2),
+                             which(JCC_Seurat_Obj@assays$RNA@counts["CD27",] == 0)))) * 100 / tigit_pos_num
+  
+  length(intersect(intersect(px11_gmp_index,
+                             which(JCC_Seurat_Obj@assays$RNA@counts["TIGIT",] == 0)),
+                   intersect(which(JCC_Seurat_Obj@assays$RNA@counts["SELL",] > 2),
+                             which(JCC_Seurat_Obj@assays$RNA@counts["CD27",] > 0)))) * 100 / tigit_neg_num
+  
+  
+  #
+  ### 32. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/32/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
