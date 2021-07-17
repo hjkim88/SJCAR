@@ -214,6 +214,14 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     install.packages("RColorBrewer")
     require(RColorBrewer, quietly = TRUE)
   }
+  if(!require(wesanderson, quietly = TRUE)) {
+    install.packages("wesanderson")
+    require(wesanderson, quietly = TRUE)
+  }
+  if(!require(dplyr, quietly = TRUE)) {
+    install.packages("dplyr")
+    require(dplyr, quietly = TRUE)
+  }
   
   
   ### create outputDir
@@ -10381,6 +10389,129 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       arrow = arrow(length = unit(0.03, "npc"))
     )
   ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow_PI_ONLY_With_GMP_Wk1.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### are lineage cells in GMP/PI included in the same clusters as well?
+  for(clone in gmp_subsisters_clones) {
+    target_idx <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == clone),
+                            which(JCC_Seurat_Obj$GMP == "GMP"))
+    target_clusters <- unique(JCC_Seurat_Obj$AllSeuratClusters[target_idx])
+    if(length(target_clusters) > 1) {
+      writeLines(paste("This clone cells are not included in the same cluster in GMP:", clone))
+    }
+  }
+  for(clone in pi_subsister_clones) {
+    target_idx <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == clone),
+                            which(JCC_Seurat_Obj$GMP == "PI"))
+    target_clusters <- unique(JCC_Seurat_Obj$AllSeuratClusters[target_idx])
+    if(length(target_clusters) > 1) {
+      writeLines(paste("This clone cells are not included in the same cluster in PI:", clone))
+    }
+  }
+  
+  ### GMP clusters vs PI clusters - how subsister lineages are moving
+  gmp_subsister_idx <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% gmp_subsisters_clones),
+                                 which(JCC_Seurat_Obj$GMP == "GMP"))
+  pi_subsister_idx <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% pi_subsister_clones),
+                                which(JCC_Seurat_Obj$GMP == "PI"))
+  plot_df <- data.frame(GMP_PI=c(rep("GMP", length(gmp_subsister_idx)), rep("PI", length(pi_subsister_idx))),
+                        Cluster=c(JCC_Seurat_Obj@meta.data[gmp_subsister_idx, "AllSeuratClusters"],
+                                  JCC_Seurat_Obj@meta.data[pi_subsister_idx, "AllSeuratClusters"]),
+                        Clone=c(JCC_Seurat_Obj@meta.data[gmp_subsister_idx, "clonotype_id_by_patient_one_alpha_beta"],
+                                JCC_Seurat_Obj@meta.data[pi_subsister_idx, "clonotype_id_by_patient_one_alpha_beta"]),
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  plot_df$Clone_Cluster <- paste0(plot_df$Clone, "_", plot_df$Cluster)
+  plot_df$Clone_Cluster_Size <- 1
+  ### GMP
+  dup_idx <- intersect(which(duplicated(plot_df$Clone_Cluster)),
+                       which(plot_df$GMP_PI == "GMP"))
+  for(i in dup_idx) {
+    target_idx <- intersect(which(plot_df$Clone_Cluster == plot_df$Clone_Cluster[i]),
+                            which(plot_df$GMP_PI == "GMP"))[1]
+    plot_df$Clone_Cluster_Size[target_idx] <- plot_df$Clone_Cluster_Size[target_idx] + 1
+  }
+  plot_df <- plot_df[-dup_idx,]
+  ### PI
+  dup_idx <- intersect(which(duplicated(plot_df$Clone_Cluster)),
+                       which(plot_df$GMP_PI == "PI"))
+  for(i in dup_idx) {
+    target_idx <- intersect(which(plot_df$Clone_Cluster == plot_df$Clone_Cluster[i]),
+                            which(plot_df$GMP_PI == "PI"))[1]
+    plot_df$Clone_Cluster_Size[target_idx] <- plot_df$Clone_Cluster_Size[target_idx] + 1
+  }
+  plot_df <- plot_df[-dup_idx,]
+  
+  ### because it's impossible to draw an alluvial plot based on clones or on cells (due to duplication),
+  ### I will just compute how many lineages in a GMP cluster goes into the PI clusters
+  ### the numbers (y-axis) do not mean the number of cells
+  plot_df2 <- data.frame(GMP_PI="",
+                         Cluster="",
+                         Connection_Identifier="",
+                         Size=1,
+                         stringsAsFactors = FALSE, check.names = FALSE)
+  for(clone in gmp_subsisters_clones) {
+    gmp_target_idx <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == clone),
+                                which(JCC_Seurat_Obj$GMP == "GMP"))
+    gmp_target_clusters <- unique(as.character(JCC_Seurat_Obj$AllSeuratClusters[gmp_target_idx]))
+    pi_target_idx <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == clone),
+                               which(JCC_Seurat_Obj$GMP == "PI"))
+    pi_target_clusters <- unique(as.character(JCC_Seurat_Obj$AllSeuratClusters[pi_target_idx]))
+    
+    for(clstr1 in gmp_target_clusters) {
+      for(clstr2 in pi_target_clusters) {
+        plot_df2 <- rbind(plot_df2,
+                          c("GMP", clstr1, paste0(clstr1, "_", clstr2), 1))
+        plot_df2 <- rbind(plot_df2,
+                          c("PI", clstr2, paste0(clstr1, "_", clstr2), 1))
+      }
+    }
+  }
+  plot_df2 <- plot_df2[-1,]
+  plot_df2$Size <- as.numeric(plot_df2$Size)
+  
+  ### sum up the duplicates
+  nodup_idx <- which(!duplicated(plot_df2))
+  for(i in nodup_idx) {
+    target_idx <- intersect(intersect(which(plot_df2$GMP_PI == plot_df2$GMP_PI[i]),
+                                      which(plot_df2$Cluster == plot_df2$Cluster[i])),
+                            which(plot_df2$Connection_Identifier == plot_df2$Connection_Identifier[i]))
+    plot_df2$Size[i] <- length(target_idx)
+  }
+  plot_df2 <- plot_df2[nodup_idx,]
+  
+  ### Wes Anderson color palette
+  wa_color_scale1 <- wes_palette("GrandBudapest1", length(unique(plot_df2$Cluster)), type = "continuous")
+  show_col(wa_color_scale1)
+  wa_color_scale2 <- wes_palette("GrandBudapest2", length(unique(plot_df2$Cluster)), type = "continuous")
+  show_col(wa_color_scale2)
+  wa_color_scale3 <- wes_palette("Rushmore1", length(unique(plot_df2$Cluster)), type = "continuous")
+  show_col(wa_color_scale3)
+  
+  ### draw an alluvial plot
+  plot_df2$Cluster <- factor(plot_df2$Cluster, levels = levels(JCC_Seurat_Obj$AllSeuratClusters))
+  ggplot(plot_df2,
+         aes(x = GMP_PI, stratum = Cluster, alluvium = Connection_Identifier,
+             y = Size,
+             fill = Cluster, label = Cluster)) +
+    ggtitle("") +
+    ylab("# Unique Lineage") +
+    geom_flow() +
+    geom_stratum(alpha = 1) +
+    geom_label_repel(stat = "stratum", size = 5, show.legend = FALSE) +
+    rotate_x_text(90) +
+    # scale_fill_manual(values = wa_color_scale1) +
+    scale_fill_manual(values = rev(wa_color_scale3)) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+    theme_classic(base_size = 36) +
+    theme(axis.text.x = element_text(size = 30),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 30),
+          legend.position = "right")
+  
+  ### save in two different color palette
+  
+  
+  ### circos plot
+  
   
   
   #
