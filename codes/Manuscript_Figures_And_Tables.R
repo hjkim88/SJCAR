@@ -8972,7 +8972,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   #
   
   ### load Jeremy's object
-  JCC_Seurat_Obj <- readRDS(file = "./data/NEW_SJCAR_SEURAT_OBJ/CARpos_JCC.rds")
+  JCC_Seurat_Obj <- readRDS(file = "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_data/data/NEW_SJCAR_SEURAT_OBJ/CARpos_JCC.rds")
   
   ### check whether the orders are the same
   print(identical(rownames(JCC_Seurat_Obj@meta.data), colnames(JCC_Seurat_Obj@assays$RNA@counts)))
@@ -9114,7 +9114,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### load Jeremy's object
-  JCC_Seurat_Obj <- readRDS(file = "./data/NEW_SJCAR_SEURAT_OBJ/CARpos_JCC.rds")
+  JCC_Seurat_Obj <- readRDS(file = "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_data/data/NEW_SJCAR_SEURAT_OBJ/CARpos_JCC.rds")
   
   ### check whether the orders are the same
   print(identical(rownames(JCC_Seurat_Obj@meta.data), colnames(JCC_Seurat_Obj@assays$RNA@counts)))
@@ -10390,7 +10390,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     )
   ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow_PI_ONLY_With_GMP_Wk1.png"), plot = p, width = 15, height = 10, dpi = 350)
   
+  #
   ### are lineage cells in GMP/PI included in the same clusters as well?
+  #
   for(clone in gmp_subsisters_clones) {
     target_idx <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == clone),
                             which(JCC_Seurat_Obj$GMP == "GMP"))
@@ -10488,7 +10490,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   ### draw an alluvial plot
   plot_df2$Cluster <- factor(plot_df2$Cluster, levels = levels(JCC_Seurat_Obj$AllSeuratClusters))
-  ggplot(plot_df2,
+  p <- ggplot(plot_df2,
          aes(x = GMP_PI, stratum = Cluster, alluvium = Connection_Identifier,
              y = Size,
              fill = Cluster, label = Cluster)) +
@@ -10506,9 +10508,30 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           axis.title.x = element_blank(),
           axis.title.y = element_text(size = 30),
           legend.position = "right")
+  ggsave(file = paste0(outputDir2, "Alluvial_CARpos_Subsisters_Lineages_Between_Clusters_Rushmore.png"), plot = p,
+         width = 15, height = 8, dpi = 350)
   
-  ### save in two different color palette
-  
+  ### save in different color palette
+  p <- ggplot(plot_df2,
+              aes(x = GMP_PI, stratum = Cluster, alluvium = Connection_Identifier,
+                  y = Size,
+                  fill = Cluster, label = Cluster)) +
+    ggtitle("") +
+    ylab("# Unique Lineage") +
+    geom_flow() +
+    geom_stratum(alpha = 1) +
+    geom_label_repel(stat = "stratum", size = 5, show.legend = FALSE) +
+    rotate_x_text(90) +
+    scale_fill_manual(values = wa_color_scale1) +
+    # scale_fill_manual(values = rev(wa_color_scale3)) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+    theme_classic(base_size = 36) +
+    theme(axis.text.x = element_text(size = 30),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 30),
+          legend.position = "right")
+  ggsave(file = paste0(outputDir2, "Alluvial_CARpos_Subsisters_Lineages_Between_Clusters_GrandBudapest.png"), plot = p,
+         width = 15, height = 8, dpi = 350)
   
   ### circos plot
   
@@ -10523,7 +10546,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### load Jeremy's object
-  JCC_Seurat_Obj <- readRDS(file = "./data/NEW_SJCAR_SEURAT_OBJ/CARpos_JCC.rds")
+  JCC_Seurat_Obj <- readRDS(file = "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_data/data/NEW_SJCAR_SEURAT_OBJ/CARpos_JCC.rds")
   
   ### check whether the orders are the same
   print(identical(rownames(JCC_Seurat_Obj@meta.data), colnames(JCC_Seurat_Obj@assays$RNA@counts)))
