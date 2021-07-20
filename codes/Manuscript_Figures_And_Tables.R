@@ -222,6 +222,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     install.packages("dplyr")
     require(dplyr, quietly = TRUE)
   }
+  if(!require(OmicCircos, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("OmicCircos")
+    require(OmicCircos, quietly = TRUE)
+  }
   
   
   ### create outputDir
@@ -10533,7 +10539,42 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(file = paste0(outputDir2, "Alluvial_CARpos_Subsisters_Lineages_Between_Clusters_GrandBudapest.png"), plot = p,
          width = 15, height = 8, dpi = 350)
   
+  #
   ### circos plot
+  #
+  
+  ### set parameters for circos
+  seg.num <- length(levels(JCC_Seurat_Obj$AllSeuratClusters)) * 2
+  sample.num <- sum(plot_df2$Size)
+  seg.name <- rep(levels(JCC_Seurat_Obj$AllSeuratClusters), 2)
+  
+  ### set seg.f
+  seg.f <- matrix("NA",seg.num*sample.num, 5)
+  colnames(seg.f) <- c("seg.name", "seg.start", "seg.end", "the.v", "NO")
+  
+  for(i in 1:seg.num) {
+    for(j in 1:sample.num) {
+      seg.f[(i-1)*sample.num+j,1] <- seg.name[i]
+      seg.f[(i-1)*sample.num+j,2] <- j-1
+      seg.f[(i-1)*sample.num+j,3] <- j
+    }
+  }
+  seg.f <- data.frame(seg.f)
+  
+  ### set seg.v
+  seg.v <- matrix(0,seg.num*sample.num, 5)
+  colnames(seg.v) <- c("seg.name", "sample", "exp_")
+  
+  for(i in 1:seg.num) {
+    for(j in 1:sample.num) {
+      seg.v[(i-1)*sample.num+j,1] <- seg.name[i]
+      seg.v[(i-1)*sample.num+j,2] <- j
+      seg.v[(i-1)*sample.num+j,3] <- exp[rownames(corMat)[i],j]
+    }
+  }
+  
+  seg.v <- data.frame(seg.v)
+  
   
   
   
