@@ -10544,36 +10544,81 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   #
   
   ### set parameters for circos
-  seg.num <- length(levels(JCC_Seurat_Obj$AllSeuratClusters)) * 2
-  sample.num <- sum(plot_df2$Size)
-  seg.name <- rep(levels(JCC_Seurat_Obj$AllSeuratClusters), 2)
+  plot_df$GMP_PI_Cluster <- paste0(plot_df$GMP_PI, "_", plot_df$Cluster)
+  seg.name <- unique(plot_df$GMP_PI_Cluster)
+  seg.name <- factor(seg.name, levels = c(paste0("GMP_", levels(JCC_Seurat_Obj$AllSeuratClusters)),
+                                          paste0("PI_", levels(JCC_Seurat_Obj$AllSeuratClusters))))
+  seg.name <- as.character(seg.name[order(seg.name)])
+  sample.num <- sum(plot_df$Clone_Cluster_Size)
   
   ### set seg.f
-  seg.f <- matrix("NA",seg.num*sample.num, 5)
-  colnames(seg.f) <- c("seg.name", "seg.start", "seg.end", "the.v", "NO")
+  seg.f <- matrix("NA", sample.num, 7)
+  colnames(seg.f) <- c("seg.name", "seg.start", "seg.end", "optional_col1", "optional_col2", "from_to", "clone")
   
-  for(i in 1:seg.num) {
-    for(j in 1:sample.num) {
-      seg.f[(i-1)*sample.num+j,1] <- seg.name[i]
-      seg.f[(i-1)*sample.num+j,2] <- j-1
-      seg.f[(i-1)*sample.num+j,3] <- j
+  seg.f[,"seg.name"] <- unlist(sapply(seg.name, function(x) rep(x, sum(plot_df$Clone_Cluster_Size[which(plot_df$GMP_PI_Cluster == x)]))))
+  
+  for(sn in unique(seg.f[,"seg.name"])) {
+    target_idx <- which(seg.f[,"seg.name"] == sn)
+    for(i in 1:length(target_idx)) {
+      seg.f[target_idx[i],"seg.start"] <- i-1
+      seg.f[target_idx[i],"seg.end"] <- i
     }
   }
   seg.f <- data.frame(seg.f)
   
   ### set seg.v
-  seg.v <- matrix(0,seg.num*sample.num, 5)
-  colnames(seg.v) <- c("seg.name", "sample", "exp_")
+  seg.v <- matrix(0, sample.num, 5)
+  colnames(seg.v) <- c("seg.name", "sample", "exp_TIGIT", "exp_SELL", "exp_CD27")
   
-  for(i in 1:seg.num) {
-    for(j in 1:sample.num) {
-      seg.v[(i-1)*sample.num+j,1] <- seg.name[i]
-      seg.v[(i-1)*sample.num+j,2] <- j
-      seg.v[(i-1)*sample.num+j,3] <- exp[rownames(corMat)[i],j]
+  seg.v[,"seg.name"] <- seg.f[,"seg.name"]
+  seg.v[,"sample"] <- seg.f[,"seg.end"]
+  
+  print(identical(rownames(JCC_Seurat_Obj@meta.data), colnames(JCC_Seurat_Obj@assays$RNA@data)))
+  
+  for(sn in unique(seg.v[,"seg.name"])) {
+    temp <- strsplit(sn, split = "_", fixed = TRUE)[[1]]
+    target_tp <- temp[1]
+    target_cluster <- temp[2]
+    target_clones <- plot_df$Clone[intersect(which(plot_df$GMP_PI == temp[1]),
+                                             which(plot_df$Cluster == temp[2]))]
+    target_index <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% target_clones),
+                              intersect(which(JCC_Seurat_Obj$GMP == target_tp),
+                                        which(JCC_Seurat_Obj$AllSeuratClusters == target_cluster)))
+    seg.v_index <- which(seg.v[,"seg.name"] == sn)
+    
+    if(length(target_index) != length(seg.v_index)) {
+      writeLines(paste("ERROR: target_index - ", sn))
     }
+    
+    seg.v[seg.v_index,"exp_TIGIT"] <- JCC_Seurat_Obj@assays$RNA@data["TIGIT",target_index]
+    seg.v[seg.v_index,"exp_SELL"] <- JCC_Seurat_Obj@assays$RNA@data["SELL",target_index]
+    seg.v[seg.v_index,"exp_CD27"] <- JCC_Seurat_Obj@assays$RNA@data["CD27",target_index]
+    
+    opposite_tp <- setdiff(unique(JCC_Seurat_Obj$GMP), target_tp)
+    target_index2 <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% target_clones),
+                               which(JCC_Seurat_Obj$GMP == opposite_tp))
+    target_clusters2 <- JCC_Seurat_Obj$AllSeuratClusters[target_index2]
+    target_clones2 <- JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[target_index2]
+    
+    target_clones2 <- as.character(target_clones2[order(target_clusters2)])
+    target_clusters2 <- as.character(target_clusters2[order(target_clusters2)])
+    
+    if(length(target_index2) != length(seg.v_index)) {
+      writeLines(paste("ERROR: target_index2 - ", sn))
+    }
+    
+    seg.f$from_to[seg.v_index] <- paste0(target_cluster, "_", target_clusters2)
+    seg.f$clone[seg.v_index] <- target_clones2
   }
-  
   seg.v <- data.frame(seg.v)
+  
+  ### set db
+  db <- segAnglePo(seg.f, seg=seg.name)
+  
+  ### set link.pg.v
+  link.pg.v <- data.frame(matrix(0, length(which(corMat >= threshold)), 6))
+  colnames(link.pg.v) <- c("seg1", "start1", "end1", "seg2", "start2", "end2")
+  
   
   
   
