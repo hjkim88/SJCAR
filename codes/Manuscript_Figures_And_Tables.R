@@ -10430,8 +10430,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   plot_df$Clone_Cluster <- paste0(plot_df$Clone, "_", plot_df$Cluster)
   plot_df$Clone_Cluster_Size <- 1
   ### GMP
-  dup_idx <- intersect(which(duplicated(plot_df$Clone_Cluster)),
-                       which(plot_df$GMP_PI == "GMP"))
+  dup_idx <- which(plot_df$GMP_PI == "GMP")[which(duplicated(plot_df$Clone_Cluster[which(plot_df$GMP_PI == "GMP")]))]
   for(i in dup_idx) {
     target_idx <- intersect(which(plot_df$Clone_Cluster == plot_df$Clone_Cluster[i]),
                             which(plot_df$GMP_PI == "GMP"))[1]
@@ -10439,8 +10438,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   }
   plot_df <- plot_df[-dup_idx,]
   ### PI
-  dup_idx <- intersect(which(duplicated(plot_df$Clone_Cluster)),
-                       which(plot_df$GMP_PI == "PI"))
+  dup_idx <- which(plot_df$GMP_PI == "PI")[which(duplicated(plot_df$Clone_Cluster[which(plot_df$GMP_PI == "PI")]))]
   for(i in dup_idx) {
     target_idx <- intersect(which(plot_df$Clone_Cluster == plot_df$Clone_Cluster[i]),
                             which(plot_df$GMP_PI == "PI"))[1]
@@ -10575,6 +10573,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   print(identical(rownames(JCC_Seurat_Obj@meta.data), colnames(JCC_Seurat_Obj@assays$RNA@data)))
   
+  total_link_num <- 0
   for(sn in unique(seg.v[,"seg.name"])) {
     temp <- strsplit(sn, split = "_", fixed = TRUE)[[1]]
     target_tp <- temp[1]
@@ -10594,32 +10593,136 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     seg.v[seg.v_index,"exp_SELL"] <- JCC_Seurat_Obj@assays$RNA@data["SELL",target_index]
     seg.v[seg.v_index,"exp_CD27"] <- JCC_Seurat_Obj@assays$RNA@data["CD27",target_index]
     
+    seg.f[seg.v_index,"clone"] <- JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[target_index]
+    
     opposite_tp <- setdiff(unique(JCC_Seurat_Obj$GMP), target_tp)
-    target_index2 <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% target_clones),
-                               which(JCC_Seurat_Obj$GMP == opposite_tp))
-    target_clusters2 <- JCC_Seurat_Obj$AllSeuratClusters[target_index2]
-    target_clones2 <- JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[target_index2]
     
-    target_clones2 <- as.character(target_clones2[order(target_clusters2)])
-    target_clusters2 <- as.character(target_clusters2[order(target_clusters2)])
-    
-    if(length(target_index2) != length(seg.v_index)) {
-      writeLines(paste("ERROR: target_index2 - ", sn))
+    for(i in seg.v_index) {
+      target_index2 <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == seg.f$clone[i]),
+                                 which(JCC_Seurat_Obj$GMP == opposite_tp))
+      target_clusters2 <- JCC_Seurat_Obj$AllSeuratClusters[target_index2]
+      target_clusters2 <- as.character(target_clusters2[order(target_clusters2)])
+      
+      seg.f$from_to[i] <- paste(target_clusters2, collapse = ";")
+      
+      total_link_num <- total_link_num + length(target_clusters2)
     }
-    
-    seg.f$from_to[seg.v_index] <- paste0(target_cluster, "_", target_clusters2)
-    seg.f$clone[seg.v_index] <- target_clones2
   }
   seg.v <- data.frame(seg.v)
   
-  ### set db
-  db <- segAnglePo(seg.f, seg=seg.name)
+  ### reorder seg.f and seg.v
+  unique_seg.names <- unique(seg.f$seg.name)
+  for(seg in unique_seg.names) {
+    ### get new ordered indicies for the given segment
+    total_idx <- which(seg.f$seg.name == seg)
+    single_idx <- intersect(total_idx,
+                            which(!grepl(pattern = ";", x = seg.f$from_to, fixed = TRUE)))
+    multiple_idx <- intersect(total_idx,
+                              grep(pattern = ";", x = seg.f$from_to, fixed = TRUE))
+    new_order_idx <- c(single_idx[order(as.numeric(seg.f$from_to[single_idx]), seg.f$clone[single_idx])], multiple_idx)
+    
+    ### reorder
+    seg.f$from_to[total_idx] <- seg.f$from_to[new_order_idx]
+    seg.f$clone[total_idx] <- seg.f$clone[new_order_idx]
+    
+    seg.v$exp_TIGIT[total_idx] <- seg.v$exp_TIGIT[new_order_idx]
+    seg.v$exp_SELL[total_idx] <- seg.v$exp_SELL[new_order_idx]
+    seg.v$exp_CD27[total_idx] <- seg.v$exp_CD27[new_order_idx]
+  }
   
   ### set link.pg.v
-  link.pg.v <- data.frame(matrix(0, length(which(corMat >= threshold)), 6))
+  link.pg.v <- data.frame(matrix(0, total_link_num/2, 6))
   colnames(link.pg.v) <- c("seg1", "start1", "end1", "seg2", "start2", "end2")
   
+  cnt <- 1
+  seg.f_gmp_idx <- which(startsWith(seg.f$seg.name, "GMP_"))
+  for(i in seg.f_gmp_idx) {
+    from_seg <- seg.f$seg.name[i]
+    from_start <- seg.f$seg.start[i]
+    from_end <- seg.f$seg.end[i]
+    
+    target_tp <- strsplit(from_seg, split = "_", fixed = TRUE)[[1]][1]
+    opposite_tp <- setdiff(unique(JCC_Seurat_Obj$GMP), target_tp)
+    
+    to_clusters <- strsplit(seg.f$from_to[i], split = ";", fixed = TRUE)[[1]]
+    unique_to_clusters <- unique(to_clusters)
+    
+    for(to_cluster in unique_to_clusters) {
+      target_idx <- intersect(which(seg.f$seg.name == paste0(opposite_tp, "_", to_cluster)),
+                              which(seg.f$clone == seg.f$clone[i]))
+      for(idx in target_idx) {
+        link.pg.v$seg1[cnt] <- from_seg
+        link.pg.v$start1[cnt] <- from_start
+        link.pg.v$end1[cnt] <- from_end
+        link.pg.v$seg2[cnt] <- seg.f$seg.name[idx]
+        link.pg.v$start2[cnt] <- seg.f$seg.start[idx]
+        link.pg.v$end2[cnt] <- seg.f$seg.end[idx]
+        cnt <- cnt + 1
+      }
+    }
+  }
   
+  ### there are too many links, so reduce them with threshold
+  link_thresh <- 50
+  unique_link_seg <- unique(link.pg.v$seg1)
+  retain_idx <- NULL
+  for(seg in unique_link_seg) {
+    seg2_list <- sapply(unique(link.pg.v$seg2[which(link.pg.v$seg1 == seg)]), function(x) {
+      return(length(intersect(which(link.pg.v$seg1 == seg),
+                              which(link.pg.v$seg2 == x))))
+    })
+    
+    target_segs <- names(seg2_list)[which(seg2_list > link_thresh)]
+    if(length(target_segs) > 0) {
+      writeLines(paste(seg, "-", target_segs))
+    }
+    
+    retain_idx <- c(retain_idx, intersect(which(link.pg.v$seg1 == seg),
+                                          which(link.pg.v$seg2 %in% target_segs)))
+  }
+  link.pg.v <- link.pg.v[retain_idx,]
+  
+  ## Add an alpha value to a colour
+  add.alpha <- function(col, alpha=1){
+    if(missing(col))
+      stop("Please provide a vector of colours.")
+    apply(sapply(col, col2rgb)/255, 2, 
+          function(x) 
+            rgb(x[1], x[2], x[3], alpha=alpha))  
+  }
+  
+  ### plot color
+  connection <- paste0(link.pg.v$seg1, "_", link.pg.v$seg2)
+  unique_connection <- unique(connection)
+  line_colors <- add.alpha(wes_palette("Rushmore1", length(unique_connection), type = "continuous"),
+                           alpha = 0.2)
+  names(line_colors) <- unique_connection
+  line_colors2 <- rainbow(length(unique_connection), alpha = 0.2)
+  names(line_colors2) <- unique_connection
+  
+  unique_seg.names <- unique(seg.f$seg.name)
+  unique_seg_GMP_PI <- sapply(unique_seg.names, function(x) strsplit(x, split = "_", fixed = TRUE)[[1]][1])
+  node_colors <- colorRampPalette(colors=c("green","red"))(length(unique(unique_seg_GMP_PI)))
+  names(node_colors) <- unique(unique_seg_GMP_PI)
+  colorType <- node_colors[unique_seg_GMP_PI]
+  
+  ### set db
+  db <- segAnglePo(seg.f, seg=seg.name, angle.start = 0, angle.end = 360)
+  
+  ### draw circular plot and save as pdf
+  pdf(paste0(outputDir2, "Circos_CARpos_Subsisters_Lineages_Between_Clusters.pdf"), width = 10, height = 10)
+  par(mar=c(4, 2, 2, 4))
+  plot(c(1,1000), c(1,1000), type="n", axes=FALSE, xlab="", ylab="", main="CAR+ Subsister Lineages")
+  circos(xc=500, yc=480, R=450, cir=db, type="chr", col=colorType, print.chr.lab=TRUE, W=4, scale=FALSE)
+  circos(xc=500, yc=480, R=400, cir=db, W=50, mapping=seg.v, col.v=3, type="l", B=TRUE, col="deepskyblue", lwd=2, scale=FALSE)
+  circos(xc=500, yc=480, R=340, cir=db, W=50, mapping=seg.v, col.v=4, type="l", B=TRUE, col="blue", lwd=2, scale=FALSE)
+  circos(xc=500, yc=480, R=280, cir=db, W=50, mapping=seg.v, col.v=5, type="l", B=TRUE, col="darkblue", lwd=2, scale=FALSE)
+  circos(xc=500, yc=480, R=270, cir=db, W=40, mapping=link.pg.v, type="link.pg", lwd=2, col=line_colors[connection])
+  legend("bottomright", 
+         legend=c("TIGIT EXP", "SELL EXP", "CD27 EXP"),
+         col=c("deepskyblue", "blue","darkblue"),
+         pch=15)
+  dev.off()
   
   
   
