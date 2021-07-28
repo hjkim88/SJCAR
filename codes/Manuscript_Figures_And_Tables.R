@@ -228,7 +228,16 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     BiocManager::install("OmicCircos")
     require(OmicCircos, quietly = TRUE)
   }
-  
+  if(!require(igraph, quietly = TRUE)) {
+    install.packages("igraph")
+    require(igraph, quietly = TRUE)
+  }
+  if(!require(RedeR, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("RedeR")
+    require(RedeR, quietly = TRUE)
+  }
   
   ### create outputDir
   dir.create(outputDir, showWarnings = FALSE, recursive = TRUE)
@@ -10538,6 +10547,44 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
          width = 15, height = 8, dpi = 350)
   
   #
+  ### earliest PI to final PI - Jeremy's request
+  #
+  plot_df3 <- data.frame(PI_Level="",
+                         Cluster="",
+                         Connection_Identifier="",
+                         Size=1,
+                         stringsAsFactors = FALSE, check.names = FALSE)
+  for(clone in pi_subsister_clones) {
+    pi_target_idx <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == clone),
+                               which(JCC_Seurat_Obj$GMP == "PI"))
+    temp <- data.frame(pi_target_clusters=as.character(JCC_Seurat_Obj$AllSeuratClusters[pi_target_idx]),
+                       pi_target_times=as.character(JCC_Seurat_Obj$time2[pi_target_idx]),
+                       stringsAsFactors = FALSE, check.names = FALSE)
+    
+    pi_target_clusters <- unique(as.character(JCC_Seurat_Obj$AllSeuratClusters[pi_target_idx]))
+    pi_target_times <- unique(as.character(JCC_Seurat_Obj$time2[pi_target_idx]))
+    pi_target_times <- factor(pi_target_times, levels = unique(JCC_Seurat_Obj$time2))
+    pi_target_clusters <- pi_target_cluster[order(pi_target_times)]
+    
+    
+    for(clstr1 in gmp_target_clusters) {
+      for(clstr2 in pi_target_clusters) {
+        plot_df3 <- rbind(plot_df3,
+                          c("GMP", clstr1, paste0(clstr1, "_", clstr2), 1))
+        plot_df3 <- rbind(plot_df3,
+                          c("PI", clstr2, paste0(clstr1, "_", clstr2), 1))
+      }
+    }
+  }
+  plot_df3 <- plot_df3[-1,]
+  plot_df3$Size <- as.numeric(plot_df3$Size)
+  
+  
+  
+  
+  
+  
+  #
   ### circos plot
   #
   
@@ -10550,8 +10597,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   sample.num <- sum(plot_df$Clone_Cluster_Size)
   
   ### set seg.f
-  seg.f <- matrix("NA", sample.num, 7)
-  colnames(seg.f) <- c("seg.name", "seg.start", "seg.end", "optional_col1", "optional_col2", "from_to", "clone")
+  seg.f <- matrix("NA", sample.num, 9)
+  colnames(seg.f) <- c("seg.name", "seg.start", "seg.end", "optional_col1", "optional_col2", "from_to", "clone", "time", "barcode")
   
   seg.f[,"seg.name"] <- unlist(sapply(seg.name, function(x) rep(x, sum(plot_df$Clone_Cluster_Size[which(plot_df$GMP_PI_Cluster == x)]))))
   
@@ -10594,6 +10641,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     seg.v[seg.v_index,"exp_CD27"] <- JCC_Seurat_Obj@assays$RNA@data["CD27",target_index]
     
     seg.f[seg.v_index,"clone"] <- JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[target_index]
+    seg.f[seg.v_index,"time"] <- JCC_Seurat_Obj$time2[target_index]
+    seg.f[seg.v_index,"barcode"] <- rownames(JCC_Seurat_Obj@meta.data)[target_index]
     
     opposite_tp <- setdiff(unique(JCC_Seurat_Obj$GMP), target_tp)
     
@@ -10624,6 +10673,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     ### reorder
     seg.f$from_to[total_idx] <- seg.f$from_to[new_order_idx]
     seg.f$clone[total_idx] <- seg.f$clone[new_order_idx]
+    seg.f$time[total_idx] <- seg.f$time[new_order_idx]
+    seg.f$barcode[total_idx] <- seg.f$barcode[new_order_idx]
     
     seg.v$exp_TIGIT[total_idx] <- seg.v$exp_TIGIT[new_order_idx]
     seg.v$exp_SELL[total_idx] <- seg.v$exp_SELL[new_order_idx]
@@ -10705,25 +10756,406 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   node_colors <- colorRampPalette(colors=c("green","red"))(length(unique(unique_seg_GMP_PI)))
   names(node_colors) <- unique(unique_seg_GMP_PI)
   colorType <- node_colors[unique_seg_GMP_PI]
+  cell_colors <- viridis(length(unique(seg.f$time)))
+  names(cell_colors) <- unique(seg.f$time)
+  colorType2 <- cell_colors[seg.f$time]
   
   ### set db
   db <- segAnglePo(seg.f, seg=seg.name, angle.start = 0, angle.end = 360)
   
   ### draw circular plot and save as pdf
-  pdf(paste0(outputDir2, "Circos_CARpos_Subsisters_Lineages_Between_Clusters.pdf"), width = 10, height = 10)
-  par(mar=c(4, 2, 2, 4))
+  png(paste0(outputDir2, "Circos_CARpos_Subsisters_Lineages_Between_Clusters.png"), width = 2000, height = 2000, res = 350)
+  par(mar = c(4, 2, 2, 4), xpd = TRUE)
   plot(c(1,1000), c(1,1000), type="n", axes=FALSE, xlab="", ylab="", main="CAR+ Subsister Lineages")
-  circos(xc=500, yc=480, R=450, cir=db, type="chr", col=colorType, print.chr.lab=TRUE, W=4, scale=FALSE)
-  circos(xc=500, yc=480, R=400, cir=db, W=50, mapping=seg.v, col.v=3, type="l", B=TRUE, col="deepskyblue", lwd=2, scale=FALSE)
-  circos(xc=500, yc=480, R=340, cir=db, W=50, mapping=seg.v, col.v=4, type="l", B=TRUE, col="blue", lwd=2, scale=FALSE)
-  circos(xc=500, yc=480, R=280, cir=db, W=50, mapping=seg.v, col.v=5, type="l", B=TRUE, col="darkblue", lwd=2, scale=FALSE)
-  circos(xc=500, yc=480, R=270, cir=db, W=40, mapping=link.pg.v, type="link.pg", lwd=2, col=line_colors[connection])
+  circos(xc=500, yc=440, R=480, cir=db, W=10, type="chr", col=colorType, print.chr.lab=TRUE, scale=FALSE)
+  circos(xc=500, yc=440, R=460, cir=db, W=10, mapping=seg.f, type="arc2", B=FALSE, col=colorType2, lwd=5, cutoff=0)
+  circos(xc=500, yc=440, R=400, cir=db, W=50, mapping=seg.v, col.v=3, type="l", B=TRUE, col="deepskyblue", lwd=2, scale=FALSE)
+  circos(xc=500, yc=440, R=340, cir=db, W=50, mapping=seg.v, col.v=4, type="l", B=TRUE, col="blue", lwd=2, scale=FALSE)
+  circos(xc=500, yc=440, R=280, cir=db, W=50, mapping=seg.v, col.v=5, type="l", B=TRUE, col="darkblue", lwd=2, scale=FALSE)
+  circos(xc=500, yc=440, R=270, cir=db, W=50, mapping=link.pg.v, type="link.pg", lwd=2, col=line_colors[connection])
   legend("bottomright", 
          legend=c("TIGIT EXP", "SELL EXP", "CD27 EXP"),
          col=c("deepskyblue", "blue","darkblue"),
-         pch=15)
+         pch=15, cex = 0.8, xpd = TRUE, inset = c(-0.12, -0.12))
+  legend("bottomleft", 
+         legend=names(cell_colors),
+         col=cell_colors,
+         pch=15, cex = 0.6, xpd = TRUE, inset = c(-0.02, -0.12))
   dev.off()
   
+  
+  #
+  ### network graph with the result_table
+  #
+  
+  ### which time points are subsist to PI cluster3 & 8?
+  result_table <- data.frame(Barcode=seg.f$barcode,
+                             Segment=seg.f$seg.name,
+                             Time=seg.f$time,
+                             GMP_PI=sapply(seg.f$seg.name, function(x) strsplit(x, split = "_", fixed = TRUE)[[1]][1]),
+                             Cluster=sapply(seg.f$seg.name, function(x) strsplit(x, split = "_", fixed = TRUE)[[1]][2]),
+                             From_To_Clusters=seg.f$from_to,
+                             Clone=seg.f$clone,
+                             stringsAsFactors = FALSE, check.names = FALSE)
+  
+  # ### only select PI cluster 3 & 8
+  # result_table <- result_table[which(result_table$Segment %in% c("PI_3", "PI_8")),]
+  # colnames(result_table)[which(colnames(result_table) == "From_To_Clusters")] <- "Lineage_From"
+  
+  ### only select PI clusters
+  result_table <- result_table[grep(pattern = "PI_", result_table$Segment, fixed = TRUE),]
+  colnames(result_table)[which(colnames(result_table) == "From_To_Clusters")] <- "Lineage_From"
+  
+  ### expanded result_table
+  expanded_result_table <- result_table
+  multiple_idx <- grep(pattern = ";", expanded_result_table$Lineage_From, fixed = TRUE)
+  for(idx in multiple_idx) {
+    sub_clusters <- strsplit(expanded_result_table$Lineage_From[idx], split = ";", fixed = TRUE)[[1]]
+    for(cluster in sub_clusters) {
+      temp_row <- expanded_result_table[idx,]
+      temp_row["Lineage_From"] <- cluster
+      expanded_result_table <- rbind(expanded_result_table, temp_row)
+    }
+  }
+  expanded_result_table <- expanded_result_table[-multiple_idx,]
+  
+  ### remove duplicates
+  expanded_result_table$Size <- 1
+  nodup_idx <- which(!duplicated(expanded_result_table))
+  for(idx in nodup_idx) {
+    expanded_result_table$Size[idx] <- length(intersect(intersect(intersect(which(expanded_result_table$Barcode == expanded_result_table$Barcode[idx]),
+                                                                  which(expanded_result_table$Time == expanded_result_table$Time[idx])),
+                                                        intersect(which(expanded_result_table$Cluster == expanded_result_table$Cluster[idx]),
+                                                                  which(expanded_result_table$Lineage_From == expanded_result_table$Lineage_From[idx]))),
+                                                        which(expanded_result_table$Clone == expanded_result_table$Clone[idx])))
+  }
+  expanded_result_table <- expanded_result_table[nodup_idx,]
+  expanded_result_table$Lineage_From <- paste0("GMP_", expanded_result_table$Lineage_From)
+  
+  ### PI_Cluster -> Time_Cluster
+  expanded_result_table <- expanded_result_table[,-which(colnames(expanded_result_table) == "Barcode")]
+  expanded_result_table$Segment2 <- paste0(expanded_result_table$Time, "_", expanded_result_table$Cluster)
+  ### size adjustment - clone & lineage_from & segment2
+  expanded_result_table$Segment3 <- paste0(expanded_result_table$Clone, "_", expanded_result_table$Lineage_From, "_", expanded_result_table$Segment2)
+  nodup_idx <- which(!duplicated(expanded_result_table$Segment3))
+  for(idx in nodup_idx) {
+    expanded_result_table$Size[idx] <- sum(expanded_result_table$Size[which(expanded_result_table$Segment3 == expanded_result_table$Segment3[idx])])
+  }
+  expanded_result_table <- expanded_result_table[nodup_idx,]
+  
+  ### add PI_TO_PI column
+  expanded_result_table$PI_TO_PI <- ""
+  for(clone in unique(expanded_result_table$Clone)) {
+    clone_idx <- which(expanded_result_table$Clone == clone)
+    
+    unique_tps <- unique(expanded_result_table$Time[clone_idx])
+    
+    if(length(unique_tps) > 1) {
+      expanded_result_table$PI_TO_PI[clone_idx] <- "PI_TO_PI"
+    }
+  }
+  
+  ### add PI to PI connections
+  interesting_table <- expanded_result_table[which(expanded_result_table$PI_TO_PI == "PI_TO_PI"),]
+  ### remove unnecessary columns
+  interesting_table <- interesting_table[,-which(colnames(interesting_table) %in% c("Segment3", "PI_TO_PI", ""))]
+  ### if clone & segment2 are the same just combine them
+  interesting_table$Temp_Col <- paste0(interesting_table$Clone, "_", interesting_table$Segment2)
+  nodup_idx <- which(!duplicated(interesting_table$Temp_Col))
+  for(idx in nodup_idx) {
+    interesting_table$Size[idx] <- sum(interesting_table$Size[which(interesting_table$Temp_Col == interesting_table$Temp_Col[idx])])
+  }
+  interesting_table <- interesting_table[nodup_idx,]
+  
+  unique_seg_clones <- unique(interesting_table$Clone)
+  for(clone in unique_seg_clones) {
+    unique_tps <- unique(interesting_table$Time[which(interesting_table$Clone == clone)])
+    unique_tps <- factor(unique_tps, levels = unique(JCC_Seurat_Obj$time2))
+    unique_tps <- as.character(unique_tps[order(unique_tps)])
+    
+    for(i in 1:(length(unique_tps)-1)) {
+      interesting_idx1 <- intersect(which(interesting_table$Clone == clone),
+                                   which(interesting_table$Time == unique_tps[i]))
+      interesting_idx2 <- intersect(which(interesting_table$Clone == clone),
+                                   which(interesting_table$Time == unique_tps[i+1]))
+      
+      unique_segs1 <- unique(interesting_table$Segment2[interesting_idx1])
+      unique_segs2 <- unique(interesting_table$Segment2[interesting_idx2])
+      
+      for(seg1 in unique_segs1) {
+        for(seg2 in unique_segs2) {
+          idx1 <- intersect(interesting_idx1,
+                            which(interesting_table$Segment2 == seg1))
+          idx2 <- intersect(interesting_idx2,
+                            which(interesting_table$Segment2 == seg2))
+          
+          expanded_result_table <- rbind(expanded_result_table, c(interesting_table$Segment[idx2],
+                                                                  interesting_table$Time[idx2],
+                                                                  interesting_table$GMP_PI[idx2],
+                                                                  interesting_table$Cluster[idx2],
+                                                                  interesting_table$Segment2[idx1],
+                                                                  interesting_table$Clone[idx2],
+                                                                  as.integer(as.numeric(interesting_table$Size[idx1])*as.numeric(interesting_table$Size[idx2])),
+                                                                  interesting_table$Segment2[idx2],
+                                                                  paste0(interesting_table$Clone[idx2], "_", interesting_table$Segment2[idx1], "_", interesting_table$Segment2[idx2]),
+                                                                  "PI_TO_PI_ADDED"))
+        }
+      }
+    }
+  }
+  expanded_result_table$Size <- as.numeric(expanded_result_table$Size)
+  
+  ### there should not be duplicates in Segment3 column
+  nodup_idx <- which(!duplicated(expanded_result_table$Segment3))
+  for(idx in nodup_idx) {
+    expanded_result_table$Size[idx] <- sum(expanded_result_table$Size[which(expanded_result_table$Segment3 == expanded_result_table$Segment3[idx])])
+  }
+  expanded_result_table <- expanded_result_table[nodup_idx,]
+  
+  ### save the result in Excel file
+  write.xlsx2(expanded_result_table,
+              file = paste0(outputDir2, "Table_CARpos_Subsisters_Lineages_Between_Clusters.xlsx"),
+              sheetName = "CARpos_Subsisters_Lineages_Between_Clusters", row.names = FALSE)
+  
+  ### save only the PI_TO_PI for future use
+  pi_to_pi_result_table <- expanded_result_table[which(expanded_result_table$PI_TO_PI == "PI_TO_PI_ADDED"),]
+  
+  ### limit the connections that finally ended up with PI_3 or PI_8
+  remove_idx <- NULL
+  for(clone in unique(expanded_result_table$Clone)) {
+    clone_idx <- which(expanded_result_table$Clone == clone)
+    unique_seg <- unique(expanded_result_table$Segment[clone_idx])
+    
+    if(length(which(unique_seg %in% c("PI_3", "PI_8"))) == 0) {
+      remove_idx <- c(remove_idx, clone_idx)
+    }
+  }
+  if(length(remove_idx) > 0) {
+    expanded_result_table <- expanded_result_table[-remove_idx,]
+  }
+  
+  ### because there are too many nodes, just combine the GMPs
+  expanded_result_table$Lineage_From2 <- sapply(expanded_result_table$Lineage_From, function(x) {
+    if(grepl("GMP", x, fixed = TRUE)) {
+      return("GMP")
+    } else {
+      return(x)
+    }
+  })
+  expanded_result_table$Segment4 <- paste0(expanded_result_table$Lineage_From2, "_", expanded_result_table$Segment2)
+  nodup_idx <- which(!duplicated(expanded_result_table$Segment4))
+  for(idx in nodup_idx) {
+    expanded_result_table$Size[idx] <- sum(expanded_result_table$Size[which(expanded_result_table$Segment4 == expanded_result_table$Segment4[idx])])
+  }
+  expanded_result_table <- expanded_result_table[nodup_idx,]
+  
+  ### remove the clone column because it's a wrong column now
+  expanded_result_table <- expanded_result_table[,-which(colnames(expanded_result_table) %in% c("Clone", "Segment3"))]
+  
+  ### connection size recalculation - just all the involved cells based on the Segment4
+  expanded_result_table$Size <- 0
+  subsister_idx <- which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES")
+  for(i in 1:nrow(expanded_result_table)) {
+    from_time <- strsplit(expanded_result_table$Lineage_From2[i], "_", fixed = TRUE)[[1]][1]
+    from_cluster <- strsplit(expanded_result_table$Lineage_From2[i], "_", fixed = TRUE)[[1]][2]
+    to_time <- expanded_result_table$Time[i]
+    to_cluster <- expanded_result_table$Cluster[i]
+    
+    if(is.na(from_cluster)) {
+      clones1 <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(subsister_idx,
+                                                                                        which(JCC_Seurat_Obj$time2 == from_time))])
+      clones2 <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(subsister_idx,
+                                                                                        intersect(which(JCC_Seurat_Obj$time2 == to_time),
+                                                                                                  which(JCC_Seurat_Obj$AllSeuratClusters == to_cluster)))])
+    } else {
+      clones1 <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(subsister_idx,
+                                                                                        intersect(which(JCC_Seurat_Obj$time2 == from_time),
+                                                                                                  which(JCC_Seurat_Obj$AllSeuratClusters == from_cluster)))])
+      clones2 <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(subsister_idx,
+                                                                                        intersect(which(JCC_Seurat_Obj$time2 == to_time),
+                                                                                                  which(JCC_Seurat_Obj$AllSeuratClusters == to_cluster)))])
+    }
+    intersected_clones <- intersect(clones1, clones2)
+    
+    if(length(intersected_clones) > 0) {
+      if(is.na(from_cluster)) {
+        expanded_result_table$Size[i] <- length(intersect(intersect(subsister_idx,
+                                                                    which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% intersected_clones)),
+                                                          which(JCC_Seurat_Obj$time2 == from_time))) + length(intersect(intersect(subsister_idx,
+                                                                                                                                                            which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% intersected_clones)),
+                                                                                                                                                  intersect(which(JCC_Seurat_Obj$time2 == to_time),
+                                                                                                                                                            which(JCC_Seurat_Obj$AllSeuratClusters == to_cluster))))
+      } else {
+        expanded_result_table$Size[i] <- length(intersect(intersect(subsister_idx,
+                                                                    which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% intersected_clones)),
+                                                          intersect(which(JCC_Seurat_Obj$time2 == from_time),
+                                                                    which(JCC_Seurat_Obj$AllSeuratClusters == from_cluster)))) + length(intersect(intersect(subsister_idx,
+                                                                                                                                                            which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% intersected_clones)),
+                                                                                                                                                  intersect(which(JCC_Seurat_Obj$time2 == to_time),
+                                                                                                                                                            which(JCC_Seurat_Obj$AllSeuratClusters == to_cluster))))
+      }
+    }
+  }
+  
+  ### get all the nodes
+  node_names <- unique(c(expanded_result_table$Lineage_From2, expanded_result_table$Segment2))
+  # node_names <- factor(node_names, levels = as.vector(sapply(unique(JCC_Seurat_Obj$time2), function(x) paste0(x, "_", levels(JCC_Seurat_Obj$AllSeuratClusters)))))
+  node_names <- as.character(node_names[order(node_names)])
+  
+  ### make adjacency matrix for network
+  ### rows: outbound
+  ### columns: inbound
+  adj_mat <- matrix(0, length(node_names), length(node_names))
+  rownames(adj_mat) <- node_names
+  colnames(adj_mat) <- node_names
+  
+  ### fill out the adj matrix
+  out_node_names <- unique(expanded_result_table$Lineage_From2)
+  # out_node_names <- factor(out_node_names, levels = as.vector(sapply(unique(JCC_Seurat_Obj$time2), function(x) paste0(x, "_", levels(JCC_Seurat_Obj$AllSeuratClusters)))))
+  out_node_names <- as.character(out_node_names[order(out_node_names)])
+  in_node_names <- unique(expanded_result_table$Segment2)
+  # in_node_names <- factor(in_node_names, levels = as.vector(sapply(unique(JCC_Seurat_Obj$time2), function(x) paste0(x, "_", levels(JCC_Seurat_Obj$AllSeuratClusters)))))
+  in_node_names <- as.character(in_node_names[order(in_node_names)])
+  for(r in out_node_names) {
+    for(c in in_node_names) {
+      target_idx <- intersect(which(expanded_result_table$Lineage_From2 == r),
+                              which(expanded_result_table$Segment2 == c))
+      if(length(target_idx) > 1) {
+        writeLines(paste("ERROR: duplicated rows exist:", r, "\t", c, "-", length(target_idx)))
+      } else if(length(target_idx) > 0) {
+        adj_mat[r,c] <- expanded_result_table$Size[intersect(which(expanded_result_table$Lineage_From2 == r),
+                                                             which(expanded_result_table$Segment2 == c))]
+      }
+    }
+  }
+  
+  ### diagonal <- 0
+  diag(adj_mat) <- 0
+  
+  ### remove nodes that do not have any connections (edges)
+  remove_idx <- NULL
+  for(i in 1:nrow(adj_mat)) {
+    if((sum(adj_mat[i,]) == 0) && (sum(adj_mat[,i]) == 0)) {
+      remove_idx <- c(remove_idx, i)
+    }
+  }
+  if(length(remove_idx) > 0) {
+    adj_mat <- adj_mat[-remove_idx, -remove_idx]
+  }
+  
+  ### make an igraph
+  g <- graph_from_adjacency_matrix(adj_mat, mode = "directed", weighted = TRUE)
+  # coords <- layout_(g, as_tree())
+  # plot(g, layout = coords)
+  
+  ### node color set
+  total_clusters <- unique(c(sapply(expanded_result_table$Lineage_From2, function(x) {
+    return(strsplit(x, split = "_", fixed = TRUE)[[1]][2])
+  }), sapply(expanded_result_table$Segment2, function(x) {
+    temp <- strsplit(x, split = "_", fixed = TRUE)[[1]][2]
+    return(strsplit(x, split = "_", fixed = TRUE)[[1]][2])
+  })))
+  total_clusters <- total_clusters[-which(is.na(total_clusters))]
+  total_clusters <- total_clusters[order(as.numeric(total_clusters))]
+  total_clusters <- c("GMP", total_clusters)
+  wa_color_scale <- as.character(wes_palette("Rushmore1", length(total_clusters), type = "continuous"))
+  names(wa_color_scale) <-  total_clusters
+  wa_color_scale2 <- as.character(wes_palette("Darjeeling1", length(unique(sapply(V(g)$name, function(x) strsplit(x, split = "_", fixed = TRUE)[[1]][1]))), type = "continuous"))
+  names(wa_color_scale2) <- unique(sapply(V(g)$name, function(x) strsplit(x, split = "_", fixed = TRUE)[[1]][1]))
+  # rainbow_scale <- rainbow(length(unique(sapply(V(g)$name, function(x) strsplit(x, split = "_", fixed = TRUE)[[1]][1]))))
+  # names(rainbow_scale) <- unique(sapply(V(g)$name, function(x) strsplit(x, split = "_", fixed = TRUE)[[1]][1]))
+  
+  ### node and edge width + colors
+  E(g)$width <- E(g)$weight + 5
+  E(g)$edgeColor <- c(rep("#7294D4", length(which(adj_mat["GMP",] > 0))), rep("#E6A0C4", length(E(g))-length(which(adj_mat["GMP",] > 0))))
+  V(g)$nodeSize <- sapply(V(g)$name, function(x) {
+    if(x == "GMP") {
+      r <- length(intersect(subsister_idx,
+                            which(JCC_Seurat_Obj$time2 == x)))
+    } else {
+      temp <- strsplit(x, "_", fixed = TRUE)[[1]]
+      r <- length(intersect(subsister_idx,
+                            intersect(which(JCC_Seurat_Obj$time2 == temp[1]),
+                                      which(JCC_Seurat_Obj$AllSeuratClusters == temp[2]))))
+    }
+    return(r)
+  })
+  V(g)$nodeSize <- (V(g)$nodeSize / max(V(g)$nodeSize, na.rm = TRUE)) * 100 + 20
+  # V(g)$label.color <- sapply(V(g)$name, function(x) {
+  #   tp <- strsplit(x, split = "_", fixed = TRUE)[[1]][1]
+  #   return(wa_color_scale2[tp])
+  # })
+  V(g)$label.color <- "black"
+  V(g)$color <- sapply(V(g)$name, function(x) {
+    cls <- strsplit(x, split = "_", fixed = TRUE)[[1]][2]
+    if(is.na(cls)) {
+      cls <- "GMP"
+    }
+    return(wa_color_scale[cls])
+  })
+  
+  ### edge sizes should be smaller than node sizes
+  if(max(E(g)$width) > (0.3 * max(V(g)$nodeSize))) {
+    E(g)$width <- (E(g)$width / max(E(g)$width, na.rm = TRUE)) * (0.3 * max(V(g)$nodeSize)) 
+  }
+  
+  ### increase the vertex label size
+  V(g)$label.cex <- 2
+  
+  ### load RedeR screen and plot the graph
+  rdp<-RedPort()
+  calld(rdp)
+  addGraph(rdp,g, layout.kamada.kawai(g))
+  
+  ### add legends
+  # color
+  addLegend.color(rdp, colvec=wa_color_scale[-1], labvec=names(wa_color_scale)[-1], title="Cluster",
+                  vertical=FALSE, position="bottomleft", dxborder=10, dyborder=250, size=30, ftsize=20)
+  
+  # size
+  circleLabel <- floor(seq(min(V(g)$nodeSize),max(V(g)$nodeSize),(max(V(g)$nodeSize) - min(V(g)$nodeSize))/4))
+  circleSize <- (circleLabel / max(circleLabel)) * 100
+  diag(adj_mat) <- NA
+  circleLabel <- floor(seq(min(adj_mat, na.rm = TRUE), max(adj_mat, na.rm = TRUE),
+                           ((max(adj_mat, na.rm = TRUE) - min(adj_mat, na.rm = TRUE))/4)))
+  ### circle size in the legend should be at least 1
+  if(circleSize[1] == 0) {
+    circleLabel[1] <- 1
+    circleSize[1] <- (1 / max(circleLabel)) * 100
+  }
+  if(circleLabel[1] == 0) {
+    circleLabel[1] <- 1
+  }
+  addLegend.size(rdp,sizevec=circleSize,labvec=circleLabel,title="Cell Size",
+                 position="bottomleft", dxborder=10, dyborder=10, ftsize=20)
+  
+  JCC_Seurat_Obj$Cluster20 <- as.character(JCC_Seurat_Obj$AllSeuratClusters)
+  JCC_Seurat_Obj$Cluster20[which(JCC_Seurat_Obj$Cluster20 != "20")] <- "NA"
+  DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+          group.by = "Cluster20",
+          cols = c("20" = "red", "NA" = "lightgray"),
+          order = c("20", "NA"),
+          pt.size = 2)
+  
+  #
+  ### earliest PI to final PI - Jeremy's request
+  #
+  
+  ###
+  pi_to_pi_result_table$Segment4 <- paste0(pi_to_pi_result_table$Lineage_From, "-", pi_to_pi_result_table$Segment2)
+  nodup_idx <- which(!duplicated(pi_to_pi_result_table$Segment4))
+  for(idx in nodup_idx) {
+    pi_to_pi_result_table$Size[idx] <- sum(pi_to_pi_result_table$Size[which(pi_to_pi_result_table$Segment4 == pi_to_pi_result_table$Segment3[idx])])
+  }
+  pi_to_pi_result_table <- pi_to_pi_result_table[nodup_idx,]
+  
+  
+  ###
+  plot_df3 <- data.frame(PI_Level=rep(c("Earliest_PI", "Final_PI"), nrow(pi_to_pi_result_table)),
+                         Cluster="",
+                         Connection_Identifier="",
+                         Size=1,
+                         stringsAsFactors = FALSE, check.names = FALSE)
   
   
   #
