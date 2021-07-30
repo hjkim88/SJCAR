@@ -53,7 +53,9 @@
 #                   differences between those subsisters and the other GMP subsisters or even vs. everything else
 #               30. 07/07/2021 - Fig2. C & E - graphs of cluster make-up: GMP vs PI & CD4 vs CD8
 #               31. TIGIT, CD62L (SELL), CD27 - CAR+ and CAR+ CD8 cell percentage
-#               32. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#               32. Dot plot of gene expressions of the Tay's genes - like Dave's paper
+#               33. CD4/CD8 into one UMAP 
+#               34. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -9177,12 +9179,16 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   monocle_cds <- reduceDimension(monocle_cds, reduction_method = "DDRTree")
   monocle_cds <- orderCells(monocle_cds)
   
+  ### change the state labels because the monocle filtered state 3 out and didn't renumber
+  target_idx <- which(as.numeric(monocle_cds$State) > 3)
+  monocle_cds$State[target_idx] <- as.numeric(monocle_cds$State[target_idx]) - 1
+  
   ### determine the beginning state
   plot_cell_trajectory(monocle_cds, color_by = "time2")
   plot_cell_trajectory(monocle_cds, color_by = "State")
   plot_complex_cell_trajectory(monocle_cds, color_by = "time2")
   plot_complex_cell_trajectory(monocle_cds, color_by = "State")
-  monocle_cds <- orderCells(monocle_cds, root_state = "6")
+  monocle_cds <- orderCells(monocle_cds, root_state = "5")
   
   ### draw monocle plots
   p <- plot_cell_trajectory(monocle_cds, color_by = "time2", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
@@ -9191,7 +9197,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme(legend.position = "top",
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 30))
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Time_Monocle2.png"),
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Time_Monocle2(2).png"),
          plot = p,
          width = 15, height = 10, dpi = 350)
   
@@ -9201,7 +9207,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme(legend.position = "top",
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 16))
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Pseudotime_Monocle2.png"),
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Pseudotime_Monocle2(2).png"),
          plot = p,
          width = 15, height = 10, dpi = 350)
   
@@ -9211,7 +9217,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme(legend.position = "top",
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 30))
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_State_Monocle2.png"),
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_State_Monocle2(2).png"),
          plot = p,
          width = 15, height = 10, dpi = 350)
   
@@ -9221,7 +9227,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme(legend.position = "top",
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 30))
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Cluster_Monocle2.png"),
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Cluster_Monocle2(2).png"),
          plot = p,
          width = 15, height = 10, dpi = 350)
   
@@ -9232,7 +9238,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 30)) +
     facet_wrap(~AllSeuratClusters, nrow = 5, ncol = 6)
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Cluster2_Monocle2.png"),
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Cluster2_Monocle2(2).png"),
          plot = p,
          width = 15, height = 20, dpi = 350)
   
@@ -9242,7 +9248,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme(legend.position = "top",
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 30))
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Time_Complex_Monocle2.png"),
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Time_Complex_Monocle2(2).png"),
          plot = p,
          width = 15, height = 10, dpi = 350)
   
@@ -9252,7 +9258,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme(legend.position = "top",
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 10))
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Pseudotime_Complex_Monocle2.png"),
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Pseudotime_Complex_Monocle2(2).png"),
          plot = p,
          width = 15, height = 10, dpi = 350)
   
@@ -9262,7 +9268,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme(legend.position = "top",
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 30))
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_State_Complex_Monocle2.png"),
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_State_Complex_Monocle2(2).png"),
          plot = p,
          width = 15, height = 10, dpi = 350)
   
@@ -9272,7 +9278,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme(legend.position = "top",
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 30))
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Cluster_Complex_Monocle2.png"),
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Cluster_Complex_Monocle2(2).png"),
          plot = p,
          width = 15, height = 10, dpi = 350)
   
@@ -9339,7 +9345,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   write.xlsx2(data.frame(Gene=rownames(de_result),
                          de_result,
                          stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir2, "/CARpos_Monocle_State_AllMarkers.xlsx"),
+              file = paste0(outputDir2, "/CARpos_Monocle_State_AllMarkers(2).xlsx"),
               sheetName = "CARpos_Monocle_State_AllMarkers_DE_Result", row.names = FALSE)
   
   
@@ -9508,7 +9514,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                    nrow = 3,
                    ncol = 2,
                    top = "")
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_DOWNSAMPLED_Monocle_Pie.png"), g, width = 25, height = 20, dpi = 350)
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_DOWNSAMPLED_Monocle_Pie(2).png"), g, width = 25, height = 20, dpi = 350)
   
   ### draw a proportional bar plot
   ### pcnt < 10 -> ""
@@ -9526,7 +9532,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme_classic(base_size = 30) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
           axis.ticks = element_blank())
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_DOWNSAMPLED_Monocle_Bar.png"), plot = p,
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_DOWNSAMPLED_Monocle_Bar(2).png"), plot = p,
          width = 20, height = 10, dpi = 350)
   
   
@@ -9590,7 +9596,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                    nrow = 4,
                    ncol = 2,
                    top = "")
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_DOWNSAMPLED_Monocle_Pie2.png"), g, width = 25, height = 22, dpi = 350)
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_DOWNSAMPLED_Monocle_Pie2(2).png"), g, width = 25, height = 22, dpi = 350)
   
   ### draw a proportional bar plot
   ### pcnt < 10 -> ""
@@ -9605,11 +9611,50 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme_classic(base_size = 30) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
           axis.ticks = element_blank())
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_DOWNSAMPLED_Monocle_Bar2.png"), plot = p,
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_DOWNSAMPLED_Monocle_Bar2(2).png"), plot = p,
          width = 20, height = 10, dpi = 350)
   
   #
-  ### 28. state 1 vs. state 4 subsisters & cluster8 subsisters that are ONLY in state1 VS cluster 8 subsisters ONLY in state4
+  ### pseudotime graphs with relative expression of the interesting genes from Tay
+  #
+  
+  ### normalization
+  JCC_Seurat_Obj <- NormalizeData(JCC_Seurat_Obj,
+                                  normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### find variable genes
+  JCC_Seurat_Obj <- FindVariableFeatures(JCC_Seurat_Obj,
+                                         selection.method = "vst", nfeatures = 2000)
+  
+  ### scaling
+  JCC_Seurat_Obj <- ScaleData(JCC_Seurat_Obj,
+                              vars.to.regress = c("nCount_RNA", "percent.mt", "S.Score", "G2M.Score"))
+  
+  ### set genes of interest (from Tay)
+  interesting_genes <- c("GZMK", "GZMM", "GZMH", "GNLY", "NKG7", "KLRD1", "TUBA1B", "TUBB", "STMN1", "CDCA8",
+                         "CDK1", "CDC20", "MCM7", "MKI67", "TOP2A", "HLA-DQA1", "HLA-DRB1", "LAG3", "LTB",
+                         "HILPDA", "BNIP3", "ENO1", "SELL", "IL7R", "CASP8", "RPL30", "RPL32", "RPL7")
+  
+  ### color palette
+  wa_color_scale <- wes_palette("Rushmore1", 8, type = "continuous")
+  
+  ### draw a gene expression monocle plot
+  p <- plot_cell_trajectory(monocle_cds, markers = interesting_genes, use_color_gradient = TRUE,
+                       cell_size = 1, cell_link_size = 1, show_branch_points = FALSE) +
+    labs(color="") +
+    scale_color_gradientn(colours = wa_color_scale) +
+    theme_classic(base_size = 36) +
+    theme(legend.key.size = unit(2, 'cm'),
+          legend.position = "right",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 24))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_GEXP_Monocle2(2).png"),
+         plot = p,
+         width = 18, height = 15, dpi = 350)
+  
+  
+  #
+  ### 28. state 1 vs. state 3 subsisters & cluster8 subsisters that are ONLY in state1 VS cluster 8 subsisters ONLY in state3
   #
   
   ### create outputDir
@@ -9624,7 +9669,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### state 1 vs state 4 all
   de_result <- FindMarkers(downsampled_seurat_obj,
                            ident.1 = "1",
-                           ident.2 = "4",
+                           ident.2 = "3",
                            min.pct = 0.2,
                            logfc.threshold = 0.2,
                            test.use = "wilcox")
@@ -9633,8 +9678,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   write.xlsx2(data.frame(Gene=rownames(de_result),
                          de_result,
                          stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir2, "/CARpos_State1_vs_State4.xlsx"),
-              sheetName = "CARpos_State1_vs_State4", row.names = FALSE)
+              file = paste0(outputDir2, "/CARpos_State1_vs_State3.xlsx"),
+              sheetName = "CARpos_State1_vs_State3", row.names = FALSE)
   
   ### violin plot
   downsampled_seurat_obj <- SetIdent(object = downsampled_seurat_obj,
@@ -9653,39 +9698,39 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   }
   
   ### save the violin plot
-  ggsave(file = paste0(outputDir2, "Violin_CARpos_State1_vs_State4_DE_Genes.png"), plot = p, width = 30, height = 20, dpi = 350)
+  ggsave(file = paste0(outputDir2, "Violin_CARpos_State1_vs_State3_DE_Genes.png"), plot = p, width = 30, height = 20, dpi = 350)
   
   
-  ### can't compare state1 gmp vs state4 gmp - because there is no gmp cells in the state4
+  ### can't compare state1 gmp vs state3 gmp - because there is no gmp cells in the state3
   print(length(intersect(which(downsampled_seurat_obj$monocle_state == "1"),
                          which(downsampled_seurat_obj$time2 == "GMP"))))
-  print(length(intersect(which(downsampled_seurat_obj$monocle_state == "4"),
+  print(length(intersect(which(downsampled_seurat_obj$monocle_state == "3"),
                          which(downsampled_seurat_obj$time2 == "GMP"))))
   
-  ### can't compare state1 subsisters vs state4 subsisters - because there is no subsister cells in the state4
+  ### can't compare state1 subsisters vs state3 subsisters - because there is no subsister cells in the state3
   print(length(intersect(which(downsampled_seurat_obj$monocle_state == "1"),
                          which(downsampled_seurat_obj$ALL_CARpos_Persister == "YES"))))
-  print(length(intersect(which(downsampled_seurat_obj$monocle_state == "4"),
+  print(length(intersect(which(downsampled_seurat_obj$monocle_state == "3"),
                          which(downsampled_seurat_obj$ALL_CARpos_Persister == "YES"))))
   
-  ### cluster 8 in state1 vs cluster 8 in state4
+  ### cluster 8 in state1 vs cluster 8 in state3
   print(length(intersect(which(downsampled_seurat_obj$monocle_state == "1"),
                          which(downsampled_seurat_obj$AllSeuratClusters == "8"))))
-  print(length(intersect(which(downsampled_seurat_obj$monocle_state == "4"),
+  print(length(intersect(which(downsampled_seurat_obj$monocle_state == "3"),
                          which(downsampled_seurat_obj$AllSeuratClusters == "8"))))
   
-  downsampled_seurat_obj$cluster8_state1_state4 <- NA
-  downsampled_seurat_obj$cluster8_state1_state4[intersect(which(downsampled_seurat_obj$monocle_state == "1"),
+  downsampled_seurat_obj$cluster8_state1_state3 <- NA
+  downsampled_seurat_obj$cluster8_state1_state3[intersect(which(downsampled_seurat_obj$monocle_state == "1"),
                                                           which(downsampled_seurat_obj$AllSeuratClusters == "8"))] <- "Cluster8_State1"
-  downsampled_seurat_obj$cluster8_state1_state4[intersect(which(downsampled_seurat_obj$monocle_state == "4"),
-                                                          which(downsampled_seurat_obj$AllSeuratClusters == "8"))] <- "Cluster8_State4"
+  downsampled_seurat_obj$cluster8_state1_state3[intersect(which(downsampled_seurat_obj$monocle_state == "3"),
+                                                          which(downsampled_seurat_obj$AllSeuratClusters == "8"))] <- "Cluster8_State3"
   
   downsampled_seurat_obj <- SetIdent(object = downsampled_seurat_obj,
                                      cells = rownames(downsampled_seurat_obj@meta.data),
-                                     value = downsampled_seurat_obj@meta.data$cluster8_state1_state4)
+                                     value = downsampled_seurat_obj@meta.data$cluster8_state1_state3)
   de_result <- FindMarkers(downsampled_seurat_obj,
                            ident.1 = "Cluster8_State1",
-                           ident.2 = "Cluster8_State4",
+                           ident.2 = "Cluster8_State3",
                            min.pct = 0.2,
                            logfc.threshold = 0.2,
                            test.use = "wilcox")
@@ -9694,8 +9739,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   write.xlsx2(data.frame(Gene=rownames(de_result),
                          de_result,
                          stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir2, "/CARpos_Cluster8_State1_vs_State4.xlsx"),
-              sheetName = "CARpos_Cluster8_State1_vs_State4", row.names = FALSE)
+              file = paste0(outputDir2, "/CARpos_Cluster8_State1_vs_State3.xlsx"),
+              sheetName = "CARpos_Cluster8_State1_vs_State3", row.names = FALSE)
   
   ### violin plot
   downsampled_seurat_obj <- SetIdent(object = downsampled_seurat_obj,
@@ -9714,7 +9759,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   }
   
   ### save the violin plot
-  ggsave(file = paste0(outputDir2, "Violin_CARpos_Cluster8_State1_vs_State4_DE_Genes.png"), plot = p, width = 30, height = 20, dpi = 350)
+  ggsave(file = paste0(outputDir2, "Violin_CARpos_Cluster8_State1_vs_State3_DE_Genes.png"), plot = p, width = 30, height = 20, dpi = 350)
   
   
   ### the data is too big (can't run for monocle), so we down-sample the cells in each time point
@@ -10082,8 +10127,57 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   }
   ggsave(paste0(outputDir2, "DE_Genes_CARpos_GMP_Subsisters_End_Up_In_Cluster_3_And_8_vs_All_Other_CD8_GMPs.png"), plot = p, width = 20, height = 20, dpi = 350)
   
+  ### filter out unwanted cells
+  temp_seurat_obj <- subset(JCC_Seurat_Obj, cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 %in% c("GMP_Subsisters_End_Up_In_Cluster_3_And_8", "Other_CD8_GMPs"))])
   
-  ### GMP subsister vs non-subsisters
+  ### check whether the orders are the same
+  print(identical(rownames(temp_seurat_obj@meta.data), colnames(temp_seurat_obj@assays$RNA@counts)))
+  print(identical(names(Idents(object = temp_seurat_obj)), rownames(temp_seurat_obj@meta.data)))
+  
+  ### color palette
+  wa_color_scale <- as.character(wes_palette("Rushmore1", 8, type = "continuous"))
+  show_col(wa_color_scale)
+  
+  ### factorize the column
+  temp_seurat_obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 <- factor(temp_seurat_obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8,
+                                                                     levels = c("GMP_Subsisters_End_Up_In_Cluster_3_And_8",
+                                                                                "Other_CD8_GMPs"))
+  
+  ### violin plot
+  temp_seurat_obj <- SetIdent(object = temp_seurat_obj,
+                              cells = rownames(temp_seurat_obj@meta.data),
+                              value = temp_seurat_obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8)
+  p <- VlnPlot(temp_seurat_obj, features = rownames(de_result)[1:6], slot = "data",
+               pt.size = 0, ncol = 2, cols = c("#CAB38C", "#166058"))
+  for(i in 1:6) {
+    p[[i]] <- p[[i]] + geom_boxplot(width=0.1) +
+      stat_compare_means(size = 8) +
+      ylab("Log-Normalized EXP") +
+      stat_summary(fun=mean, geom="point", size=3, color="#852A30") +
+      theme_classic(base_size = 32) +
+      theme(legend.position = "none",
+            axis.title.x = element_blank())
+  }
+  
+  ### save the violin plot
+  ggsave(file = paste0(outputDir2, "Violin_CARpos_GMP_Subsisters_End_Up_In_Cluster_3_And_8_vs_All_Other_CD8_GMPs.png"),
+         plot = p, width = 30, height = 20, dpi = 350)
+  
+  ### now ridge plot
+  p <- RidgePlot(temp_seurat_obj, features =  rownames(de_result)[1:6], slot = "data",
+                 ncol = 2, cols = c("#CAB38C", "#166058"))
+  for(i in 1:6) {
+    p[[i]] <- p[[i]] + labs(x = "Log-Normalized EXP", y = "") +
+      theme(plot.title = element_text(size=24),
+            axis.text.y = element_blank(),
+            legend.position = "top",
+            legend.box.background = element_rect())
+  }
+  ggsave(paste0(outputDir2, "Ridge_CARpos_GMP_Subsisters_End_Up_In_Cluster_3_And_8_vs_All_Other_CD8_GMPs.png"),
+         plot = p, width = 15, height = 12, dpi = 400)
+  
+  
+  ### GMP subsister vs non-subsist
   JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
                              cells = rownames(JCC_Seurat_Obj@meta.data),
                              value = JCC_Seurat_Obj@meta.data$GMP_CARpos_Persister)
@@ -10545,43 +10639,6 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           legend.position = "right")
   ggsave(file = paste0(outputDir2, "Alluvial_CARpos_Subsisters_Lineages_Between_Clusters_GrandBudapest.png"), plot = p,
          width = 15, height = 8, dpi = 350)
-  
-  #
-  ### earliest PI to final PI - Jeremy's request
-  #
-  plot_df3 <- data.frame(PI_Level="",
-                         Cluster="",
-                         Connection_Identifier="",
-                         Size=1,
-                         stringsAsFactors = FALSE, check.names = FALSE)
-  for(clone in pi_subsister_clones) {
-    pi_target_idx <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == clone),
-                               which(JCC_Seurat_Obj$GMP == "PI"))
-    temp <- data.frame(pi_target_clusters=as.character(JCC_Seurat_Obj$AllSeuratClusters[pi_target_idx]),
-                       pi_target_times=as.character(JCC_Seurat_Obj$time2[pi_target_idx]),
-                       stringsAsFactors = FALSE, check.names = FALSE)
-    
-    pi_target_clusters <- unique(as.character(JCC_Seurat_Obj$AllSeuratClusters[pi_target_idx]))
-    pi_target_times <- unique(as.character(JCC_Seurat_Obj$time2[pi_target_idx]))
-    pi_target_times <- factor(pi_target_times, levels = unique(JCC_Seurat_Obj$time2))
-    pi_target_clusters <- pi_target_cluster[order(pi_target_times)]
-    
-    
-    for(clstr1 in gmp_target_clusters) {
-      for(clstr2 in pi_target_clusters) {
-        plot_df3 <- rbind(plot_df3,
-                          c("GMP", clstr1, paste0(clstr1, "_", clstr2), 1))
-        plot_df3 <- rbind(plot_df3,
-                          c("PI", clstr2, paste0(clstr1, "_", clstr2), 1))
-      }
-    }
-  }
-  plot_df3 <- plot_df3[-1,]
-  plot_df3$Size <- as.numeric(plot_df3$Size)
-  
-  
-  
-  
   
   
   #
@@ -11141,21 +11198,52 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### earliest PI to final PI - Jeremy's request
   #
   
-  ###
+  ### pi_to_pi - remove duplicates and size adjustment - just count the unique single lineages
+  pi_to_pi_result_table$Size <- 1
   pi_to_pi_result_table$Segment4 <- paste0(pi_to_pi_result_table$Lineage_From, "-", pi_to_pi_result_table$Segment2)
   nodup_idx <- which(!duplicated(pi_to_pi_result_table$Segment4))
   for(idx in nodup_idx) {
-    pi_to_pi_result_table$Size[idx] <- sum(pi_to_pi_result_table$Size[which(pi_to_pi_result_table$Segment4 == pi_to_pi_result_table$Segment3[idx])])
+    pi_to_pi_result_table$Size[idx] <- sum(pi_to_pi_result_table$Size[which(pi_to_pi_result_table$Segment4 == pi_to_pi_result_table$Segment4[idx])])
   }
   pi_to_pi_result_table <- pi_to_pi_result_table[nodup_idx,]
   
+  ### remove the 'Clone' and 'Segment3' columns because they are wrong now
+  pi_to_pi_result_table <- pi_to_pi_result_table[,-which(colnames(pi_to_pi_result_table) %in% c("Clone", "Segment3"))]
   
-  ###
-  plot_df3 <- data.frame(PI_Level=rep(c("Earliest_PI", "Final_PI"), nrow(pi_to_pi_result_table)),
-                         Cluster="",
-                         Connection_Identifier="",
-                         Size=1,
+  ### add 'from_cluster' column
+  pi_to_pi_result_table$From_Cluster <- sapply(pi_to_pi_result_table$Lineage_From, function(x) strsplit(x, "_", TRUE)[[1]][2])
+  
+  ### make a data frame for alluvial plot
+  plot_df3 <- data.frame(PI_Level=c(rep("Earliest_PI", nrow(pi_to_pi_result_table)), rep("Final_PI", nrow(pi_to_pi_result_table))),
+                         Cluster=c(pi_to_pi_result_table$From_Cluster, pi_to_pi_result_table$Cluster),
+                         Connection_Identifier=c(pi_to_pi_result_table$Segment4, pi_to_pi_result_table$Segment4),
+                         Size=c(pi_to_pi_result_table$Size, pi_to_pi_result_table$Size),
                          stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### Wes Anderson color palette
+  wa_color_scale3 <- wes_palette("Rushmore1", length(unique(plot_df3$Cluster)), type = "continuous")
+  
+  ### draw an alluvial plot
+  plot_df3$Cluster <- factor(plot_df3$Cluster, levels = levels(JCC_Seurat_Obj$AllSeuratClusters))
+  p <- ggplot(plot_df3,
+              aes(x = PI_Level, stratum = Cluster, alluvium = Connection_Identifier,
+                  y = Size,
+                  fill = Cluster, label = Cluster)) +
+    ggtitle("") +
+    ylab("# Unique Lineage") +
+    geom_flow() +
+    geom_stratum(alpha = 1) +
+    geom_label_repel(stat = "stratum", size = 5, show.legend = FALSE) +
+    rotate_x_text(90) +
+    scale_fill_manual(values = rev(wa_color_scale3)) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+    theme_classic(base_size = 36) +
+    theme(axis.text.x = element_text(size = 30),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 30),
+          legend.position = "right")
+  ggsave(file = paste0(outputDir2, "Alluvial_CARpos_Subsisters_Lineages_Between_Clusters_PI_TO_PI.png"), plot = p,
+         width = 15, height = 8, dpi = 350)
   
   
   #
@@ -11570,11 +11658,65 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   
   #
-  ### 32. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 32. Dot plot of gene expressions of the Tay's genes - like Dave's paper
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/32/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### set genes of interest (from Tay)
+  interesting_genes <- c("GZMK", "GZMM", "GZMH", "GNLY", "NKG7", "KLRD1", "TUBA1B", "TUBB", "STMN1", "CDCA8",
+                         "CDK1", "CDC20", "MCM7", "MKI67", "TOP2A", "HLA-DQA1", "HLA-DRB1", "LAG3", "LTB",
+                         "HILPDA", "BNIP3", "ENO1", "SELL", "IL7R")
+  
+  ### cluster functional annotation
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters <- "Others"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "10", "11"))] <- "Proliferating GMP"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("2", "6"))] <- "Cytotoxic GMP"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3"))] <- "GZMK Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("4"))] <- "Mixed GMP/PI"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("8"))] <- "Canonical Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("9"))] <- "Dysfunctional CD4 GMP"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("12", "15"))] <- "Hypoxic GMP"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13"))] <- "Dysfunctional Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("14"))] <- "Cytotoxic CD4 Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("16", "17"))] <- "Mild Proliferating Effectors"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("20"))] <- "Dying T Cells"
+  
+  ### wa color scale for functional annotations
+  wa_color_scale <- as.character(wes_palette("Rushmore1", length(unique(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters)), type = "continuous"))
+  names(wa_color_scale) <- unique(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters)
+  show_col(wa_color_scale)
+  
+  ### test the functional annotations on UMAP
+  DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+          group.by = "Functinal_Annotation_Based_On_Clusters",
+          cols = wa_color_scale[JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters],
+          pt.size = 1)
+  
+  ### dot plot - like Dave's
+  p <- DotPlot(JCC_Seurat_Obj,
+               features = interesting_genes,
+               cols = c("#12685A", "#AD2C24"),
+               group.by = "Functinal_Annotation_Based_On_Clusters") +
+    scale_size(range = c(2, 15)) +
+    coord_flip() +
+    xlab("") +
+    ylab("") +
+    theme_calc(base_size = 20) +
+    theme(plot.title = element_text(hjust = 0.5))
+  ggsave(file = paste0(outputDir2, "Dotplot_CARpos_Functional_Group_GEXP.png"),
+         plot = p, width = 40, height = 10, dpi = 350)
+  
+  
+  
+  #
+  ### 33. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/33/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
