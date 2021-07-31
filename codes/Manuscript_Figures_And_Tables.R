@@ -54,8 +54,9 @@
 #               30. 07/07/2021 - Fig2. C & E - graphs of cluster make-up: GMP vs PI & CD4 vs CD8
 #               31. TIGIT, CD62L (SELL), CD27 - CAR+ and CAR+ CD8 cell percentage
 #               32. Dot plot of gene expressions of the Tay's genes - like Dave's paper
-#               33. CD4/CD8 into one UMAP 
-#               34. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#               33. CD4/CD8 into one UMAP
+#               34. 07/30/21 - All the additional visualizations that need to be done
+#               35. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -9789,6 +9790,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   plot_cell_trajectory(monocle_cds2, color_by = "State")
   plot_complex_cell_trajectory(monocle_cds2, color_by = "time2")
   plot_complex_cell_trajectory(monocle_cds2, color_by = "State")
+  ### this root state should be checked if we want to rerun this -> Sometimes it's 6 and sometimes it's 1
   monocle_cds2 <- orderCells(monocle_cds2, root_state = "6")
   
   ### add previous monocle_state to the current one
@@ -9926,6 +9928,32 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   ### save the violin plot
   ggsave(file = paste0(outputDir2, "Violin_CARpos_Subsisters_NEW_State1237_vs_State5_DE_Genes.png"), plot = p, width = 30, height = 20, dpi = 350)
+  
+  #
+  ### pseudotime graphs with relative expression of the interesting genes from Tay
+  #
+  
+  ### set genes of interest (from Tay)
+  interesting_genes <- c("GZMK", "GZMM", "GZMH", "GNLY", "NKG7", "KLRD1", "TUBA1B", "TUBB", "STMN1", "CDCA8",
+                         "CDK1", "CDC20", "MCM7", "MKI67", "TOP2A", "HLA-DQA1", "HLA-DRB1", "LAG3", "LTB",
+                         "HILPDA", "BNIP3", "ENO1", "SELL", "IL7R", "CASP8", "RPL30", "RPL32", "RPL7")
+  
+  ### color palette
+  wa_color_scale <- wes_palette("Rushmore1", 8, type = "continuous")
+  
+  ### draw a gene expression monocle plot
+  p <- plot_cell_trajectory(monocle_cds2, markers = interesting_genes, use_color_gradient = TRUE,
+                            cell_size = 1, cell_link_size = 1, show_branch_points = FALSE) +
+    labs(color="") +
+    scale_color_gradientn(colours = wa_color_scale) +
+    theme_classic(base_size = 36) +
+    theme(legend.key.size = unit(2, 'cm'),
+          legend.position = "right",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 24))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_GEXP_Monocle2_Subsisters_Added(2).png"),
+         plot = p,
+         width = 18, height = 15, dpi = 350)
   
   
   #
@@ -11710,13 +11738,73 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
          plot = p, width = 40, height = 10, dpi = 350)
   
   
-  
   #
-  ### 33. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 33. CD4/CD8 into one UMAP
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/33/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### CD4/CD8 annotation
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters <- "NA"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "2", "9", "10", "11", "14", "15", "18"))] <- "CD4"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20"))] <- "CD8"
+  
+  ### color palette
+  wa_color_scale <- as.character(wes_palette("Rushmore1", 8, type = "continuous"))
+  show_col(wa_color_scale)
+  
+  ### UMAP
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+               group.by = "CD4_CD8_by_Clusters",
+               cols = c("CD8" = "#852A30", "CD4" = "#166058", "NA" = "gray"),
+               order = c("CD8", "CD4", "NA"),
+               pt.size = 2, raster = FALSE) +
+    ggtitle("") +
+    labs(color="CD4/CD8") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.2
+  ggsave(paste0(outputDir2, "UMAP_CARpos_CD4_CD8.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  
+  #
+  ### 34. 07/30/21 - All the additional visualizations that need to be done
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/34/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### color palette
+  wa_color_scale <- wes_palette("Rushmore1", length(unique(JCC_Seurat_Obj$time2)), type = "continuous")
+  names(wa_color_scale) <- unique(JCC_Seurat_Obj$time2)
+  show_col(wa_color_scale)
+  
+  ### Make GMP cells gray; color PI cells by their time points
+  wa_color_scale["GMP"] <- "lightgray"
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+               group.by = "time2",
+               pt.size = 2) +
+    ggtitle("") +
+    labs(color="Time") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.text.x = element_text(size = 30),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 30))
+  # p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir2, "PCA_CARpos_Time.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  
+  
+  #
+  ### 35. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/35/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
