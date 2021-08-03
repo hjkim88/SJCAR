@@ -56,7 +56,8 @@
 #               32. Dot plot of gene expressions of the Tay's genes - like Dave's paper
 #               33. CD4/CD8 into one UMAP
 #               34. 07/30/21 - All the additional visualizations that need to be done
-#               35. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#               35. 08/02/21 - Emergent request - sample swap checking
+#               36. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -11696,7 +11697,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### set genes of interest (from Tay)
   interesting_genes <- c("GZMK", "GZMM", "GZMH", "GNLY", "NKG7", "KLRD1", "TUBA1B", "TUBB", "STMN1", "CDCA8",
                          "CDK1", "CDC20", "MCM7", "MKI67", "TOP2A", "HLA-DQA1", "HLA-DRB1", "LAG3", "LTB",
-                         "HILPDA", "BNIP3", "ENO1", "SELL", "IL7R")
+                         "HILPDA", "BNIP3", "ENO1", "SELL", "IL7R", "CASP8", "RPL7", "RPL30", "RPL32", "TOX")
   
   ### cluster functional annotation
   JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters <- "Others"
@@ -11798,13 +11799,81 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(paste0(outputDir2, "PCA_CARpos_Time.png"), plot = p, width = 15, height = 10, dpi = 350)
   
   
-  
   #
-  ### 35. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 35. 08/02/21 - Emergent request - sample swap checking
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/35/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### load Jeremy's script
+  sh_text <- as.vector(read.csv(file = "C:/Users/hkim8/Documents/SJCAR/etc/SubmitCellRanger3_CountHUMAN.sh",
+                        sep = "\n", quote = "", header = FALSE)[,1])
+  
+  ### filter out trash lines based on 'bsub'
+  sh_text <- sh_text[grep("bsub", sh_text, fixed = TRUE)]
+  
+  ### extract info from the file
+  info <- vector("list", length(sh_text))
+  for(i in 1:length(info)) {
+    info[[i]] <- vector("list", 2)
+    names(info[[i]]) <- c("id", "location")
+    
+    ### id
+    id <- strsplit(sh_text[i], split = "--id=", fixed = TRUE)[[1]][2]
+    id <- strsplit(id, split = " ", fixed = TRUE)[[1]][1]
+    
+    ### locations
+    locations <- strsplit(sh_text[i], split = "--fastqs=", fixed = TRUE)[[1]][2]
+    locations <- strsplit(locations, split = " --sample", fixed = TRUE)[[1]][1]
+    locations <- strsplit(locations, split = ",", fixed = TRUE)[[1]]
+    
+    ### save
+    info[[i]][["id"]] <- id
+    info[[i]][["location"]] <- locations
+    
+    ### name the list
+    names(info)[i] <- id
+  }
+  
+  ### a function to get the last two bases of a file name
+  last_two_basename <- function(dir, sep = "_") {
+    return(paste0(basename(dirname(dir)), sep, basename(dir)))
+  }
+  
+  ###
+  ### make a sh script for computational HLA typing
+  ###
+  
+  ### set global variables in the script
+  nextLine <- "\n"
+  blank <- " "
+  script <- paste0("#!/bin/sh", nextLine)
+  script <- paste0(script, "# Author : Hyunjin Kim", nextLine)
+  script <- paste0(script, "# Email : hyunjin.kim@stjude.org", nextLine, nextLine)
+  
+  script <- paste0(script, "export PATH=$PATH:/home/hkim8/samtools-1.12/bin", nextLine)
+  script <- paste0(script, "export PATH=$PATH:/home/hkim8/seqan/build/bin", nextLine)
+  
+  ### write main script with the samples
+  for(id in names(info)) {
+    ### run razer
+    script <- paste0(script, "razers3 -m 1 -dr 0 -o /clusterHome/hkim8/SJCAR19_data/data/HLA_Run/")
+    script <- paste0(script, paste0(info[[id]][[1]], ".", last_two_basename(info[[id]][[2]], sep = ".")), "bam")
+    
+    
+    1912291_JCC212_SJCAR19-11_Wk-1_PB_Gex_S5_L001_R2_001_HLA.bam /home/hkim8/OptiType/data/hla_reference_rna.fasta /PI_data_distribution/thomagrp/GSF/thomagrp_183630_10x-1/2-1161891/1912291_JCC212_SJCAR19-11_Wk-1_PB_Gex_S5_L001_R2_001.fastq.gz", nextLine)
+    
+  }
+  
+  
+  #
+  ### 36. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/36/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
