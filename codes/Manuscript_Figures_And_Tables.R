@@ -9294,7 +9294,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   write.xlsx2(data.frame(Gene=rownames(degs),
                          degs,
                          stringsAsFactors = FALSE, check.names = FALSE),
-              file = paste0(outputDir2, "/CARpos_Trajectory_Inference_Pseudotime_DEGs_Monocle.xlsx"),
+              file = paste0(outputDir2, "/CARpos_Trajectory_Inference_Pseudotime_DEGs_Monocle(2).xlsx"),
               sheetName = "CARpos_Trajectory_Inference_Pseudotime_DEGs", row.names = FALSE)
   
   ### gene expression plots
@@ -9635,10 +9635,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### set genes of interest (from Tay)
   interesting_genes <- c("GZMK", "GZMM", "GZMH", "GNLY", "NKG7", "KLRD1", "TUBA1B", "TUBB", "STMN1", "CDCA8",
                          "CDK1", "CDC20", "MCM7", "MKI67", "TOP2A", "HLA-DQA1", "HLA-DRB1", "LAG3", "LTB",
-                         "HILPDA", "BNIP3", "ENO1", "SELL", "IL7R", "CASP8", "RPL30", "RPL32", "RPL7")
+                         "HILPDA", "BNIP3", "ENO1", "SELL", "IL7R", "CASP8", "RPL7", "RPL30", "RPL32", "TOX")
   
   ### color palette
-  wa_color_scale <- wes_palette("Rushmore1", 8, type = "continuous")
+  wa_color_scale <- as.character(wes_palette("Rushmore1", 8, type = "continuous"))
   
   ### draw a gene expression monocle plot
   p <- plot_cell_trajectory(monocle_cds, markers = interesting_genes, use_color_gradient = TRUE,
@@ -9651,6 +9651,228 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 24))
   ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_GEXP_Monocle2(2).png"),
+         plot = p,
+         width = 18, height = 15, dpi = 350)
+  
+  
+  #' Plots the minimum spanning tree on cells.
+  #' 
+  #' @param cds CellDataSet for the experiment
+  #' @param x the column of reducedDimS(cds) to plot on the horizontal axis
+  #' @param y the column of reducedDimS(cds) to plot on the vertical axis
+  #' @param color_by the cell attribute (e.g. the column of pData(cds)) to map to each cell's color
+  #' @param show_tree whether to show the links between cells connected in the minimum spanning tree
+  #' @param show_backbone whether to show the diameter path of the MST used to order the cells
+  #' @param backbone_color the color used to render the backbone.
+  #' @param markers a gene name or gene id to use for setting the size of each cell in the plot
+  #' @param use_color_gradient Whether or not to use color gradient instead of cell size to show marker expression level 
+  #' @param markers_linear a boolean used to indicate whether you want to scale the markers logarithimically or linearly
+  #' @param show_cell_names draw the name of each cell in the plot
+  #' @param show_state_number show state number
+  #' @param cell_size The size of the point for each cell
+  #' @param cell_link_size The size of the line segments connecting cells (when used with ICA) or the principal graph (when used with DDRTree)
+  #' @param cell_name_size the size of cell name labels
+  #' @param state_number_size the size of the state number
+  #' @param show_branch_points Whether to show icons for each branch point (only available when reduceDimension was called with DDRTree)
+  #' @param theta How many degrees you want to rotate the trajectory
+  #' @param ... Additional arguments passed into scale_color_viridis function 
+  #' @return a ggplot2 plot object
+  #' @import ggplot2
+  #' @importFrom reshape2 melt
+  #' @importFrom igraph get.edgelist
+  #' @importFrom tibble rownames_to_column
+  #' @importFrom viridis scale_color_viridis
+  #' @importFrom dplyr left_join mutate n slice
+  #' @export
+  #' @examples
+  #' \dontrun{
+  #' lung <- load_lung()
+  #' plot_cell_trajectory(lung)
+  #' plot_cell_trajectory(lung, color_by="Pseudotime", show_backbone=FALSE)
+  #' plot_cell_trajectory(lung, markers="MYH3")
+  #' }
+  plot_cell_trajectory <- function(cds, 
+                                   x=1, 
+                                   y=2, 
+                                   color_by="State", 
+                                   show_tree=TRUE, 
+                                   show_backbone=TRUE, 
+                                   backbone_color="black", 
+                                   markers=NULL, 
+                                   use_color_gradient = FALSE,
+                                   markers_linear = FALSE,
+                                   show_cell_names=FALSE,
+                                   show_state_number = FALSE,
+                                   cell_size=1.5,
+                                   cell_link_size=0.75,
+                                   cell_name_size=2,
+                                   state_number_size = 2.9,
+                                   show_branch_points=TRUE,
+                                   theta = 0,
+                                   ...) {
+    requireNamespace("igraph")
+    gene_short_name <- NA
+    sample_name <- NA
+    sample_state <- pData(cds)$State
+    data_dim_1 <- NA
+    data_dim_2 <- NA
+    
+    #TODO: need to validate cds as ready for this plot (need mst, pseudotime, etc)
+    lib_info_with_pseudo <- pData(cds)
+    
+    if (is.null(cds@dim_reduce_type)){
+      stop("Error: dimensionality not yet reduced. Please call reduceDimension() before calling this function.")
+    }
+    
+    if (cds@dim_reduce_type == "ICA"){
+      reduced_dim_coords <- reducedDimS(cds)
+    } else if (cds@dim_reduce_type %in% c("simplePPT", "DDRTree") ){
+      reduced_dim_coords <- reducedDimK(cds)
+    } else {
+      stop("Error: unrecognized dimensionality reduction method.")
+    }
+    
+    ica_space_df <- Matrix::t(reduced_dim_coords) %>%
+      as.data.frame() %>%
+      select_(prin_graph_dim_1 = x, prin_graph_dim_2 = y) %>%
+      mutate(sample_name = rownames(.), sample_state = rownames(.))
+    
+    dp_mst <- minSpanningTree(cds)
+    
+    if (is.null(dp_mst)){
+      stop("You must first call orderCells() before using this function")
+    }
+    
+    edge_df <- dp_mst %>%
+      igraph::as_data_frame() %>%
+      select_(source = "from", target = "to") %>%
+      left_join(ica_space_df %>% select_(source="sample_name", source_prin_graph_dim_1="prin_graph_dim_1", source_prin_graph_dim_2="prin_graph_dim_2"), by = "source") %>%
+      left_join(ica_space_df %>% select_(target="sample_name", target_prin_graph_dim_1="prin_graph_dim_1", target_prin_graph_dim_2="prin_graph_dim_2"), by = "target")
+    
+    data_df <- t(monocle::reducedDimS(cds)) %>%
+      as.data.frame() %>%
+      select_(data_dim_1 = x, data_dim_2 = y) %>%
+      rownames_to_column("sample_name") %>%
+      mutate(sample_state) %>%
+      left_join(lib_info_with_pseudo %>% rownames_to_column("sample_name"), by = "sample_name")
+    
+    return_rotation_mat <- function(theta) {
+      theta <- theta / 180 * pi
+      matrix(c(cos(theta), sin(theta), -sin(theta), cos(theta)), nrow = 2)
+    }
+    rot_mat <- return_rotation_mat(theta)
+    
+    cn1 <- c("data_dim_1", "data_dim_2")
+    cn2 <- c("source_prin_graph_dim_1", "source_prin_graph_dim_2")
+    cn3 <- c("target_prin_graph_dim_1", "target_prin_graph_dim_2")
+    data_df[, cn1] <- as.matrix(data_df[, cn1]) %*% t(rot_mat)
+    edge_df[, cn2] <- as.matrix(edge_df[, cn2]) %*% t(rot_mat)
+    edge_df[, cn3] <- as.matrix(edge_df[, cn3]) %*% t(rot_mat)
+    
+    markers_exprs <- NULL
+    if (is.null(markers) == FALSE) {
+      markers_fData <- subset(fData(cds), gene_short_name %in% markers)
+      if (nrow(markers_fData) >= 1) {
+        markers_exprs <- reshape2::melt(as.matrix(exprs(cds[row.names(markers_fData),])))
+        colnames(markers_exprs)[1:2] <- c('feature_id','cell_id')
+        markers_exprs <- merge(markers_exprs, markers_fData, by.x = "feature_id", by.y="row.names")
+        #print (head( markers_exprs[is.na(markers_exprs$gene_short_name) == FALSE,]))
+        markers_exprs$feature_label <- as.character(markers_exprs$gene_short_name)
+        markers_exprs$feature_label[is.na(markers_exprs$feature_label)] <- markers_exprs$Var1
+      }
+    }
+    if (is.null(markers_exprs) == FALSE && nrow(markers_exprs) > 0){
+      data_df <- merge(data_df, markers_exprs, by.x="sample_name", by.y="cell_id")
+      if(use_color_gradient) {
+        if(markers_linear){
+          g <- ggplot(data=data_df, aes(x=data_dim_1, y=data_dim_2)) + geom_point(aes(color= value), size=I(cell_size), na.rm = TRUE) + 
+            scale_color_viridis(name = paste0("value"), ...) + facet_wrap(~feature_label)
+        } else {
+          g <- ggplot(data=data_df, aes(x=data_dim_1, y=data_dim_2)) + geom_point(aes(color=log10(value + 0.1)), size=I(cell_size), na.rm = TRUE) + 
+            scale_color_viridis(name = paste0("log10(value + 0.1)"), ...) + facet_wrap(~feature_label)
+        }
+      } else {
+        if(markers_linear){
+          g <- ggplot(data=data_df, aes(x=data_dim_1, y=data_dim_2, size= (value * 0.1))) + facet_wrap(~feature_label)
+        } else {
+          g <- ggplot(data=data_df, aes(x=data_dim_1, y=data_dim_2, size=log10(value + 0.1))) + facet_wrap(~feature_label)
+        }
+      }
+    } else {
+      g <- ggplot(data=data_df, aes(x=data_dim_1, y=data_dim_2)) 
+    }
+    if (show_tree){
+      g <- g + geom_segment(aes_string(x="source_prin_graph_dim_1", y="source_prin_graph_dim_2", xend="target_prin_graph_dim_1", yend="target_prin_graph_dim_2"), size=cell_link_size, linetype="solid", na.rm=TRUE, data=edge_df)
+    }
+    
+    # FIXME: setting size here overrides the marker expression funtionality. 
+    # Don't do it!
+    if (is.null(markers_exprs) == FALSE && nrow(markers_exprs) > 0){
+      if(use_color_gradient) {
+        # g <- g + geom_point(aes_string(color = color_by), na.rm = TRUE)
+      } else {
+        g <- g + geom_point(aes_string(color = color_by), na.rm = TRUE)
+      }
+    }else {
+      if(use_color_gradient) {
+        # g <- g + geom_point(aes_string(color = color_by), na.rm = TRUE)
+      } else {
+        g <- g + geom_point(aes_string(color = color_by), size=I(cell_size), na.rm = TRUE)
+      }
+    }
+    
+    
+    if (show_branch_points && cds@dim_reduce_type == 'DDRTree'){
+      mst_branch_nodes <- cds@auxOrderingData[[cds@dim_reduce_type]]$branch_points
+      branch_point_df <- ica_space_df %>%
+        slice(match(mst_branch_nodes, sample_name)) %>%
+        mutate(branch_point_idx = seq_len(n()))
+      
+      g <- g +
+        geom_point(aes_string(x="prin_graph_dim_1", y="prin_graph_dim_2"),
+                   size=5, na.rm=TRUE, branch_point_df) +
+        geom_text(aes_string(x="prin_graph_dim_1", y="prin_graph_dim_2", label="branch_point_idx"),
+                  size=4, color="white", na.rm=TRUE, branch_point_df)
+    }
+    if (show_cell_names){
+      g <- g + geom_text(aes(label=sample_name), size=cell_name_size)
+    }
+    if (show_state_number){
+      g <- g + geom_text(aes(label = sample_state), size = state_number_size)
+    }
+    
+    g <- g + 
+      #scale_color_brewer(palette="Set1") +
+      monocle_theme_opts() + 
+      xlab(paste("Component", x)) + 
+      ylab(paste("Component", y)) +
+      theme(legend.position="top", legend.key.height=grid::unit(0.35, "in")) +
+      #guides(color = guide_legend(label.position = "top")) +
+      theme(legend.key = element_blank()) +
+      theme(panel.background = element_rect(fill='white'))
+    g
+  }
+  
+  
+  ###
+  ### same thing but only with cluster 13 or cluster 20 with the same color scale
+  ###
+  
+  ### only color the cluster 13
+  monocle_cds$alpha <- 0
+  monocle_cds$alpha[which(monocle_cds$AllSeuratClusters == "13")] <- 0.8
+  
+  ### draw the plot
+  p <- plot_cell_trajectory(monocle_cds, markers = interesting_genes, use_color_gradient = TRUE,
+                       cell_size = 1, cell_link_size = 1, show_branch_points = FALSE) +
+    labs(color="") +
+    scale_color_gradientn(colours = wa_color_scale) +
+    theme_classic(base_size = 36) +
+    theme(legend.key.size = unit(2, 'cm'),
+          legend.position = "right",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 24))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_GEXP_Monocle2(2)_cluster13.png"),
          plot = p,
          width = 18, height = 15, dpi = 350)
   
@@ -11736,7 +11958,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme_calc(base_size = 20) +
     theme(plot.title = element_text(hjust = 0.5))
   ggsave(file = paste0(outputDir2, "Dotplot_CARpos_Functional_Group_GEXP.png"),
-         plot = p, width = 40, height = 10, dpi = 350)
+         plot = p, width = 40, height = 15, dpi = 350)
   
   
   #
@@ -11854,18 +12076,65 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   script <- paste0(script, "# Email : hyunjin.kim@stjude.org", nextLine, nextLine)
   
   script <- paste0(script, "export PATH=$PATH:/home/hkim8/samtools-1.12/bin", nextLine)
-  script <- paste0(script, "export PATH=$PATH:/home/hkim8/seqan/build/bin", nextLine)
+  script <- paste0(script, "export PATH=$PATH:/home/hkim8/seqan/build/bin", nextLine, nextLine, nextLine)
   
   ### write main script with the samples
+  out_file_list <- NULL
+  cnt <- 1
   for(id in names(info)) {
-    ### run razer
-    script <- paste0(script, "razers3 -m 1 -dr 0 -o /clusterHome/hkim8/SJCAR19_data/data/HLA_Run/")
-    script <- paste0(script, paste0(info[[id]][[1]], ".", last_two_basename(info[[id]][[2]], sep = ".")), "bam")
     
-    
-    1912291_JCC212_SJCAR19-11_Wk-1_PB_Gex_S5_L001_R2_001_HLA.bam /home/hkim8/OptiType/data/hla_reference_rna.fasta /PI_data_distribution/thomagrp/GSF/thomagrp_183630_10x-1/2-1161891/1912291_JCC212_SJCAR19-11_Wk-1_PB_Gex_S5_L001_R2_001.fastq.gz", nextLine)
+    ### for each lane
+    for(lane in info[[id]][[2]]) {
+      
+      ### set some parameters
+      output_file_name <- paste0(info[[id]][[1]], ".", last_two_basename(lane, sep = "."))
+      
+      ### get all the R2 scRNA-Seq files
+      local_computer_server_dir <- paste0("Z:/ResearchHome/Departments/HartwellCenter/PI_data_distribution/thomagrp/GSF/", last_two_basename(lane, sep = "/"), "/")
+      r2_files <- list.files(path = local_computer_server_dir, pattern = "_R2_")
+      
+      ### but just pick the first one
+      r2f <- r2_files[1]
+      
+      ### suffix
+      suf <- paste(strsplit(r2f, split = "_", fixed = TRUE)[[1]][-c(1,2,3,4)], collapse = "_")
+      suf <- strsplit(suf, split = ".fastq.gz", fixed = TRUE)[[1]][1]
+      output_file_bam <- paste0(output_file_name, ".", suf, ".bam")
+      output_file_fqstq <- paste0(output_file_name, ".", suf, ".fastq")
+      out_file_list <- c(out_file_list, output_file_fqstq)
+      
+      ### razer3
+      script <- paste0(script, "razers3 -m 1 -dr 0 -o /clusterHome/hkim8/SJCAR19_data/data/HLA_Run/")
+      script <- paste0(script, output_file_bam, blank)
+      script <- paste0(script, "/home/hkim8/OptiType/data/hla_reference_rna.fasta", blank)
+      script <- paste0(script, "/PI_data_distribution/thomagrp/GSF/", last_two_basename(lane, sep = "/"), "/", r2f, nextLine, nextLine)
+      
+      ### samtools (bam -> fastq)
+      script <- paste0(script, "samtools bam2fq /clusterHome/hkim8/SJCAR19_data/data/HLA_Run/")
+      script <- paste0(script, output_file_bam, blank, ">", blank)
+      script <- paste0(script, "/clusterHome/hkim8/SJCAR19_data/data/HLA_Run/")
+      script <- paste0(script, output_file_fqstq, nextLine, nextLine)
+      
+      cnt <- cnt + 1
+    }
     
   }
+  
+  ### save the script
+  output_file_path <- paste0(outputDir2, "sjcar19_hla_typing_razer.sh")
+  write.table(script, file = output_file_path,
+              sep="\n", quote=FALSE, row.names=FALSE, col.names=FALSE)
+  
+  ### dos2unix to the result
+  dos2unix_path <- "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/Tools/dos2unix.exe"
+  system(paste(dos2unix_path, output_file_path))
+  
+  
+  
+  
+  
+  
+  
   
   
   #
