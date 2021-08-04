@@ -9642,7 +9642,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   ### draw a gene expression monocle plot
   p <- plot_cell_trajectory(monocle_cds, markers = interesting_genes, use_color_gradient = TRUE,
-                       cell_size = 1, cell_link_size = 1, show_branch_points = FALSE) +
+                       cell_size = 1, cell_link_size = 1, show_branch_points = FALSE, is_alpha = FALSE) +
     labs(color="") +
     scale_color_gradientn(colours = wa_color_scale) +
     theme_classic(base_size = 36) +
@@ -9652,7 +9652,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           legend.text = element_text(size = 24))
   ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_GEXP_Monocle2(2).png"),
          plot = p,
-         width = 18, height = 15, dpi = 350)
+         width = 24, height = 15, dpi = 350)
   
   
   #' Plots the minimum spanning tree on cells.
@@ -9709,8 +9709,47 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                                    state_number_size = 2.9,
                                    show_branch_points=TRUE,
                                    theta = 0,
-                                   ...) {
-    requireNamespace("igraph")
+                                   is_alpha = FALSE) {
+    
+    ### load packages
+    if(!require(ggplot2, quietly = TRUE)) {
+      install.packages("ggplot2")
+      require(ggplot2, quietly = TRUE)
+    }
+    if(!require(reshape2, quietly = TRUE)) {
+      install.packages("reshape2")
+      require(reshape2, quietly = TRUE)
+    }
+    if(!require(igraph, quietly = TRUE)) {
+      install.packages("igraph")
+      require(igraph, quietly = TRUE)
+    }
+    if(!require(tibble, quietly = TRUE)) {
+      install.packages("tibble")
+      require(tibble, quietly = TRUE)
+    }
+    if(!require(dplyr, quietly = TRUE)) {
+      install.packages("dplyr")
+      require(dplyr, quietly = TRUE)
+    }
+    if(!require(viridis, quietly = TRUE)) {
+      install.packages("viridis")
+      require(viridis, quietly = TRUE)
+    }
+    
+    
+    monocle_theme_opts <- function()
+    {
+      theme(strip.background = element_rect(colour = 'white', fill = 'white')) +
+        theme(panel.border = element_blank()) +
+        theme(axis.line.x = element_line(size=0.25, color="black")) +
+        theme(axis.line.y = element_line(size=0.25, color="black")) +
+        theme(panel.grid.minor.x = element_blank(), panel.grid.minor.y = element_blank()) +
+        theme(panel.grid.major.x = element_blank(), panel.grid.major.y = element_blank()) + 
+        theme(panel.background = element_rect(fill='white')) +
+        theme(legend.key=element_blank())
+    }
+    
     gene_short_name <- NA
     sample_name <- NA
     sample_state <- pData(cds)$State
@@ -9769,6 +9808,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     edge_df[, cn2] <- as.matrix(edge_df[, cn2]) %*% t(rot_mat)
     edge_df[, cn3] <- as.matrix(edge_df[, cn3]) %*% t(rot_mat)
     
+    ### filter out cells that have 'point_alpha' = NA
+    if(is_alpha) {
+      non_na_idx <- which(!is.na(data_df$point_alpha))
+      data_df <- data_df[non_na_idx,]
+    }
+    
     markers_exprs <- NULL
     if (is.null(markers) == FALSE) {
       markers_fData <- subset(fData(cds), gene_short_name %in% markers)
@@ -9785,11 +9830,21 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       data_df <- merge(data_df, markers_exprs, by.x="sample_name", by.y="cell_id")
       if(use_color_gradient) {
         if(markers_linear){
-          g <- ggplot(data=data_df, aes(x=data_dim_1, y=data_dim_2)) + geom_point(aes(color= value), size=I(cell_size), na.rm = TRUE) + 
-            scale_color_viridis(name = paste0("value"), ...) + facet_wrap(~feature_label)
+          if(is_alpha) {
+            g <- ggplot(data=data_df, aes(x=data_dim_1, y=data_dim_2)) + geom_point(aes(color= value, alpha = point_alpha), size=I(cell_size), na.rm = TRUE) + 
+              scale_color_viridis(name = paste0("value")) + facet_wrap(~feature_label)
+          } else {
+            g <- ggplot(data=data_df, aes(x=data_dim_1, y=data_dim_2)) + geom_point(aes(color= value), size=I(cell_size), na.rm = TRUE) + 
+              scale_color_viridis(name = paste0("value")) + facet_wrap(~feature_label)
+          }
         } else {
-          g <- ggplot(data=data_df, aes(x=data_dim_1, y=data_dim_2)) + geom_point(aes(color=log10(value + 0.1)), size=I(cell_size), na.rm = TRUE) + 
-            scale_color_viridis(name = paste0("log10(value + 0.1)"), ...) + facet_wrap(~feature_label)
+          if(is_alpha) {
+            g <- ggplot(data=data_df, aes(x=data_dim_1, y=data_dim_2)) + geom_point(aes(color=log10(value + 0.1), alpha=point_alpha), size=I(cell_size), na.rm = TRUE) + 
+              scale_color_viridis(name = paste0("log10(value + 0.1)")) + facet_wrap(~feature_label)
+          } else {
+            g <- ggplot(data=data_df, aes(x=data_dim_1, y=data_dim_2)) + geom_point(aes(color=log10(value + 0.1)), size=I(cell_size), na.rm = TRUE) + 
+              scale_color_viridis(name = paste0("log10(value + 0.1)")) + facet_wrap(~feature_label)
+          }
         }
       } else {
         if(markers_linear){
@@ -9799,7 +9854,11 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
         }
       }
     } else {
-      g <- ggplot(data=data_df, aes(x=data_dim_1, y=data_dim_2)) 
+      if(is_alpha) {
+        g <- ggplot(data=data_df, aes(x=data_dim_1, y=data_dim_2, alpha = point_alpha)) 
+      } else {
+        g <- ggplot(data=data_df, aes(x=data_dim_1, y=data_dim_2)) 
+      }
     }
     if (show_tree){
       g <- g + geom_segment(aes_string(x="source_prin_graph_dim_1", y="source_prin_graph_dim_2", xend="target_prin_graph_dim_1", yend="target_prin_graph_dim_2"), size=cell_link_size, linetype="solid", na.rm=TRUE, data=edge_df)
@@ -9859,14 +9918,15 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ###
   
   ### only color the cluster 13
-  monocle_cds$alpha <- 0
-  monocle_cds$alpha[which(monocle_cds$AllSeuratClusters == "13")] <- 0.8
+  monocle_cds$point_alpha <- NA
+  monocle_cds$point_alpha[which(monocle_cds$AllSeuratClusters == "13")] <- 1
   
   ### draw the plot
   p <- plot_cell_trajectory(monocle_cds, markers = interesting_genes, use_color_gradient = TRUE,
-                       cell_size = 1, cell_link_size = 1, show_branch_points = FALSE) +
+                            cell_size = 1, cell_link_size = 1, show_branch_points = FALSE, is_alpha = TRUE) +
     labs(color="") +
     scale_color_gradientn(colours = wa_color_scale) +
+    scale_alpha(guide = "none") +
     theme_classic(base_size = 36) +
     theme(legend.key.size = unit(2, 'cm'),
           legend.position = "right",
@@ -9874,7 +9934,26 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           legend.text = element_text(size = 24))
   ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_GEXP_Monocle2(2)_cluster13.png"),
          plot = p,
-         width = 18, height = 15, dpi = 350)
+         width = 24, height = 15, dpi = 350)
+  
+  ### only color the cluster 20
+  monocle_cds$point_alpha <- NA
+  monocle_cds$point_alpha[which(monocle_cds$AllSeuratClusters == "20")] <- 1
+  
+  ### draw the plot
+  p <- plot_cell_trajectory(monocle_cds, markers = interesting_genes, use_color_gradient = TRUE,
+                            cell_size = 1, cell_link_size = 1, show_branch_points = FALSE, is_alpha = TRUE) +
+    labs(color="") +
+    scale_color_gradientn(colours = wa_color_scale) +
+    scale_alpha(guide = "none") +
+    theme_classic(base_size = 36) +
+    theme(legend.key.size = unit(2, 'cm'),
+          legend.position = "right",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 24))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_GEXP_Monocle2(2)_cluster20.png"),
+         plot = p,
+         width = 24, height = 15, dpi = 350)
   
   
   #
