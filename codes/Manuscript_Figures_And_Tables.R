@@ -12088,16 +12088,38 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   wa_color_scale["GMP"] <- "lightgray"
   p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
                group.by = "time2",
-               pt.size = 2) +
+               pt.size = 2, raster = FALSE,
+               cols = wa_color_scale[JCC_Seurat_Obj$time2],
+               order = rev(unique(JCC_Seurat_Obj$time2))) +
     ggtitle("") +
     labs(color="Time") +
     theme_classic(base_size = 36) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
           axis.text.x = element_text(size = 30),
-          axis.title.x = element_blank(),
           axis.title.y = element_text(size = 30))
-  # p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
-  ggsave(paste0(outputDir2, "PCA_CARpos_Time.png"), plot = p, width = 15, height = 10, dpi = 350)
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Time2_rushmore.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  ### rainbow version
+  rainbow_color_scale <- rainbow(length(unique(JCC_Seurat_Obj$time2)))
+  names(rainbow_color_scale) <- unique(JCC_Seurat_Obj$time2)
+  show_col(rainbow_color_scale)
+  
+  ### Make GMP cells gray; color PI cells by their time points
+  rainbow_color_scale["GMP"] <- "lightgray"
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+               group.by = "time2",
+               pt.size = 2, raster = FALSE,
+               cols = rainbow_color_scale[JCC_Seurat_Obj$time2],
+               order = rev(unique(JCC_Seurat_Obj$time2))) +
+    ggtitle("") +
+    labs(color="Time") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.text.x = element_text(size = 30),
+          axis.title.y = element_text(size = 30))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Time2_rainbow.png"), plot = p, width = 15, height = 10, dpi = 350)
   
   
   #
@@ -12209,9 +12231,179 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   system(paste(dos2unix_path, output_file_path))
   
   
+  ### after running check which samples are missing
+  f2 <- list.files(path = "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_data/data/HLA_Run/",
+                   pattern = "*fastq$")
   
+  ### check
+  print(setdiff(f2, out_file_list))
   
+  ### missing ones
+  missing_samples <- setdiff(out_file_list, f2)
   
+  ### missing sample names
+  missing_names <- sapply(missing_samples, function(x) strsplit(x, ".fastq", TRUE)[[1]][1])
+  
+  ### make HPC scripts for missing ones
+  for(i in 1:length(missing_names)) {
+    script <- paste0("#!/bin/sh", nextLine)
+    script <- paste0(script, "# Author : Hyunjin Kim", nextLine)
+    script <- paste0(script, "# Email : hyunjin.kim@stjude.org", nextLine, nextLine)
+    
+    script <- paste0(script, "razers3=/home/hkim8/Tools/seqan/build/bin/razers3", nextLine)
+    script <- paste0(script, "module load gcc gcc/7.3.0_2020", nextLine, nextLine)
+    
+    script <- paste0(script, "${razers3} -m 1 -dr 0 -o /home/hkim8/SJCAR19/HLA/")
+    script <- paste0(script, missing_names[i], ".bam", blank)
+    script <- paste0(script, "/home/hkim8/Tools/OptiType/data/hla_reference_rna.fasta", blank)
+    script <- paste0(script, "/research/dept/hart/PI_data_distribution/thomagrp/GSF/")
+    
+    ### get file name
+    next_path <- strsplit(missing_names[i], ".", TRUE)[[1]]
+    next_path <- paste0(next_path[2], "/", next_path[3], "/")
+    file_name <- list.files(paste0("Z:/ResearchHome/Departments/HartwellCenter/PI_data_distribution/thomagrp/GSF/", next_path),
+                            pattern = "_R2_")[1]
+    
+    script <- paste0(script, next_path, file_name, nextLine, nextLine)
+    
+    script <- paste0(script, "samtools bam2fq", blank)
+    script <- paste0(script, "/home/hkim8/SJCAR19/HLA/", missing_names[i], ".bam", blank)
+    script <- paste0(script, ">", blank, "/home/hkim8/SJCAR19/HLA/", missing_names[i], ".fastq", nextLine)
+    
+    ### save the script
+    output_file_path <- paste0(outputDir2, "missing", i, ".sh")
+    write.table(script, file = output_file_path,
+                sep="\n", quote=FALSE, row.names=FALSE, col.names=FALSE)
+    
+    ### dos2unix to the result
+    dos2unix_path <- "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/Tools/dos2unix.exe"
+    system(paste(dos2unix_path, output_file_path))
+  }
+  
+  #
+  ### print out the input file paths for python run - ReadFastq_RmReps.py
+  #
+  
+  ### get all the fished fastq files from razer3
+  f2 <- list.files(path = "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_data/data/HLA_Run/",
+                   pattern = "*fastq$")
+  
+  ### print out the input files
+  for(f in f2) {
+    writeLines(paste0("\"Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_data/data/HLA_Run/", f, "\","))
+  }
+  
+  #
+  ### make a script for Optitype
+  #
+  
+  ### get randomly sampled fastq files
+  f3 <- list.files(path = "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_data/data/HLA_Run/",
+                   pattern = "_RepRemoved_")
+  
+  ### make the number of parallel run -> number of batches to run
+  n <- 6
+  k <- round(length(f3) / n)
+  for(i in 1:n) {
+    script <- paste0("#!/bin/sh", nextLine)
+    script <- paste0(script, "# Author : Hyunjin Kim", nextLine)
+    script <- paste0(script, "# Email : hyunjin.kim@stjude.org", nextLine, nextLine)
+    
+    script <- paste0(script, "cd /home/hkim8/OptiType/", nextLine, nextLine)
+    
+    if(i < n) {
+      for(j in ((i-1)*n+1):(i*n)) {
+        script <- paste0(script, "python OptiTypePipeline.py --rna -e 5 -i", blank)
+        script <- paste0(script, "/clusterHome/hkim8/SJCAR19_data/data/HLA_Run/", f3[j], blank)
+        script <- paste0(script, "-o", blank)
+        script <- paste0(script, "/clusterHome/hkim8/SJCAR19_data/data/HLA_Run/Optitype/", blank)
+        script <- paste0(script, "-p", blank)
+        script <- paste0(script, strsplit(f3[j], ".", TRUE)[[1]][1], nextLine, nextLine)
+      }
+    } else {
+      for(j in ((i-1)*n+1):length(f3)) {
+        script <- paste0(script, "python OptiTypePipeline.py --rna -e 5 -i", blank)
+        script <- paste0(script, "/clusterHome/hkim8/SJCAR19_data/data/HLA_Run/", f3[j], blank)
+        script <- paste0(script, "-o", blank)
+        script <- paste0(script, "/clusterHome/hkim8/SJCAR19_data/data/HLA_Run/Optitype/", blank)
+        script <- paste0(script, "-p", blank)
+        script <- paste0(script, strsplit(f3[j], ".", TRUE)[[1]][1], nextLine, nextLine)
+      }
+    }
+    
+    ### save the script
+    output_file_path <- paste0(outputDir2, "Optitype", i, ".sh")
+    write.table(script, file = output_file_path,
+                sep="\n", quote=FALSE, row.names=FALSE, col.names=FALSE)
+    
+    ### dos2unix to the result
+    dos2unix_path <- "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/Tools/dos2unix.exe"
+    system(paste(dos2unix_path, output_file_path))
+  }
+  
+  #
+  ### load the Optitype results and draw a heatmap to find sample swapping
+  #
+  
+  ### get Optitype results
+  result_dir <- "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_data/data/HLA_Run/Optitype/"
+  opti_file <- list.files(path = result_dir,
+                          pattern = ".tsv$")
+  opti_results <- vector("list", length(opti_file))
+  names(opti_results) <- opti_file
+  
+  for(i in 1:length(opti_results)) {
+    opti_results[[i]] <- read.table(file = paste0(result_dir, opti_file[i]), header = TRUE,
+                               stringsAsFactors = FALSE, check.names = FALSE)
+  }
+  
+  ### new names
+  new_opti_name <- sapply(opti_file, function(x) {
+    temp <- strsplit(x, "_short.thomagrp", TRUE)[[1]][1]
+    temp <- strsplit(temp, "JCC212_", TRUE)[[1]][2]
+    return(temp)
+  })
+  
+  ### scoring function
+  get_hla_match_score <- function(table_a, table_b) {
+    a <- as.character(table_a[1,1:6])
+    b <- as.character(table_b[1,1:6])
+    
+    pcnt <- round((length(intersect(a[1:2], b[1:2])) + length(intersect(a[3:4], b[3:4])) + length(intersect(a[5:6], b[5:6]))) * 100 / 6, 2)
+    
+    return(pcnt)
+  }
+  
+  ### heatmap table
+  heatmap_table <- matrix(0, length(opti_results), length(opti_results))
+  rownames(heatmap_table) <- new_opti_name
+  colnames(heatmap_table) <- new_opti_name
+  
+  for(r in 1:nrow(heatmap_table)) {
+    for(c in 1:ncol(heatmap_table)) {
+      heatmap_table[r,c] <- as.numeric(get_hla_match_score(opti_results[[r]],
+                                                           opti_results[[c]]))
+    }
+  }
+  
+  ### draw a heatmap
+  png(paste0(outputDir2, "SJCAR19_HLA_Comparison_Heatmap.png"),
+      width = 3000, height = 3000, res = 350)
+  par(oma=c(0,3,0,3))
+  heatmap.2(log1p(heatdata), col = colorpanel(24, low = "blue", high = "red"),
+            scale = "none", dendrogram = "row", trace = "none",
+            cexRow = 0.5, key.title = "", main = "Top 100 Genes Associated With The Pseudotime",
+            Colv = FALSE, labCol = FALSE,  key.xlab = "log(Count+1)", key.ylab = "Frequency",
+            ColSideColors = cell_colors_clust[heatclus])
+  legend("left", inset = -0.1,
+         box.lty = 0, cex = 0.8,
+         title = "Time", xpd = TRUE,
+         legend=names(cell_colors_clust),
+         col=cell_colors_clust,
+         pch=15)
+  dev.off()
+  
+  ### write out the sample name list of the heatmap
   
   
   
