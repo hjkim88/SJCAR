@@ -12312,22 +12312,22 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     script <- paste0(script, "cd /home/hkim8/OptiType/", nextLine, nextLine)
     
     if(i < n) {
-      for(j in ((i-1)*n+1):(i*n)) {
+      for(j in ((i-1)*k+1):(i*k)) {
         script <- paste0(script, "python OptiTypePipeline.py --rna -e 5 -i", blank)
         script <- paste0(script, "/clusterHome/hkim8/SJCAR19_data/data/HLA_Run/", f3[j], blank)
         script <- paste0(script, "-o", blank)
         script <- paste0(script, "/clusterHome/hkim8/SJCAR19_data/data/HLA_Run/Optitype/", blank)
         script <- paste0(script, "-p", blank)
-        script <- paste0(script, strsplit(f3[j], ".", TRUE)[[1]][1], nextLine, nextLine)
+        script <- paste0(script, strsplit(f3[j], ".fastq", TRUE)[[1]][1], nextLine, nextLine)
       }
     } else {
-      for(j in ((i-1)*n+1):length(f3)) {
+      for(j in ((i-1)*k+1):length(f3)) {
         script <- paste0(script, "python OptiTypePipeline.py --rna -e 5 -i", blank)
         script <- paste0(script, "/clusterHome/hkim8/SJCAR19_data/data/HLA_Run/", f3[j], blank)
         script <- paste0(script, "-o", blank)
         script <- paste0(script, "/clusterHome/hkim8/SJCAR19_data/data/HLA_Run/Optitype/", blank)
         script <- paste0(script, "-p", blank)
-        script <- paste0(script, strsplit(f3[j], ".", TRUE)[[1]][1], nextLine, nextLine)
+        script <- paste0(script, strsplit(f3[j], ".fastq", TRUE)[[1]][1], nextLine, nextLine)
       }
     }
     
@@ -12386,26 +12386,24 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     }
   }
   
+  ### color palette
+  wa_color_scale <- as.character(wes_palette("Rushmore1", 8, type = "continuous"))
+  show_col(wa_color_scale)
+  
   ### draw a heatmap
   png(paste0(outputDir2, "SJCAR19_HLA_Comparison_Heatmap.png"),
-      width = 3000, height = 3000, res = 350)
-  par(oma=c(0,3,0,3))
-  heatmap.2(log1p(heatdata), col = colorpanel(24, low = "blue", high = "red"),
-            scale = "none", dendrogram = "row", trace = "none",
-            cexRow = 0.5, key.title = "", main = "Top 100 Genes Associated With The Pseudotime",
-            Colv = FALSE, labCol = FALSE,  key.xlab = "log(Count+1)", key.ylab = "Frequency",
-            ColSideColors = cell_colors_clust[heatclus])
-  legend("left", inset = -0.1,
-         box.lty = 0, cex = 0.8,
-         title = "Time", xpd = TRUE,
-         legend=names(cell_colors_clust),
-         col=cell_colors_clust,
-         pch=15)
+      width = 2500, height = 2000, res = 350)
+  par(oma=c(0,3,0,7), xpd = TRUE)
+  p <- heatmap.2(heatmap_table, col = colorpanel(24, low = "#166058", mid = "#CAB38C", high = "#852A30"),
+                 scale = "none", dendrogram = "both", trace = "none",
+                 cexRow = 1, key.title = "", main = "",
+                 Colv = "Rowv", labRow = rownames(heatmap_table), labCol = FALSE,  key.xlab = "% Match", key.ylab = "Frequency")
   dev.off()
   
   ### write out the sample name list of the heatmap
-  
-  
+  write.table(paste0(rev(rownames(heatmap_table)[p$rowInd]), ": ", rev(opti_file[p$rowInd])),
+              file = paste0(outputDir2, "heatmap_sample_list.txt"),
+              row.names = FALSE, col.names = FALSE, quote = FALSE)
   
   
   #
