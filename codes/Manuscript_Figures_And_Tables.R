@@ -12121,6 +12121,185 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
   ggsave(paste0(outputDir2, "UMAP_CARpos_Time2_rainbow.png"), plot = p, width = 15, height = 10, dpi = 350)
   
+  #
+  ### proportional bar plot of time points within each cluster
+  #
+  
+  ### prepare table for the plot
+  plot_df <- data.frame(Cluster=as.character(sapply(levels(JCC_Seurat_Obj$AllSeuratClusters), function(x) rep(x, length(unique(JCC_Seurat_Obj$time2))))),
+                        Time=as.character(rep(unique(JCC_Seurat_Obj$time2), length(levels(JCC_Seurat_Obj$AllSeuratClusters)))),
+                        Numbers=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### calculate numbers
+  cnt <- 1
+  for(clstr in levels(JCC_Seurat_Obj$AllSeuratClusters)) {
+    for(tp in unique(JCC_Seurat_Obj$time2)) {
+      plot_df$Numbers[cnt] <- length(intersect(which(JCC_Seurat_Obj$AllSeuratClusters == clstr),
+                                               which(JCC_Seurat_Obj$time2 == tp)))
+      cnt <- cnt + 1
+    }
+  }
+  
+  ### calculate percentages
+  clstr_sum <- rep(0, length(levels(JCC_Seurat_Obj$AllSeuratClusters)))
+  names(clstr_sum) <- levels(JCC_Seurat_Obj$AllSeuratClusters)
+  for(i in 1:length(levels(JCC_Seurat_Obj$AllSeuratClusters))) {
+    clstr_sum[i] <- sum(plot_df[which(plot_df$Cluster == levels(JCC_Seurat_Obj$AllSeuratClusters)[i]),"Numbers"])
+    plot_df$Pcnt[which(plot_df$Cluster == levels(JCC_Seurat_Obj$AllSeuratClusters)[i])] <- round(plot_df$Numbers[which(plot_df$Cluster == levels(JCC_Seurat_Obj$AllSeuratClusters)[i])] * 100 / clstr_sum[i], 1)
+  }
+  
+  ### remove NaN rows
+  plot_df <- plot_df[which(!is.nan(plot_df$Pcnt)),]
+  
+  ### pcnt < 10 -> ""
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) < 10)] <- ""
+  plot_df$Pcnt <- as.character(plot_df$Pcnt)
+  
+  ### clstr_sum < 1000 -> ""
+  plot_df$Pcnt[which(plot_df$Cluster %in% names(clstr_sum)[which(clstr_sum < 1000)])] <- ""
+  plot_df$Pcnt <- as.character(plot_df$Pcnt)
+  
+  ### annotate "%"
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) != 0)] <- paste0(plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) != 0)], "%")
+  plot_df$Pcnt[which(plot_df$Pcnt == 0)] <- ""
+  
+  ### factorize the columns
+  plot_df$Time <- factor(plot_df$Time, levels = unique(JCC_Seurat_Obj$time2))
+  plot_df$Cluster <- factor(plot_df$Cluster, levels = unique(plot_df$Cluster))
+  
+  ### draw a proportional bar plot
+  p <- ggplot(data=plot_df, aes_string(x="Cluster", y="Numbers", fill="Time", label="Pcnt")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Proportion of Cells (Time)") +
+    xlab("Clusters") + ylab("Cell #") +
+    geom_text(size = 3.5, position = position_stack(vjust = 0.5), hjust = 0.5, color = "black") +
+    coord_flip() +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "CARpos_Time_Proportions_In_Clusters.png"), plot = p,
+         width = 20, height = 10, dpi = 350)
+  
+  
+  ### Now in the inverted way
+  ### what clusters are in each time point
+  
+  ### prepare table for the plot
+  plot_df <- data.frame(Cluster=as.character(sapply(levels(JCC_Seurat_Obj$AllSeuratClusters), function(x) rep(x, length(unique(JCC_Seurat_Obj$time2))))),
+                        Time=as.character(rep(unique(JCC_Seurat_Obj$time2), length(levels(JCC_Seurat_Obj$AllSeuratClusters)))),
+                        Numbers=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### calculate numbers
+  cnt <- 1
+  for(clstr in levels(JCC_Seurat_Obj$AllSeuratClusters)) {
+    for(tp in unique(JCC_Seurat_Obj$time2)) {
+      plot_df$Numbers[cnt] <- length(intersect(which(JCC_Seurat_Obj$AllSeuratClusters == clstr),
+                                               which(JCC_Seurat_Obj$time2 == tp)))
+      cnt <- cnt + 1
+    }
+  }
+  
+  ### order the plot_df in a GMP/PI - oriented way
+  plot_df <- plot_df[order(plot_df$Time),]
+  
+  ### calculate percentages
+  time_sum <- rep(0, length(unique(plot_df$Time)))
+  names(time_sum) <- unique(plot_df$Time)
+  for(i in 1:length(unique(plot_df$Time))) {
+    time_sum[i] <- sum(plot_df[which(plot_df$Time == unique(plot_df$Time)[i]),"Numbers"])
+    plot_df$Pcnt[which(plot_df$Time == unique(plot_df$Time)[i])] <- round(plot_df$Numbers[which(plot_df$Time == unique(plot_df$Time)[i])] * 100 / time_sum[i], 1)
+  }
+  
+  ### remove NaN rows
+  plot_df <- plot_df[which(!is.nan(plot_df$Pcnt)),]
+  
+  ### pcnt < 10 -> ""
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) < 10)] <- ""
+  plot_df$Pcnt <- as.character(plot_df$Pcnt)
+  
+  ### time_sum < 10000 -> ""
+  plot_df$Pcnt[which(plot_df$Time %in% names(time_sum)[which(time_sum < 10000)])] <- ""
+  
+  ### add cluster2 column
+  plot_df$Cluster2 <- ""
+  plot_df$Cluster2[which(as.numeric(plot_df$Numbers) != 0)] <- as.character(plot_df$Cluster[which(as.numeric(plot_df$Numbers) != 0)])
+  plot_df$Cluster2[which(plot_df$Pcnt == "")] <- ""
+  
+  ### annotate "%"
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) != 0)] <- paste0(plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) != 0)], "%")
+  plot_df$Pcnt[which(plot_df$Pcnt == 0)] <- ""
+  
+  ### factorize the time point & state
+  plot_df$Time <- factor(plot_df$Time, levels = unique(plot_df$Time))
+  plot_df$Cluster <- factor(plot_df$Cluster, levels = unique(plot_df$Cluster))
+  
+  ### draw a proportional bar plot
+  p <- ggplot(data=plot_df, aes_string(x="Time", y="Numbers", fill="Cluster", label="Pcnt")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Proportion of Cells") +
+    xlab("Time") + ylab("Cell #") +
+    geom_text(size = 3, position = position_stack(vjust = 0.5), vjust = 3, color = "blue") +
+    geom_text(aes_string(x="Time", y="Numbers", label = "Cluster2"),
+              position = position_stack(vjust = 0.5),
+              size = 6, color = "black") +
+    coord_flip() +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "CARpos_Cluster_Proportions_In_Time.png"), plot = p,
+         width = 20, height = 10, dpi = 350)
+  
+  #
+  ### pie chart - PI CAR+ cells belong to each functional group
+  #
+  
+  ### cluster functional annotation
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters <- "Others"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "10", "11"))] <- "Proliferating GMP"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("2", "6"))] <- "Cytotoxic GMP"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3"))] <- "GZMK Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("4"))] <- "Mixed GMP/PI"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("8"))] <- "Canonical Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("9"))] <- "Dysfunctional CD4 GMP"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("12", "15"))] <- "Hypoxic GMP"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13"))] <- "Dysfunctional Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("14"))] <- "Cytotoxic CD4 Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("16", "17"))] <- "Mild Proliferating Effectors"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("20"))] <- "Dying T Cells"
+  
+  ### draw a pie chart to show the percentage of PI CAR+ cells in each functional group
+  plot_df <- data.frame(Function_Group=unique(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters),
+                        Numbers=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### calculate numbers
+  cnt <- 1
+  for(fg in unique(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters)) {
+    plot_df$Numbers[cnt] <- length(intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                       which(JCC_Seurat_Obj$CAR == "CARpos")),
+                                             which(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters == fg)))
+    cnt <- cnt + 1
+  }
+  
+  ### calculate percentages
+  for(i in 1:length(unique(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters))) {
+    plot_df$Pcnt[which(plot_df$Function_Group == unique(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters)[i])] <- round(plot_df$Numbers[which(plot_df$Function_Group == unique(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters)[i])] * 100 / sum(plot_df$Numbers), 1)
+  }
+  
+  ### remove NaN rows
+  plot_df <- plot_df[which(!is.nan(plot_df$Pcnt)),]
+  
+  ### factorize the time point & state
+  plot_df$Function_Group <- factor(plot_df$Function_Group, levels = levels(plot_df$Function_Group))
+  
+  
+  
+  
   
   #
   ### 35. 08/02/21 - Emergent request - sample swap checking
@@ -12349,9 +12528,15 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   result_dir <- "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_data/data/HLA_Run/Optitype/"
   opti_file <- list.files(path = result_dir,
                           pattern = ".tsv$")
+  
+  ### check which optitype file is missing
+  script_names <- sapply(f3, function(x) strsplit(x, ".fastq", TRUE)[[1]][1])
+  opti_names <- sapply(opti_file, function(x) strsplit(x, "_result.tsv", TRUE)[[1]][1])
+  print(setdiff(script_names, opti_names))
+  
+  ### load the opti results
   opti_results <- vector("list", length(opti_file))
   names(opti_results) <- opti_file
-  
   for(i in 1:length(opti_results)) {
     opti_results[[i]] <- read.table(file = paste0(result_dir, opti_file[i]), header = TRUE,
                                stringsAsFactors = FALSE, check.names = FALSE)
@@ -12359,23 +12544,48 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   ### new names
   new_opti_name <- sapply(opti_file, function(x) {
-    temp <- strsplit(x, "_short.thomagrp", TRUE)[[1]][1]
+    temp <- strsplit(x, "_RepRemoved", TRUE)[[1]][1]
     temp <- strsplit(temp, "JCC212_", TRUE)[[1]][2]
     return(temp)
+  }, USE.NAMES = TRUE)
+  new_opti_name2 <- sapply(opti_file, function(x) {
+    temp <- strsplit(x, "_short.thomagrp", TRUE)[[1]][1]
+    temp <- strsplit(temp, "JCC212_", TRUE)[[1]][2]
+    temp <- strsplit(temp, "SJCAR19", TRUE)[[1]][2]
+    temp <- substring(temp, 2)
+    return(temp)
+  }, USE.NAMES = TRUE)
+  
+  ### filter the new_opti_name2 to have a perfect px id
+  new_opti_name2 <- sapply(new_opti_name2, function(x) {
+    if(grepl("Donor", x, fixed = TRUE) || grepl("donor", x, fixed = TRUE)) {
+      temp <- strsplit(x, "onor", TRUE)[[1]][2]
+      temp <- substr(temp, 1, 2)
+    } else {
+      temp <- substr(x, 1, 2)
+    }
+    
+    return(temp)
   })
+  new_opti_name2[which(new_opti_name2 == "6_")] <- "06"
+  
+  ### change the vector name
+  print(identical(names(new_opti_name), names(new_opti_name2)))
+  names(new_opti_name2) <- new_opti_name
   
   ### scoring function
   get_hla_match_score <- function(table_a, table_b) {
     a <- as.character(table_a[1,1:6])
     b <- as.character(table_b[1,1:6])
     
-    pcnt <- round((length(intersect(a[1:2], b[1:2])) + length(intersect(a[3:4], b[3:4])) + length(intersect(a[5:6], b[5:6]))) * 100 / 6, 2)
+    pcnt <- round((max(length(which(a[1] == b[1])) + length(which(a[2] == b[2])), length(which(a[1] == b[2])) + length(which(a[2] == b[1]))) + max(length(which(a[3] == b[3])) + length(which(a[4] == b[4])), length(which(a[3] == b[4])) + length(which(a[4] == b[3]))) + max(length(which(a[5] == b[5])) + length(which(a[6] == b[6])), length(which(a[5] == b[6])) + length(which(a[6] == b[5])))) * 100 / 6, 2)
     
     return(pcnt)
   }
   
   ### heatmap table
-  heatmap_table <- matrix(0, length(opti_results), length(opti_results))
+  heatmap_table <- data.frame(matrix(0, length(opti_results), length(opti_results)),
+                              stringsAsFactors = FALSE, check.names = FALSE)
   rownames(heatmap_table) <- new_opti_name
   colnames(heatmap_table) <- new_opti_name
   
@@ -12390,20 +12600,79 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   wa_color_scale <- as.character(wes_palette("Rushmore1", 8, type = "continuous"))
   show_col(wa_color_scale)
   
+  rb_color_scale <- rev(rainbow(length(unique(new_opti_name2))))
+  names(rb_color_scale) <- unique(new_opti_name2)
+  show_col(rb_color_scale)
+  
+  ### set the custom distance and clustering functions
+  hclustfunc <- function(x) hclust(x, method="complete")
+  distfunc <- function(x) dist(x, method="euclidean")
+  
+  ### perform clustering on rows and columns
+  cl.row <- hclustfunc(distfunc(as.matrix(heatmap_table)))
+  cl.col <- hclustfunc(distfunc(t(as.matrix(heatmap_table))))
+  
   ### draw a heatmap
-  png(paste0(outputDir2, "SJCAR19_HLA_Comparison_Heatmap.png"),
+  png(paste0(outputDir2, "SJCAR19_HLA_Comparison_Heatmap_Clustered.png"),
       width = 2500, height = 2000, res = 350)
-  par(oma=c(0,3,0,7), xpd = TRUE)
-  p <- heatmap.2(heatmap_table, col = colorpanel(24, low = "#166058", mid = "#CAB38C", high = "#852A30"),
-                 scale = "none", dendrogram = "both", trace = "none",
-                 cexRow = 1, key.title = "", main = "",
-                 Colv = "Rowv", labRow = rownames(heatmap_table), labCol = FALSE,  key.xlab = "% Match", key.ylab = "Frequency")
+  par(oma=c(0,1,0,1), xpd = TRUE)
+  p <- heatmap.2(as.matrix(heatmap_table), col = colorpanel(24, low = "#166058", mid = "#CAB38C", high = "#852A30"),
+                 scale = "none", dendrogram = "none", trace = "none",
+                 cexRow = 0.1, key.title = "", main = "SJCAR HLAs Clustered",
+                 hclustfun = hclustfunc, distfun = distfunc,
+                 RowSideColors = rb_color_scale[new_opti_name2[rownames(heatmap_table)[cl.row$order]]],
+                 ColSideColors = rb_color_scale[new_opti_name2[colnames(heatmap_table)[cl.col$order]]],
+                 Colv = "Rowv", labRow = rownames(heatmap_table)[cl.row$order], labCol = FALSE,  key.xlab = "% Match", key.ylab = "Frequency")
+  legend("bottomleft", legend = paste0("Px", names(rb_color_scale)),
+         col = rb_color_scale,
+         pch = 19, cex = 0.7)
   dev.off()
   
   ### write out the sample name list of the heatmap
-  write.table(paste0(rev(rownames(heatmap_table)[p$rowInd]), ": ", rev(opti_file[p$rowInd])),
-              file = paste0(outputDir2, "heatmap_sample_list.txt"),
+  write.table(rev(rownames(heatmap_table)[cl.row$order]),
+              file = paste0(outputDir2, "clustered_heatmap_sample_list.txt"),
               row.names = FALSE, col.names = FALSE, quote = FALSE)
+  
+  ### order the name and see the heatmap
+  print(identical(rownames(heatmap_table), colnames(heatmap_table)))
+  print(identical(rownames(heatmap_table), names(new_opti_name2)))
+  heatmap_ord_names <- rownames(heatmap_table)[order(new_opti_name2)]
+  heatmap_table <- heatmap_table[heatmap_ord_names,heatmap_ord_names]
+  
+  ### draw a heatmap
+  pdf(paste0(outputDir2, "SJCAR19_HLA_Comparison_Heatmap_Original.pdf"),
+      width = 13, height = 10)
+  par(oma=c(0,1,0,8), xpd = TRUE)
+  p <- heatmap.2(as.matrix(heatmap_table), col = colorpanel(24, low = "#166058", mid = "#CAB38C", high = "#852A30"),
+                 scale = "none", dendrogram = "none", trace = "none",
+                 cexRow = 0.2, key.title = "", main = "SJCAR HLAs Not Clustered",
+                 Rowv = FALSE, Colv = FALSE,
+                 RowSideColors = rb_color_scale[new_opti_name2[rownames(heatmap_table)]],
+                 ColSideColors = rb_color_scale[new_opti_name2[colnames(heatmap_table)]],
+                 labRow = rownames(heatmap_table), labCol = FALSE,  key.xlab = "% Match", key.ylab = "Frequency")
+  legend("bottomleft", legend = paste0("Px", names(rb_color_scale)),
+         col = rb_color_scale,
+         pch = 19, cex = 1.5)
+  dev.off()
+  
+  ### write out the sample name list of the heatmap
+  write.table(rev(rownames(heatmap_table)),
+              file = paste0(outputDir2, "original_heatmap_sample_list.txt"),
+              row.names = FALSE, col.names = FALSE, quote = FALSE)
+  
+  ### write out the heatmap table
+  heatmap_table2 <- data.frame(Px=new_opti_name2[rownames(heatmap_table)],
+                               heatmap_table,
+                               stringsAsFactors = FALSE, check.names = FALSE)
+  heatmap_table2 <- rbind(c("", new_opti_name2[rownames(heatmap_table)]),
+                          heatmap_table2)
+  heatmap_table2 <- sapply(heatmap_table2, as.integer)
+  rownames(heatmap_table2) <- colnames(heatmap_table2)
+  
+  write.xlsx2(heatmap_table2,
+              file = paste0(outputDir2, "SJCAR19_HLA_Heatmap_Table_Original.xlsx"),
+              sheetName = "HLA_Matching_Heatmap_Table")
+  
   
   
   #
