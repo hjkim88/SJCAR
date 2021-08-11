@@ -12234,7 +12234,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   plot_df$Pcnt[which(plot_df$Pcnt == 0)] <- ""
   
   ### factorize the time point & state
-  plot_df$Time <- factor(plot_df$Time, levels = unique(plot_df$Time))
+  plot_df$Time <- factor(plot_df$Time, levels = unique(JCC_Seurat_Obj$time2))
   plot_df$Cluster <- factor(plot_df$Cluster, levels = unique(plot_df$Cluster))
   
   ### draw a proportional bar plot
@@ -12256,6 +12256,59 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   #
   ### pie chart - PI CAR+ cells belong to each functional group
   #
+  
+  position_stack_and_nudge <- function(x = 0, y = 0, vjust = 1, reverse = FALSE) {
+    ggproto(NULL, PositionStackAndNudge,
+            x = x,
+            y = y,
+            vjust = vjust,
+            reverse = reverse
+    )
+  }
+  
+  #' @rdname ggplot2-ggproto
+  #' @format NULL
+  #' @usage NULL
+  #' @noRd
+  PositionStackAndNudge <- ggproto("PositionStackAndNudge", PositionStack,
+                                   x = 0,
+                                   y = 0,
+                                   
+                                   setup_params = function(self, data) {
+                                     c(
+                                       list(x = self$x, y = self$y),
+                                       ggproto_parent(PositionStack, self)$setup_params(data)
+                                     )
+                                   },
+                                   
+                                   compute_layer = function(self, data, params, panel) {
+                                     # operate on the stacked positions (updated in August 2020)
+                                     data = ggproto_parent(PositionStack, self)$compute_layer(data, params, panel)
+                                     
+                                     x_orig <- data$x
+                                     y_orig <- data$y
+                                     # transform only the dimensions for which non-zero nudging is requested
+                                     if (any(params$x != 0)) {
+                                       if (any(params$y != 0)) {
+                                         data <- transform_position(data, function(x) x + params$x, function(y) y + params$y)
+                                       } else {
+                                         data <- transform_position(data, function(x) x + params$x, NULL)
+                                       }
+                                     } else if (any(params$y != 0)) {
+                                       data <- transform_position(data, function(x) x, function(y) y + params$y)
+                                     }
+                                     data$nudge_x <- data$x
+                                     data$nudge_y <- data$y
+                                     data$x <- x_orig
+                                     data$y <- y_orig
+                                     
+                                     data
+                                   },
+                                   
+                                   compute_panel = function(self, data, params, scales) {
+                                     ggproto_parent(PositionStack, self)$compute_panel(data, params, scales)
+                                   }
+  )
   
   ### cluster functional annotation
   JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters <- "Others"
@@ -12295,10 +12348,39 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   plot_df <- plot_df[which(!is.nan(plot_df$Pcnt)),]
   
   ### factorize the time point & state
-  plot_df$Function_Group <- factor(plot_df$Function_Group, levels = levels(plot_df$Function_Group))
+  plot_df$Function_Group <- factor(plot_df$Function_Group, levels = unique(plot_df$Function_Group))
   
+  ### add label column
+  plot_df$Text <- paste0(as.character(plot_df$Function_Group),
+                         " (",
+                         plot_df$Pcnt, "%)")
   
+  ### add label position
+  plot_df <- plot_df %>%
+    mutate(text_y = cumsum(Numbers) - Numbers/2)
   
+  ### draw the pie chart
+  options(ggrepel.max.overlaps = Inf)
+  p <- ggplot(data = plot_df,
+              aes(x = "", y = Numbers, fill = Function_Group)) +
+    geom_bar(stat = "identity", width = 1) +
+    geom_label_repel(aes(label = Text), position = position_stack_and_nudge(vjust = 0.5, x = 0.3),
+                     show.legend = FALSE, size = 5) +
+    coord_polar(theta="y") +
+    labs(x = NULL, y = NULL, title = "# Post-Infusion CAR+ Cells") +
+    scale_fill_discrete(name = "Functional Annotations", labels = paste0(as.character(plot_df$Function_Group), ": ",
+                                                                         plot_df$Numbers, " (",
+                                                                         plot_df$Pcnt, "%)")) +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, color = "black", size = 36),
+          axis.line = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text = element_blank(),
+          legend.position = "none")
+  
+  ### save the plot
+  ggsave(file = paste0(outputDir2, "Functions_Proportions_In_PI_CARpos.png"), plot = p,
+         width = 15, height = 10, dpi = 350)
   
   
   #
