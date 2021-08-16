@@ -10099,6 +10099,11 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   monocle_cds2$Original_State <- "NEW"
   monocle_cds2@phenoData@data[rownames(monocle_cds@phenoData@data),"Original_State"] <- monocle_cds$State
   
+  ### color scale
+  sjcar19_colors <- rev(c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53"))
+  names(sjcar19_colors) <- unique(plot_df$State)
+  show_col(sjcar19_colors)
+  
   ### draw monocle plots
   p <- plot_cell_trajectory(monocle_cds2, color_by = "time2", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
     labs(color="Time") +
@@ -10122,11 +10127,13 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   p <- plot_cell_trajectory(monocle_cds2, color_by = "State", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
     labs(color="New State") +
+    scale_color_manual(values = sjcar19_colors, name = "New State") +
+    guides(color = guide_legend(override.aes = list(size = 10))) +
     theme_classic(base_size = 36) +
     theme(legend.position = "top",
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 30))
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_State_Monocle2_Subsisters_Added.png"),
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_State_Monocle2_Subsisters_Added(2).png"),
          plot = p,
          width = 15, height = 10, dpi = 350)
   
@@ -10179,6 +10186,66 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Subsistency_Complex_Monocle2_Subsisters_Added.png"),
          plot = p,
          width = 15, height = 10, dpi = 350)
+  
+  #
+  ### 08/16/21 - Paul's request - proportional bar plot of state cells in each of the time point
+  #
+  
+  ### draw a pie chart to show the percentage of time points in each state
+  plot_df <- data.frame(State=as.character(sapply(levels(monocle_cds2@phenoData@data$State), function(x) rep(x, length(levels(monocle_cds2@phenoData@data$time2))))),
+                        Time_Point=rep(levels(monocle_cds2@phenoData@data$time2), length(levels(monocle_cds2@phenoData@data$State))),
+                        Numbers=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### calculate numbers
+  cnt <- 1
+  for(state in levels(monocle_cds2@phenoData@data$State)) {
+    for(tp in levels(monocle_cds2@phenoData@data$time2)) {
+      plot_df$Numbers[cnt] <- length(intersect(which(monocle_cds2@phenoData@data$State == state),
+                                               which(monocle_cds2@phenoData@data$time2 == tp)))
+      cnt <- cnt + 1
+    }
+  }
+  
+  ### calculate percentages
+  tp_sum <- rep(0, length(levels(monocle_cds2$time2)))
+  names(tp_sum) <- levels(monocle_cds2$time2)
+  for(i in 1:length(levels(monocle_cds2$time2))) {
+    tp_sum[i] <- sum(plot_df[which(plot_df$Time_Point == levels(monocle_cds2$time2)[i]),"Numbers"])
+    plot_df$Pcnt[which(plot_df$Time_Point == levels(monocle_cds2$time2)[i])] <- round(plot_df$Numbers[which(plot_df$Time_Point == levels(monocle_cds2$time2)[i])] * 100 / tp_sum[i], 1)
+  }
+  
+  ### remove NaN rows
+  plot_df <- plot_df[which(!is.nan(plot_df$Pcnt)),]
+  
+  ### factorize the time point & state
+  plot_df$Time_Point <- factor(plot_df$Time_Point, levels = levels(monocle_cds2$time2))
+  plot_df$State <- factor(plot_df$State, levels = unique(plot_df$State))
+  
+  ### color scale
+  sjcar19_colors <- rev(c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53"))
+  names(sjcar19_colors) <- unique(plot_df$State)
+  show_col(sjcar19_colors)
+  
+  ### draw a proportional bar plot
+  ### pcnt < 10 -> ""
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) < 10)] <- ""
+  plot_df$Pcnt <- as.character(plot_df$Pcnt)
+  p <- ggplot(data=plot_df, aes_string(x="Time_Point", y="Numbers", fill="State", label="Pcnt")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Proportion of Cells") +
+    xlab("Time") + ylab("Cell #") +
+    geom_text(size = 7, position = position_stack(vjust = 0.5)) +
+    coord_flip() +
+    scale_fill_manual(values = sjcar19_colors, name = "New State") +
+    guides(color = guide_legend(override.aes = list(size = 20))) +
+    theme_classic(base_size = 48) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Monocle2_Bar_Subsisters_Added(2).png"), plot = p,
+         width = 18, height = 10, dpi = 350)
+  
   
   ### make the down-sampled seurat object
   downsampled_seurat_obj2 <- subset(JCC_Seurat_Obj,
@@ -12169,13 +12236,23 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   plot_df$Time <- factor(plot_df$Time, levels = unique(JCC_Seurat_Obj$time2))
   plot_df$Cluster <- factor(plot_df$Cluster, levels = unique(plot_df$Cluster))
   
+  ### remove the 3mo and wk8
+  plot_df <- plot_df[which(!plot_df$Time %in% c("Wk6", "6mo")),]
+  
+  ### color scale
+  sjcar19_colors <- rev(c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53"))
+  names(sjcar19_colors) <- unique(plot_df$Time)
+  show_col(sjcar19_colors)
+  
   ### draw a proportional bar plot
   p <- ggplot(data=plot_df, aes_string(x="Cluster", y="Numbers", fill="Time", label="Pcnt")) +
     geom_bar(position = "stack", stat = "identity") +
     ggtitle("Proportion of Cells (Time)") +
     xlab("Clusters") + ylab("Cell #") +
-    geom_text(size = 3.5, position = position_stack(vjust = 0.5), hjust = 0.5, color = "black") +
+    geom_text(size = 3.5, position = position_stack(vjust = 0.5), hjust = 0.5, color = "#D94C21") +
     coord_flip() +
+    scale_fill_manual(values = sjcar19_colors) +
+    scale_y_continuous(expand = c(0, 0)) +
     theme_classic(base_size = 30) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
           axis.ticks = element_blank())
@@ -12237,6 +12314,16 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   plot_df$Time <- factor(plot_df$Time, levels = unique(JCC_Seurat_Obj$time2))
   plot_df$Cluster <- factor(plot_df$Cluster, levels = unique(plot_df$Cluster))
   
+  ### remove the 3mo and wk8
+  plot_df <- plot_df[which(!plot_df$Time %in% c("Wk6", "6mo")),]
+  
+  ### color scale
+  sjcar19_colors <- c("#16101E", "#D0B78F", "#8C8781", "#C7904F", "#133D31", "#82A5B8", "#3B3B53", "#4C8493", "#C31517",
+                      "#D94C21", "#3E89A8", "#AA4C26",  "#CAA638", "#640B11", "#629488", "#BD7897", "#3C2D16", "#25245D",
+                      "#E64E46", "#73BCAA", "#7047C1", "#286278")
+  names(sjcar19_colors) <- unique(plot_df$Cluster)
+  show_col(sjcar19_colors)
+  
   ### draw a proportional bar plot
   p <- ggplot(data=plot_df, aes_string(x="Time", y="Numbers", fill="Cluster", label="Pcnt")) +
     geom_bar(position = "stack", stat = "identity") +
@@ -12247,6 +12334,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
               position = position_stack(vjust = 0.5),
               size = 6, color = "black") +
     coord_flip() +
+    scale_fill_manual(values = sjcar19_colors) +
+    scale_y_continuous(expand = c(0, 0)) +
     theme_classic(base_size = 30) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
           axis.ticks = element_blank())
@@ -12359,18 +12448,26 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   plot_df <- plot_df %>%
     mutate(text_y = cumsum(Numbers) - Numbers/2)
   
+  ### color scale
+  sjcar19_colors <- rev(c("#640B11", "#3C2D16", "#C31517", "#E64E46", "#D94C21", "#C09969",
+                          "#287B66", "#82A5B8", "#286278", "#487A8F", "#3B3B53", "#7047C1"))
+  names(sjcar19_colors) <- unique(plot_df$Function_Group)
+  show_col(sjcar19_colors)
+  
   ### draw the pie chart
   options(ggrepel.max.overlaps = Inf)
   p <- ggplot(data = plot_df,
               aes(x = "", y = Numbers, fill = Function_Group)) +
     geom_bar(stat = "identity", width = 1) +
-    geom_label_repel(aes(label = Text), position = position_stack_and_nudge(vjust = 0.5, x = 0.3),
-                     show.legend = FALSE, size = 5) +
+    geom_label_repel(aes(label = Text), position = position_stack_and_nudge(vjust = 0.8, x = 0.4),
+                     show.legend = FALSE, size = 6.5) +
     coord_polar(theta="y") +
     labs(x = NULL, y = NULL, title = "# Post-Infusion CAR+ Cells") +
-    scale_fill_discrete(name = "Functional Annotations", labels = paste0(as.character(plot_df$Function_Group), ": ",
-                                                                         plot_df$Numbers, " (",
-                                                                         plot_df$Pcnt, "%)")) +
+    scale_fill_manual(name = "Functional Annotations",
+                      labels = paste0(as.character(plot_df$Function_Group), ": ",
+                                      plot_df$Numbers, " (",
+                                      plot_df$Pcnt, "%)"),
+                      values = sjcar19_colors) +
     theme_classic(base_size = 36) +
     theme(plot.title = element_text(hjust = 0.5, color = "black", size = 36),
           axis.line = element_blank(),
