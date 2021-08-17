@@ -57,7 +57,8 @@
 #               33. CD4/CD8 into one UMAP
 #               34. 07/30/21 - All the additional visualizations that need to be done
 #               35. 08/02/21 - Emergent request - sample swap checking
-#               36. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+#               36. 08/11/21 - Asya's suggestion - statistical p-value generation PI lineage ended up in cluster3/8
+#               37. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
 #
 #   Instruction
 #               1. Source("Manuscript_Figures_And_Tables.R")
@@ -9203,6 +9204,22 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
          plot = p,
          width = 15, height = 10, dpi = 350)
   
+  ### 08/17/21 - represent GMP and PI on the pseudotime plot w/o individual time points
+  two_color_scale <- c("#C09969", "#487A8F")
+  names(two_color_scale) <- c("GMP", "PI")
+  
+  p <- plot_cell_trajectory(monocle_cds, color_by = "GMP", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    scale_color_manual(values = two_color_scale, name = "GMP/PI") +
+    guides(color = guide_legend(override.aes = list(size = 10))) +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_GMP_PI_Monocle2_Fig4b.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
   p <- plot_cell_trajectory(monocle_cds, color_by = "Pseudotime", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
     labs(color="") +
     theme_classic(base_size = 36) +
@@ -10634,13 +10651,21 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   ### overlay two UMAPs - Seurat clusters & Subsisters (black)
   JCC_Seurat_Obj$Seurat_Clusters_Subsisters <- as.character(JCC_Seurat_Obj$AllSeuratClusters)
-  JCC_Seurat_Obj$Seurat_Clusters_Subsisters[which(JCC_Seurat_Obj$ALL_CARpos_Persister2 == "YES")] <- "Subsisters"
+  JCC_Seurat_Obj$Seurat_Clusters_Subsisters[which(JCC_Seurat_Obj$ALL_CARpos_Persister2 == "YES")] <- "Lineages"
+  
+  ### color scale
+  sjcar19_colors <- c("#16101E", "#D0B78F", "#8C8781", "#C7904F", "#133D31", "#82A5B8", "#3B3B53", "#4C8493", "#C31517",
+                      "#D94C21", "#3E89A8", "#AA4C26",  "#CAA638", "#640B11", "#629488", "#BD7897", "#3C2D16", "#25245D",
+                      "#E64E46", "#73BCAA", "#7047C1", "#286278")
+  names(sjcar19_colors) <- levels(JCC_Seurat_Obj$AllSeuratClusters)
+  show_col(sjcar19_colors)
   
   p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = FALSE,
                group.by = "Seurat_Clusters_Subsisters",
                pt.size = 1,
-               cols = c("Subsisters" = "black", color_scale),
-               order = c("Subsisters", levels(JCC_Seurat_Obj$AllSeuratClusters))) +
+               cols = c("Lineages" = "blue", sjcar19_colors),
+               order = c("Lineages", levels(JCC_Seurat_Obj$AllSeuratClusters))) +
+    guides(color = guide_legend(override.aes = list(size = 10))) +
     ggtitle("") +
     labs(color="") +
     theme_classic(base_size = 48) +
@@ -10651,7 +10676,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           legend.title = element_text(size = 24),
           legend.text = element_text(size = 24))
   p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
-  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_In_Clusters.png"), plot = p, width = 13, height = 10, dpi = 350)
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_In_Clusters_Fig5b.png"), plot = p, width = 13, height = 10, dpi = 350)
+  
   
   ### UMAP: Non-Subsisters - lightgray, subsisters colored based on time
   JCC_Seurat_Obj$Seurat_Clusters_Subsisters2 <- JCC_Seurat_Obj$ALL_CARpos_Persister2
@@ -10768,14 +10794,24 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   }
   arrow_df <- arrow_df[-nrow(arrow_df),]
   
+  ### the column must only contain Wk1-Wk8
+  JCC_Seurat_Obj$Seurat_Clusters_Subsisters3 <- JCC_Seurat_Obj$Seurat_Clusters_Subsisters2
+  JCC_Seurat_Obj$Seurat_Clusters_Subsisters3[which(JCC_Seurat_Obj$Seurat_Clusters_Subsisters3 %in% c("Non-Subsisters", "GMP"))] <- "NA"
+  
+  ### color scale
+  sjcar19_colors <- c("#640B11", "#D39F3A", "#C09969", "#287B66", "#487A8F", "lightgray")
+  names(sjcar19_colors) <- c("Wk1", "Wk2", "Wk3", "Wk4", "Wk8", "NA")
+  show_col(sjcar19_colors)
+  
   ### add arrows to the previous UMAP - no GMP
   p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = FALSE,
-               group.by = "Seurat_Clusters_Subsisters2",
-               pt.size = 3,
-               cols = c("Non-Subsisters" = "lightgray", color_scale),
-               order = rev(unique(JCC_Seurat_Obj$Seurat_Clusters_Subsisters2))) +
+               group.by = "Seurat_Clusters_Subsisters3",
+               pt.size = 5,
+               cols = sjcar19_colors,
+               order = rev(unique(JCC_Seurat_Obj$Seurat_Clusters_Subsisters3))) +
     ggtitle("") +
     labs(color="") +
+    guides(colour = guide_legend(override.aes = list(size=10))) +
     theme_classic(base_size = 48) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
           axis.text.x = element_text(size = 48),
@@ -10788,7 +10824,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       data = arrow_df,
       arrow = arrow(length = unit(0.03, "npc"))
     )
-  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow_PI_ONLY.png"), plot = p, width = 15, height = 10, dpi = 350)
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow_PI_ONLY_Fig5d.png"), plot = p, width = 15, height = 10, dpi = 350)
   
   ### those that have at least two PI time points in the lineage
   arrow_df <- data.frame(x1=0,
@@ -12852,14 +12888,57 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
               file = paste0(outputDir2, "SJCAR19_HLA_Heatmap_Table_Original.xlsx"),
               sheetName = "HLA_Matching_Heatmap_Table")
   
-  
-  
   #
-  ### 36. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  ### 36. 08/11/21 - Asya's suggestion - statistical p-value generation PI lineage ended up in cluster3/8
   #
   
   ### create outputDir
   outputDir2 <- paste0(outputDir, "/36/")
+  dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
+  
+  ### PI subsisters in the cluster3&8
+  cluster3_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                   which(JCC_Seurat_Obj$AllSeuratClusters == "3")),
+                                                                         which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]
+  cluster8_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                   which(JCC_Seurat_Obj$AllSeuratClusters == "8")),
+                                                                         which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]
+  cluster38_pi_subsisters <- c(cluster3_pi_subsisters, cluster8_pi_subsisters)
+  
+  ### PI subsister clones in the cluster3&8
+  cluster3_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster3_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
+  cluster8_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster8_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
+  cluster38_pi_subsister_clones <- unique(c(cluster3_pi_subsister_clones, cluster8_pi_subsister_clones))
+  
+  ### remove NA clones
+  cluster3_pi_subsister_clones <- cluster3_pi_subsister_clones[which(!is.na(cluster3_pi_subsister_clones))]
+  cluster8_pi_subsister_clones <- cluster8_pi_subsister_clones[which(!is.na(cluster8_pi_subsister_clones))]
+  cluster38_pi_subsister_clones <- cluster38_pi_subsister_clones[which(!is.na(cluster38_pi_subsister_clones))]
+  
+  ### get the GMP subsister indicies that end up in PI cluster 3 & 8
+  GMP_Subsisters_PI_Cluster38_idx <- intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                               which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% cluster38_pi_subsister_clones))
+  
+  ### add a column for the info
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 <- "Others"
+  JCC_Seurat_Obj@meta.data[cluster38_pi_subsisters, "GMP_Subsisters_End_Up_In_Cluster38"] <- "PI_Subsisters_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38[GMP_Subsisters_PI_Cluster38_idx] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38[intersect(which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "Others"),
+                                                              which(JCC_Seurat_Obj$GMP_CARpos_Persister == "YES"))] <- "Other_GMP_Subsisters"
+  
+  
+  
+  
+  
+  
+  
+  
+  #
+  ### 37. Comparison of DE genes between "GMP CAR+ S vs NS" & "After infusion CAR+ S vs NS"
+  #
+  
+  ### create outputDir
+  outputDir2 <- paste0(outputDir, "/37/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
   ### only get the GMP persisters and non-persisters
