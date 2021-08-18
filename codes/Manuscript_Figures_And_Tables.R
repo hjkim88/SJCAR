@@ -12926,8 +12926,95 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38[intersect(which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "Others"),
                                                               which(JCC_Seurat_Obj$GMP_CARpos_Persister == "YES"))] <- "Other_GMP_Subsisters"
   
+  #
+  ### From GMP
+  #
+  
+  ### check some numbers
+  print(length(which(JCC_Seurat_Obj$GMP_CARpos_Persister == "YES")))
+  print(length(which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 %in% c("GMP_Subsisters_End_Up_In_Cluster_3_And_8", "Other_GMP_Subsisters"))))
+  
+  ### check how many cells are in PI clusters
+  unique_pi_clusters <- unique(JCC_Seurat_Obj$AllSeuratClusters[which(JCC_Seurat_Obj$GMP == "PI")])
+  unique_pi_clusters <- unique_pi_clusters[order(unique_pi_clusters)]
+  print(sapply(as.character(unique_pi_clusters), function(x) length(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                              which(JCC_Seurat_Obj$AllSeuratClusters == x)))))
   
   
+  ### random approach - null model - the GMP subsister lineages will end up every where
+  ### cannot do it based on cells. why? because we don't know the sampling rate.
+  ### lots of cells in GMP are not appearing again
+  ### so we should see the lineages that will last and test the significance based on those
+  
+  ### get some pre-calculates
+  gmp_subsisters_clones <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                                                                  which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))])
+  pi_subsister_clones <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                                which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))])
+  print(identical(gmp_subsisters_clones[order(gmp_subsisters_clones)], pi_subsister_clones[order(pi_subsister_clones)]))
+  
+  ### because it's impossible to draw an alluvial plot based on clones or on cells (due to duplication),
+  ### I will just compute how many lineages in a GMP cluster goes into the PI clusters
+  ### the numbers (y-axis) do not mean the number of cells
+  plot_df2 <- data.frame(GMP_PI="",
+                         Cluster="",
+                         Connection_Identifier="",
+                         Size=1,
+                         stringsAsFactors = FALSE, check.names = FALSE)
+  for(clone in gmp_subsisters_clones) {
+    gmp_target_idx <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == clone),
+                                which(JCC_Seurat_Obj$GMP == "GMP"))
+    gmp_target_clusters <- unique(as.character(JCC_Seurat_Obj$AllSeuratClusters[gmp_target_idx]))
+    pi_target_idx <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == clone),
+                               which(JCC_Seurat_Obj$GMP == "PI"))
+    pi_target_clusters <- unique(as.character(JCC_Seurat_Obj$AllSeuratClusters[pi_target_idx]))
+    
+    for(clstr1 in gmp_target_clusters) {
+      for(clstr2 in pi_target_clusters) {
+        plot_df2 <- rbind(plot_df2,
+                          c("GMP", clstr1, paste0(clstr1, "_", clstr2), 1))
+        plot_df2 <- rbind(plot_df2,
+                          c("PI", clstr2, paste0(clstr1, "_", clstr2), 1))
+      }
+    }
+  }
+  plot_df2 <- plot_df2[-1,]
+  plot_df2$Size <- as.numeric(plot_df2$Size)
+  
+  ### sum up the duplicates
+  nodup_idx <- which(!duplicated(plot_df2))
+  for(i in nodup_idx) {
+    target_idx <- intersect(intersect(which(plot_df2$GMP_PI == plot_df2$GMP_PI[i]),
+                                      which(plot_df2$Cluster == plot_df2$Cluster[i])),
+                            which(plot_df2$Connection_Identifier == plot_df2$Connection_Identifier[i]))
+    plot_df2$Size[i] <- length(target_idx)
+  }
+  plot_df2 <- plot_df2[nodup_idx,]
+  
+  ### calculate p-value
+  ### Fisher's exact test
+  ###
+  ###              End in C3/8  Not End in C3/8
+  ###             -----------------------------
+  ### Observation |    X               Y
+  ###      Random |    Z               W
+  X <- length(intersect(which(plot_df2$GMP_PI == "PI"),
+                        which(plot_df2$Cluster %in% c("3", "8"))))
+  Y <- length(intersect(which(plot_df2$GMP_PI == "PI"),
+                        which(!plot_df2$Cluster %in% c("3", "8"))))
+  Z <- round(length(which(plot_df2$GMP_PI == "PI")) * length(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                       which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3", "8")))) / length(which(JCC_Seurat_Obj$GMP == "PI")))
+  W <- round(length(which(plot_df2$GMP_PI == "PI")) * length(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                       which(!JCC_Seurat_Obj$AllSeuratClusters %in% c("3", "8")))) / length(which(JCC_Seurat_Obj$GMP == "PI")))
+  
+  pi_odds_ratio <- fisher.test(matrix(c(X, Z, Y, W), 2, 2), alternative = "greater")$estimate
+  pi_p_value <- fisher.test(matrix(c(X, Z, Y, W), 2, 2), alternative = "greater")$p.value
+  
+  print(pi_odds_ratio)
+  print(pi_p_value)
+  
+  ### PI CAR+ cells are more in C8 - that is already significant
+  ### they share similar gene expression signatures - so those CAR+ are more appearing in PI - which means important
   
   
   
