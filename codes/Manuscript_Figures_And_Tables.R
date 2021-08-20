@@ -12517,6 +12517,106 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   
   #
+  ### Figure2A: UMAP based on Seurat clusters
+  #
+  
+  ### color scale
+  sjcar19_colors <- c("#16101E", "#D0B78F", "#8C8781", "#C7904F", "#133D31", "#82A5B8", "#3B3B53", "#4C8493", "#C31517",
+                      "#D94C21", "#3E89A8", "#AA4C26",  "#CAA638", "#640B11", "#629488", "#BD7897", "#3C2D16", "#25245D",
+                      "#E64E46", "#73BCAA", "#7047C1", "#286278")
+  names(sjcar19_colors) <- levels(JCC_Seurat_Obj$AllSeuratClusters)
+  show_col(sjcar19_colors)
+  
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = FALSE,
+               group.by = "AllSeuratClusters",
+               pt.size = 1,
+               cols = c(sjcar19_colors),
+               order = c(levels(JCC_Seurat_Obj$AllSeuratClusters))) +
+    guides(color = guide_legend(override.aes = list(size = 10))) +
+    ggtitle("") +
+    labs(color="Clusters") +
+    theme_classic(base_size = 48) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_text(size = 48),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 24),
+          legend.text = element_text(size = 24))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Clusters_Fig2a.png"), plot = p, width = 13, height = 10, dpi = 350)
+  
+  #
+  ### Figure2B: UMAP - CD4/CD8
+  #
+  
+  ### CD4/CD8 annotation
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters <- "NA"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "2", "9", "10", "11", "14", "15", "18"))] <- "CD4"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20"))] <- "CD8"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters <- factor(JCC_Seurat_Obj$CD4_CD8_by_Clusters, levels = c("CD4", "CD8", "NA"))
+  
+  ### UMAP
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+               group.by = "CD4_CD8_by_Clusters",
+               cols = c("CD8" = "#487A8F", "CD4" = "#C09969", "NA" = "gray"),
+               order = c("CD8", "CD4", "NA"),
+               pt.size = 3, raster = FALSE) +
+    ggtitle("") +
+    labs(color="CD4/CD8") +
+    guides(color = guide_legend(override.aes = list(size = 10))) +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
+  ggsave(paste0(outputDir2, "UMAP_CARpos_CD4_CD8_Fig2b.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  #
+  ### Figure2C: Dot plot - Interesting gene expressions with functional groups (refer 32)
+  #
+  
+  ### set genes of interest (from Tay)
+  interesting_genes <- c("GZMK", "GZMM", "GZMH", "GNLY", "NKG7", "KLRD1", "TUBA1B", "TUBB", "STMN1", "CDCA8",
+                         "CDK1", "CDC20", "MCM7", "MKI67", "TOP2A", "HLA-DQA1", "HLA-DRB1", "LAG3", "LTB",
+                         "HILPDA", "BNIP3", "ENO1", "SELL", "IL7R", "CASP8", "RPL7", "RPL30", "RPL32", "TOX")
+  
+  ### cluster functional annotation
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters <- "Others"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "10", "11"))] <- "Proliferating GMP"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("2", "6"))] <- "Cytotoxic GMP"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3"))] <- "GZMK Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("4"))] <- "Mixed GMP/PI"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("8"))] <- "Canonical Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("9"))] <- "Dysfunctional CD4 GMP"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("12", "15"))] <- "Hypoxic GMP"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13"))] <- "Dysfunctional Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("14"))] <- "Cytotoxic CD4 Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("16", "17"))] <- "Mild Proliferating Effectors"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("20"))] <- "Dying T Cells"
+  
+  ### color scale
+  sjcar19_colors <- c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53")
+  show_col(sjcar19_colors)
+  
+  ### dot plot - like Dave's
+  p <- DotPlot(JCC_Seurat_Obj,
+               features = interesting_genes,
+               cols = c("#487A8F", "#C09969"),
+               group.by = "Functinal_Annotation_Based_On_Clusters") +
+    scale_size(range = c(2, 12)) +
+    coord_flip() +
+    xlab("") +
+    ylab("") +
+    theme_calc(base_size = 28) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text.x = element_text(angle = -60, size = 30, vjust = 0.5, hjust = 0),
+          axis.text.y = element_text(size = 24))
+  ggsave(file = paste0(outputDir2, "Dotplot_CARpos_Functional_Group_GEXP_Fig2c.png"),
+         plot = p, width = 40, height = 18, dpi = 350)
+  
+  
+  
+  
+  
+  #
   ### 35. 08/02/21 - Emergent request - sample swap checking
   #
   
@@ -12939,6 +13039,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   unique_pi_clusters <- unique_pi_clusters[order(unique_pi_clusters)]
   print(sapply(as.character(unique_pi_clusters), function(x) length(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
                                                                               which(JCC_Seurat_Obj$AllSeuratClusters == x)))))
+  
+  ### check how many cells are in PI clusters
+  unique_gmp_clusters <- unique(JCC_Seurat_Obj$AllSeuratClusters[which(JCC_Seurat_Obj$GMP == "GMP")])
+  unique_gmp_clusters <- unique_gmp_clusters[order(unique_gmp_clusters)]
+  print(sapply(as.character(unique_gmp_clusters), function(x) length(intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                                               which(JCC_Seurat_Obj$AllSeuratClusters == x)))))
   
   
   ### random approach - null model - the GMP subsister lineages will end up every where
