@@ -12379,6 +12379,14 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
          width = 20, height = 10, dpi = 350)
   
   #
+  ### make the bar plot above with percentage - the x-axis is no longer the actual cell # but proportional percentage
+  ### so that every time point has the same length in the bar plot
+  #
+  
+  
+  
+  
+  #
   ### pie chart - PI CAR+ cells belong to each functional group
   #
   
@@ -12490,13 +12498,27 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   names(sjcar19_colors) <- unique(plot_df$Function_Group)
   show_col(sjcar19_colors)
   
+  ### label change
+  plot_df$Text[1] <- "Proliferating\nGMP (6.3%)"
+  plot_df$Text[2] <- ""
+  plot_df$Text[3] <- "Dysfunctional\nCD4 GMP (2.3%)"
+  plot_df$Text[4] <- "Cytotoxic\nGMP (13.5%)"
+  plot_df$Text[5] <- "Others (0.3%)"
+  plot_df$Text[6] <- "Mixed\nGMP/PI (10.5%)"
+  plot_df$Text[7] <- "Mild Proliferating\nEffectors (8.8%)"
+  plot_df$Text[8] <- "Dying\nT Cells (3.2%)"
+  plot_df$Text[9] <- "Dysfunctional\nEffector (9.9%)"
+  plot_df$Text[10] <- "GZMK Cytotoxic\nCD8 Effector (22.6%)"
+  plot_df$Text[11] <- "Cytotoxic\nCD4 Effector (9.3%)"
+  plot_df$Text[12] <- "Canonical Cytotoxic\nCD8 Effector (13.2%)"
+  
   ### draw the pie chart
   options(ggrepel.max.overlaps = Inf)
   p <- ggplot(data = plot_df,
               aes(x = "", y = Numbers, fill = Function_Group)) +
     geom_bar(stat = "identity", width = 1) +
-    geom_label_repel(aes(label = Text), position = position_stack_and_nudge(vjust = 0.8, x = 0.4),
-                     show.legend = FALSE, size = 6.5) +
+    geom_label_repel(aes(label = Text), position = position_stack_and_nudge(vjust = 0.5, x = 0.5),
+                     show.legend = FALSE, size = 10, color = "white", segment.color = NA) +
     coord_polar(theta="y") +
     labs(x = NULL, y = NULL, title = "# Post-Infusion CAR+ Cells") +
     scale_fill_manual(name = "Functional Annotations",
@@ -12512,7 +12534,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           legend.position = "none")
   
   ### save the plot
-  ggsave(file = paste0(outputDir2, "Functions_Proportions_In_PI_CARpos.png"), plot = p,
+  ggsave(file = paste0(outputDir2, "Functions_Proportions_In_PI_CARpos_Fig2A.png"), plot = p,
          width = 15, height = 10, dpi = 350)
   
   
@@ -12578,6 +12600,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                          "CDK1", "CDC20", "MCM7", "MKI67", "TOP2A", "HLA-DQA1", "HLA-DRB1", "LAG3", "LTB",
                          "HILPDA", "BNIP3", "ENO1", "SELL", "IL7R", "CASP8", "RPL7", "RPL30", "RPL32", "TOX")
   
+  interesting_genes2 <- c("RPL32", "RPL30", "LAG3", "TOX", "CASP8", "IL7R", "SELL", "BNIP3", "MKI67",
+                          "CDC20", "CDK1", "NKG7", "GNLY", "GZMH", "GZMM", "GZMK")
+  
   ### cluster functional annotation
   JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters <- "Others"
   JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "10", "11"))] <- "Proliferating GMP"
@@ -12591,6 +12616,22 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("14"))] <- "Cytotoxic CD4 Effector"
   JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("16", "17"))] <- "Mild Proliferating Effectors"
   JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("20"))] <- "Dying T Cells"
+  
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2 <- "NA"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("8"))] <- "Canonical Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3"))] <- "GZMK Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("14"))] <- "Cytotoxic CD4 Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "10", "11"))] <- "Proliferating GMP"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13"))] <- "Dysfunctional/Exhausted Effector"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("20"))] <- "Dying T Cells"
+  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2 <- factor(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2,
+                                                                   levels = c("Canonical Cytotoxic CD8 Effector",
+                                                                              "GZMK Cytotoxic CD8 Effector",
+                                                                              "Cytotoxic CD4 Effector",
+                                                                              "Proliferating GMP",
+                                                                              "Dysfunctional/Exhausted Effector",
+                                                                              "Dying T Cells",
+                                                                              "NA"))
   
   ### color scale
   sjcar19_colors <- c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53")
@@ -12612,6 +12653,22 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(file = paste0(outputDir2, "Dotplot_CARpos_Functional_Group_GEXP_Fig2c.png"),
          plot = p, width = 40, height = 18, dpi = 350)
   
+  ### dot plot2 - like Dave's
+  temp_obj <- subset(JCC_Seurat_Obj,
+                     cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2 != "NA")])
+  p <- DotPlot(temp_obj,
+               features = interesting_genes2,
+               split.by = "Functinal_Annotation_Based_On_Clusters2") +
+    scale_size(range = c(5, 25)) +
+    xlab("") +
+    ylab("") +
+    scale_color_gradientn(colours = c("#487A8F", "#C09969", "#AA4C26")) +
+    theme_classic(base_size = 28) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text.x = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5),
+          axis.text.y = element_text(size = 30, vjust = 0.5, hjust = 1))
+  ggsave(file = paste0(outputDir2, "Dotplot_CARpos_Functional_Group_GEXP_Fig1D.png"),
+         plot = p, width = 33, height = 15, dpi = 350)
   
   
   
