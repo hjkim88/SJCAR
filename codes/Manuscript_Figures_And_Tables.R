@@ -12881,6 +12881,133 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     )
   ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow_PI_ONLY_With_GMP_Fig4_CD4.png"), plot = p, width = 15, height = 10, dpi = 350)
   
+  #
+  ### Correlation between B cell recovery time & Lineage # ended up in Cluster3&8
+  #
+  
+  ### PI subsisters in the cluster3&8
+  cluster3_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                   which(JCC_Seurat_Obj$AllSeuratClusters == "3")),
+                                                                         which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]
+  cluster8_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                   which(JCC_Seurat_Obj$AllSeuratClusters == "8")),
+                                                                         which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]
+  cluster38_pi_subsisters <- c(cluster3_pi_subsisters, cluster8_pi_subsisters)
+  
+  ### PI subsister clones in the cluster3&8
+  cluster3_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster3_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
+  cluster8_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster8_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
+  cluster38_pi_subsister_clones <- unique(c(cluster3_pi_subsister_clones, cluster8_pi_subsister_clones))
+  
+  ### remove NA clones
+  cluster3_pi_subsister_clones <- cluster3_pi_subsister_clones[which(!is.na(cluster3_pi_subsister_clones))]
+  cluster8_pi_subsister_clones <- cluster8_pi_subsister_clones[which(!is.na(cluster8_pi_subsister_clones))]
+  cluster38_pi_subsister_clones <- cluster38_pi_subsister_clones[which(!is.na(cluster38_pi_subsister_clones))]
+  
+  ### get the GMP subsister indicies that end up in PI cluster 3 & 8
+  GMP_Subsisters_PI_Cluster38_idx <- intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                               which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% cluster38_pi_subsister_clones))
+  
+  ### add a column for the info
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 <- "Others"
+  JCC_Seurat_Obj@meta.data[cluster38_pi_subsisters, "GMP_Subsisters_End_Up_In_Cluster38"] <- "PI_Subsisters_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38[GMP_Subsisters_PI_Cluster38_idx] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38[intersect(which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "Others"),
+                                                              which(JCC_Seurat_Obj$GMP_CARpos_Persister == "YES"))] <- "Other_GMP_Subsisters"
+  
+  ### UMAP the info
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = FALSE,
+               group.by = "GMP_Subsisters_End_Up_In_Cluster38",
+               pt.size = 3, cols = c("GMP_Subsisters_End_Up_In_Cluster_3_And_8" = "red", "PI_Subsisters_In_Cluster_3_And_8" = "orange", "Other_GMP_Subsisters" = "blue", "Others" = "lightgray"),
+               order = c("GMP_Subsisters_End_Up_In_Cluster_3_And_8", "PI_Subsisters_In_Cluster_3_And_8", "Other_GMP_Subsisters", "Others")) +
+    ggtitle("") +
+    labs(color="") +
+    theme_classic(base_size = 48) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_text(size = 48),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 24),
+          legend.text = element_text(size = 24))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  
+  ### GMP precursor cell # and lineage # that connects to cluster 3&8 in PI
+  gmp_precursor_cellNum_3_8 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+  names(gmp_precursor_cellNum_3_8) <- unique(JCC_Seurat_Obj$px)
+  
+  gmp_precursor_lineageNum_3_8 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+  names(gmp_precursor_lineageNum_3_8) <- unique(JCC_Seurat_Obj$px)
+  
+  for(px in names(gmp_precursor_cellNum_3_8)) {
+    target_idx <- intersect(which(JCC_Seurat_Obj$px == px),
+                            which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"))
+    gmp_precursor_cellNum_3_8[px] <- length(target_idx)
+    gmp_precursor_lineageNum_3_8[px] <- length(unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[target_idx]))
+  }
+  
+  ### normalize it by total cell/lineage num of each patient
+  for(px in names(gmp_precursor_cellNum_3_8)) {
+    gmp_precursor_cellNum_3_8[px] <- 1e+4 * gmp_precursor_cellNum_3_8[px] / length(which(JCC_Seurat_Obj$px == px))
+    gmp_precursor_lineageNum_3_8[px] <- 1e+4 * gmp_precursor_lineageNum_3_8[px] / length(unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[which(JCC_Seurat_Obj$px == px)]))
+  }
+  
+  ### make a correlation plot with b cell recovery data
+  b_cell_recovery_time <- rep(NA, length(unique(JCC_Seurat_Obj$px)))
+  names(b_cell_recovery_time) <- unique(JCC_Seurat_Obj$px)
+  b_cell_recovery_time["SJCAR19-02"] <- 73
+  b_cell_recovery_time["SJCAR19-03"] <- 85
+  b_cell_recovery_time["SJCAR19-05"] <- 174
+  b_cell_recovery_time["SJCAR19-06"] <- 131
+  b_cell_recovery_time["SJCAR19-15"] <- 44
+  
+  ### remove px12-15 since they are incomplete
+  gmp_precursor_cellNum_3_8 <- gmp_precursor_cellNum_3_8[1:11]
+  gmp_precursor_lineageNum_3_8 <- gmp_precursor_lineageNum_3_8[1:11]
+  b_cell_recovery_time <- b_cell_recovery_time[1:11]
+  
+  ### correlation plot data
+  plot_df <- data.frame(GMP_Precursor_CellNum=as.numeric(gmp_precursor_cellNum_3_8),
+                        GMP_Precursor_LineageNum=as.numeric(gmp_precursor_lineageNum_3_8),
+                        B_Cell_Recovery_Time=as.numeric(b_cell_recovery_time),
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### draw the correlation plot - cell #
+  s_cor <- round(cor(plot_df$GMP_Precursor_CellNum,
+                     plot_df$B_Cell_Recovery_Time, method = "spearman", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Precursor_CellNum,
+                       plot_df$B_Cell_Recovery_Time, method = "spearman", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Precursor_CellNum, y=B_Cell_Recovery_Time)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Spearman Correlation:", s_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("Normalized # GMP Precursor Cell (Cluster 3 & 8)") +
+    ylab("B Cell Recovery Time (Days)") +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Cell_Cluster3_8_B_Cell_Recovery.png"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - lineage #
+  s_cor <- round(cor(plot_df$GMP_Precursor_LineageNum,
+                     plot_df$B_Cell_Recovery_Time, method = "spearman", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Precursor_LineageNum,
+                       plot_df$B_Cell_Recovery_Time, method = "spearman", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Precursor_LineageNum, y=B_Cell_Recovery_Time)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Spearman Correlation:", s_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("Normalized # GMP Precursor Lineage (Cluster 3 & 8)") +
+    ylab("B Cell Recovery Time (Days)") +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Lineage_Cluster3_8_B_Cell_Recovery.png"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### correlate with peak expansion and wk1 expansion
+  
+  
+  
+  
   
   
   
