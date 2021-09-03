@@ -12224,6 +12224,30 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
   ggsave(paste0(outputDir2, "UMAP_CARpos_Time2_rainbow.png"), plot = p, width = 15, height = 10, dpi = 350)
   
+  
+  ### SJCAR19 color palette version
+  sjcar19_color_scale <- c("lightgray", "#286278", "#3C2D16","#D0B78F", "#640B11", "#C31517",
+                           "#133D31", "#D94C21","#3B3B53")
+  names(sjcar19_color_scale) <- unique(JCC_Seurat_Obj$time2)
+  show_col(sjcar19_color_scale)
+  
+  ### Make GMP cells gray; color PI cells by their time points
+  sjcar19_color_scale["GMP"] <- "lightgray"
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+               group.by = "time2",
+               pt.size = 2, raster = FALSE,
+               cols = sjcar19_color_scale[JCC_Seurat_Obj$time2],
+               order = rev(unique(JCC_Seurat_Obj$time2))) +
+    ggtitle("") +
+    labs(color="Time") +
+    
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.text.x = element_text(size = 30),
+          axis.title.y = element_text(size = 30))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Time2_Fig2B.pdf"), plot = p, width = 15, height = 10, dpi = 350)
+  
   #
   ### proportional bar plot of time points within each cluster
   #
@@ -12536,7 +12560,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           legend.position = "none")
   
   ### save the plot
-  ggsave(file = paste0(outputDir2, "Functions_Proportions_In_PI_CARpos_Fig2A.png"), plot = p,
+  ggsave(file = paste0(outputDir2, "Functions_Proportions_In_PI_CARpos_Fig2A.pdf"), plot = p,
          width = 15, height = 10, dpi = 350)
   
   
@@ -12567,7 +12591,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           legend.title = element_text(size = 24),
           legend.text = element_text(size = 24))
   p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
-  ggsave(paste0(outputDir2, "UMAP_CARpos_Clusters_Fig2a.png"), plot = p, width = 13, height = 10, dpi = 350)
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Clusters_Fig2a.pdf"), plot = p, width = 13, height = 10, dpi = 350)
   
   #
   ### Figure2B: UMAP - CD4/CD8
@@ -12591,7 +12615,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme_classic(base_size = 36) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30))
   p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
-  ggsave(paste0(outputDir2, "UMAP_CARpos_CD4_CD8_Fig2b.png"), plot = p, width = 15, height = 10, dpi = 350)
+  ggsave(paste0(outputDir2, "UMAP_CARpos_CD4_CD8_Fig2b.pdf"), plot = p, width = 15, height = 10, dpi = 350)
   
   #
   ### Figure2C: Dot plot - Interesting gene expressions with functional groups (refer 32)
@@ -12652,7 +12676,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme(plot.title = element_text(hjust = 0.5),
           axis.text.x = element_text(angle = -60, size = 30, vjust = 0.5, hjust = 0),
           axis.text.y = element_text(size = 24))
-  ggsave(file = paste0(outputDir2, "Dotplot_CARpos_Functional_Group_GEXP_Fig2c.png"),
+  ggsave(file = paste0(outputDir2, "Dotplot_CARpos_Functional_Group_GEXP_Fig2c.pdf"),
          plot = p, width = 40, height = 18, dpi = 350)
   
   ### dot plot2 - like Dave's
@@ -12660,17 +12684,19 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                      cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2 != "NA")])
   p <- DotPlot(temp_obj,
                features = interesting_genes2,
-               split.by = "Functinal_Annotation_Based_On_Clusters2") +
+               group.by = "Functinal_Annotation_Based_On_Clusters2") +
     scale_size(range = c(5, 25)) +
     xlab("") +
     ylab("") +
     scale_color_gradientn(colours = c("#487A8F", "#C09969", "#AA4C26")) +
     theme_classic(base_size = 28) +
     theme(plot.title = element_text(hjust = 0.5),
-          axis.text.x = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5),
-          axis.text.y = element_text(size = 30, vjust = 0.5, hjust = 1))
-  ggsave(file = paste0(outputDir2, "Dotplot_CARpos_Functional_Group_GEXP_Fig1D.png"),
-         plot = p, width = 33, height = 15, dpi = 350)
+          axis.text.x = element_text(angle = 90, size = 50, vjust = 0.5, hjust = 0.5),
+          axis.text.y = element_text(angle = 0, size = 50, vjust = 0.5, hjust = 1),
+          legend.title = element_text(size = 40),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "Dotplot_CARpos_Functional_Group_GEXP_Fig1D.pdf"),
+         plot = p, width = 34, height = 15, dpi = 350)
   
   
   #
@@ -12691,6 +12717,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   pi_subsister_clones <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(which(JCC_Seurat_Obj$GMP == "PI"),
                                                                                                 which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))])
   print(identical(gmp_subsisters_clones[order(gmp_subsisters_clones)], pi_subsister_clones[order(pi_subsister_clones)]))
+  
+  umap_map <- Embeddings(JCC_Seurat_Obj, reduction = "umap")[rownames(JCC_Seurat_Obj@meta.data), 1:2]
   
   ### remove 'FROM GMP' arrows
   arrow_df <- data.frame(x1=0,
@@ -12753,7 +12781,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       data = arrow_df,
       arrow = arrow(length = unit(0.03, "npc"))
     )
-  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow_PI_ONLY_Fig4C.png"), plot = p, width = 15, height = 10, dpi = 350)
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow_PI_ONLY_Fig4C.pdf"), plot = p, width = 15, height = 10, dpi = 350)
   
   ### only show GMP-> PI lineages
   ### should show GMP time points as well
@@ -12811,7 +12839,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       data = arrow_df,
       arrow = arrow(length = unit(0.03, "npc"))
     )
-  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow_PI_ONLY_With_GMP_Fig4D.png"), plot = p, width = 15, height = 10, dpi = 350)
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow_PI_ONLY_With_GMP_Fig4D.pdf"), plot = p, width = 15, height = 10, dpi = 350)
   
   ### CD4 lineages on the UMAP
   cd4_lineage_idx <- intersect(which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"),
@@ -12879,7 +12907,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
       data = arrow_df,
       arrow = arrow(length = unit(0.03, "npc"))
     )
-  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow_PI_ONLY_With_GMP_Fig4_CD4.png"), plot = p, width = 15, height = 10, dpi = 350)
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_By_Time_Arrow_PI_ONLY_With_GMP_Fig4_CD4.pdf"), plot = p, width = 15, height = 10, dpi = 350)
   
   #
   ### Correlation between B cell recovery time & Lineage # ended up in Cluster3&8
@@ -12966,45 +12994,383 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   b_cell_recovery_time <- b_cell_recovery_time[1:11]
   
   ### correlation plot data
-  plot_df <- data.frame(GMP_Precursor_CellNum=as.numeric(gmp_precursor_cellNum_3_8),
+  plot_df <- data.frame(Patient=names(gmp_precursor_cellNum_3_8),
+                        GMP_Precursor_CellNum=as.numeric(gmp_precursor_cellNum_3_8),
                         GMP_Precursor_LineageNum=as.numeric(gmp_precursor_lineageNum_3_8),
                         B_Cell_Recovery_Time=as.numeric(b_cell_recovery_time),
                         stringsAsFactors = FALSE, check.names = FALSE)
   
   ### draw the correlation plot - cell #
-  s_cor <- round(cor(plot_df$GMP_Precursor_CellNum,
-                     plot_df$B_Cell_Recovery_Time, method = "spearman", use = "complete.obs"), 2)
+  p_cor <- round(cor(plot_df$GMP_Precursor_CellNum,
+                     plot_df$B_Cell_Recovery_Time, method = "pearson", use = "complete.obs"), 2)
   pv <- round(cor.test(plot_df$GMP_Precursor_CellNum,
-                       plot_df$B_Cell_Recovery_Time, method = "spearman", use = "complete.obs")$p.value, 2)
+                       plot_df$B_Cell_Recovery_Time, method = "pearson", use = "complete.obs")$p.value, 2)
   p <- ggplot(data = plot_df, aes(x=GMP_Precursor_CellNum, y=B_Cell_Recovery_Time)) +
     geom_point(col = "#487A8F", size = 8) +
-    labs(title = paste0("Spearman Correlation:", s_cor),
+    labs(title = paste0("Pearson Correlation:", p_cor),
          subtitle = paste0("P-value:", pv)) +
     xlab("Normalized # GMP Precursor Cell (Cluster 3 & 8)") +
     ylab("B Cell Recovery Time (Days)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 3) +
     geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
     theme_classic(base_size = 40) +
     theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
-  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Cell_Cluster3_8_B_Cell_Recovery.png"), plot = p, width = 15, height = 10, dpi = 400)
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Cell_Cluster3_8_B_Cell_Recovery.pdf"), plot = p, width = 15, height = 10, dpi = 400)
   
   ### draw the correlation plot - lineage #
-  s_cor <- round(cor(plot_df$GMP_Precursor_LineageNum,
-                     plot_df$B_Cell_Recovery_Time, method = "spearman", use = "complete.obs"), 2)
+  p_cor <- round(cor(plot_df$GMP_Precursor_LineageNum,
+                     plot_df$B_Cell_Recovery_Time, method = "pearson", use = "complete.obs"), 2)
   pv <- round(cor.test(plot_df$GMP_Precursor_LineageNum,
-                       plot_df$B_Cell_Recovery_Time, method = "spearman", use = "complete.obs")$p.value, 2)
+                       plot_df$B_Cell_Recovery_Time, method = "pearson", use = "complete.obs")$p.value, 2)
   p <- ggplot(data = plot_df, aes(x=GMP_Precursor_LineageNum, y=B_Cell_Recovery_Time)) +
     geom_point(col = "#487A8F", size = 8) +
-    labs(title = paste0("Spearman Correlation:", s_cor),
+    labs(title = paste0("Pearson Correlation:", p_cor),
          subtitle = paste0("P-value:", pv)) +
     xlab("Normalized # GMP Precursor Lineage (Cluster 3 & 8)") +
     ylab("B Cell Recovery Time (Days)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 2) +
     geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
     theme_classic(base_size = 40) +
     theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
-  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Lineage_Cluster3_8_B_Cell_Recovery.png"), plot = p, width = 15, height = 10, dpi = 400)
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Lineage_Cluster3_8_B_Cell_Recovery.pdf"), plot = p, width = 15, height = 10, dpi = 400)
   
   ### correlate with peak expansion and wk1 expansion
+  peakcar_ug <- c(199054, 42149, 61777, 288670, 224445, 167092, 4806, 142422,
+                  301705, 356424, 64212)
+  peakcar_ml <- c(82939, 561988, 947250, 2165026, 1122227, 3369685, 76891, 569687,
+                  5732386, 2024664, 2825332)
+  wk1car_ug <- c(3114, 13912, 61777, 3745, 224445, 1011, 657, 46046,
+                 268449, 356424, 8071, 5835)
+  wk1car_ml <- c(9341, 296787, 947250, 24967, 1122227, 50700, 7561, 314646,
+                 268449, 1960334, 236747, 66126)
+  names(peakcar_ug) <- c("SJCAR19-01", "SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05",
+                         "SJCAR19-06", "SJCAR19-07", "SJCAR19-08", "SJCAR19-09", "SJCAR19-10",
+                         "SJCAR19-11")
+  names(peakcar_ml) <- c("SJCAR19-01", "SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05",
+                         "SJCAR19-06", "SJCAR19-07", "SJCAR19-08", "SJCAR19-09", "SJCAR19-10",
+                         "SJCAR19-11")
+  names(wk1car_ug) <- c("SJCAR19-01", "SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05",
+                        "SJCAR19-06", "SJCAR19-07", "SJCAR19-08", "SJCAR19-09", "SJCAR19-10",
+                        "SJCAR19-11", "SJCAR19-12")
+  names(wk1car_ml) <- c("SJCAR19-01", "SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05",
+                        "SJCAR19-06", "SJCAR19-07", "SJCAR19-08", "SJCAR19-09", "SJCAR19-10",
+                        "SJCAR19-11", "SJCAR19-12")
   
+  ### correlation plot data - PeakCAR
+  plot_df <- data.frame(Patient=names(peakcar_ug),
+                        GMP_Precursor_CellNum=as.numeric(gmp_precursor_cellNum_3_8[names(peakcar_ug)]),
+                        GMP_Precursor_LineageNum=as.numeric(gmp_precursor_lineageNum_3_8[names(peakcar_ug)]),
+                        B_Cell_Recovery_Time=as.numeric(b_cell_recovery_time[names(peakcar_ug)]),
+                        PeakCAR_ug=as.numeric(peakcar_ug),
+                        PeakCAR_ml=as.numeric(peakcar_ml),
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### draw the correlation plot - peakcar_ug, cell#
+  p_cor <- round(cor(plot_df$GMP_Precursor_CellNum,
+                     plot_df$PeakCAR_ug, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Precursor_CellNum,
+                       plot_df$PeakCAR_ug, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Precursor_CellNum, y=PeakCAR_ug)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("Normalized # GMP Precursor Cell (Cluster 3 & 8)") +
+    ylab("PeakCAR (ug DNA)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Cell_Cluster3_8_PeakCAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - peakcar_ml, cell#
+  p_cor <- round(cor(plot_df$GMP_Precursor_CellNum,
+                     plot_df$PeakCAR_ml, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Precursor_CellNum,
+                       plot_df$PeakCAR_ml, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Precursor_CellNum, y=PeakCAR_ml)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("Normalized # GMP Precursor Cell (Cluster 3 & 8)") +
+    ylab("PeakCAR (ml)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Cell_Cluster3_8_PeakCAR_ml.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - peakcar_ug, lineage#
+  p_cor <- round(cor(plot_df$GMP_Precursor_LineageNum,
+                     plot_df$PeakCAR_ug, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Precursor_LineageNum,
+                       plot_df$PeakCAR_ug, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Precursor_LineageNum, y=PeakCAR_ug)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("Normalized # GMP Precursor Cell (Cluster 3 & 8)") +
+    ylab("PeakCAR (ug DNA)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Lineage_Cluster3_8_PeakCAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - peakcar_ml, lineage#
+  p_cor <- round(cor(plot_df$GMP_Precursor_LineageNum,
+                     plot_df$PeakCAR_ml, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Precursor_LineageNum,
+                       plot_df$PeakCAR_ml, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Precursor_LineageNum, y=PeakCAR_ml)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("Normalized # GMP Precursor Cell (Cluster 3 & 8)") +
+    ylab("PeakCAR (ml)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Lineage_Cluster3_8_PeakCAR_ml.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  
+  ### correlation plot data - Wk1 CAR
+  plot_df <- data.frame(Patient=names(wk1car_ug),
+                        GMP_Precursor_CellNum=as.numeric(gmp_precursor_cellNum_3_8[names(wk1car_ug)]),
+                        GMP_Precursor_LineageNum=as.numeric(gmp_precursor_lineageNum_3_8[names(wk1car_ug)]),
+                        B_Cell_Recovery_Time=as.numeric(b_cell_recovery_time[names(wk1car_ug)]),
+                        Wk1CAR_ug=as.numeric(wk1car_ug),
+                        Wk1CAR_ml=as.numeric(wk1car_ml),
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### draw the correlation plot - peakcar_ug, cell#
+  p_cor <- round(cor(plot_df$GMP_Precursor_CellNum,
+                     plot_df$Wk1CAR_ug, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Precursor_CellNum,
+                       plot_df$Wk1CAR_ug, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Precursor_CellNum, y=Wk1CAR_ug)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("Normalized # GMP Precursor Cell (Cluster 3 & 8)") +
+    ylab("Wk1 CAR (ug DNA)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Cell_Cluster3_8_Wk1CAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - peakcar_ml, cell#
+  p_cor <- round(cor(plot_df$GMP_Precursor_CellNum,
+                     plot_df$Wk1CAR_ml, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Precursor_CellNum,
+                       plot_df$Wk1CAR_ml, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Precursor_CellNum, y=Wk1CAR_ml)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("Normalized # GMP Precursor Cell (Cluster 3 & 8)") +
+    ylab("Wk1 CAR (ml)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Cell_Cluster3_8_Wk1CAR_ml.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - peakcar_ug, lineage#
+  p_cor <- round(cor(plot_df$GMP_Precursor_LineageNum,
+                     plot_df$Wk1CAR_ug, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Precursor_LineageNum,
+                       plot_df$Wk1CAR_ug, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Precursor_LineageNum, y=Wk1CAR_ug)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("Normalized # GMP Precursor Cell (Cluster 3 & 8)") +
+    ylab("Wk1 CAR (ug DNA)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Lineage_Cluster3_8_Wk1CAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - peakcar_ml, lineage#
+  p_cor <- round(cor(plot_df$GMP_Precursor_LineageNum,
+                     plot_df$Wk1CAR_ml, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Precursor_LineageNum,
+                       plot_df$Wk1CAR_ml, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Precursor_LineageNum, y=Wk1CAR_ml)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("Normalized # GMP Precursor Cell (Cluster 3 & 8)") +
+    ylab("Wk1 CAR (ml)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Lineage_Cluster3_8_Wk1CAR_ml.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  
+  #
+  ### Fig5 - Heatmap
+  #
+  
+  ### GMP subsisters end up in cluster3 and 8 vs all other GMPs
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2 <- "Others"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2[setdiff(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                              which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"))] <- "Other_GMPs"
+  
+  ### GMP subsisters end up in cluster3 and 8 vs all other CD8 GMPs
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 <- "Others"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8[intersect(which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20")),
+                                                                    which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2 == "Other_GMPs"))] <- "Other_CD8_GMPs"
+  
+  ### filter out unwanted cells
+  temp_seurat_obj <- subset(JCC_Seurat_Obj, cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 %in% c("GMP_Subsisters_End_Up_In_Cluster_3_And_8", "Other_CD8_GMPs"))])
+  
+  ### check whether the orders are the same
+  print(identical(rownames(temp_seurat_obj@meta.data), colnames(temp_seurat_obj@assays$RNA@counts)))
+  print(identical(names(Idents(object = temp_seurat_obj)), rownames(temp_seurat_obj@meta.data)))
+  
+  ### factorize the column
+  temp_seurat_obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 <- factor(temp_seurat_obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8,
+                                                                     levels = c("GMP_Subsisters_End_Up_In_Cluster_3_And_8",
+                                                                                "Other_CD8_GMPs"))
+  
+  ### dot plot - heatmap
+  temp_seurat_obj <- SetIdent(object = temp_seurat_obj,
+                              cells = rownames(temp_seurat_obj@meta.data),
+                              value = temp_seurat_obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8)
+  p <- DotPlot(temp_seurat_obj,
+               features = c("EOMES", "TIGIT", "IFITM1", "IFITM2", "SELL", "CD27", "GNLY",
+                            "GZMH", "KLRD1", "GZMK", "IFNG", "LAG3", "LEF1", "IL7R"),
+               cols = c("#487A8F", "#640B11"),
+               group.by = "GMP_Subsisters_End_Up_In_Cluster38_2_CD8") +
+    scale_size(range = c(2, 15)) +
+    coord_flip() +
+    xlab("") +
+    ylab("") +
+    scale_y_discrete(labels = c("Effector GMP Precursors", "Other CD8 GMPs")) +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text.x = element_text(angle = 90, size = 30, vjust = 0.5, hjust = 1),
+          axis.text.y = element_text(size = 40, vjust = 0.5, hjust = 1))
+  ggsave(file = paste0(outputDir2, "DE_Genes_GMP_Precursor.pdf"),
+         plot = p, width = 10, height = 15, dpi = 350)
+  
+  
+  #
+  ### Percentage of GMP CARs that are CD4 vs CD8
+  ### Percentage of PI CARs that are CD4 vs CD8
+  #
+  
+  ### CD4/CD8 annotation
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters <- "NA"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "2", "9", "10", "11", "14", "15", "18"))] <- "CD4"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20"))] <- "CD8"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters <- factor(JCC_Seurat_Obj$CD4_CD8_by_Clusters, levels = c("CD4", "CD8", "NA"))
+  
+  ### prepare table for the plot
+  plot_df <- data.frame(GMP_PI=c("GMP", "GMP", "PI", "PI"),
+                        CD4_CD8=c("CD4", "CD8", "CD4", "CD8"),
+                        Numbers=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  plot_df$Numbers[1] <- length(intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                         which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD4")))
+  plot_df$Numbers[2] <- length(intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                         which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))
+  plot_df$Numbers[3] <- length(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                         which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD4")))
+  plot_df$Numbers[4] <- length(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                         which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))
+  
+  plot_df$Pcnt[1] <- round(100 * plot_df$Numbers[1] / sum(plot_df$Numbers[1:2]), 2)
+  plot_df$Pcnt[2] <- round(100 * plot_df$Numbers[2] / sum(plot_df$Numbers[1:2]), 2)
+  plot_df$Pcnt[3] <- round(100 * plot_df$Numbers[3] / sum(plot_df$Numbers[3:4]), 2)
+  plot_df$Pcnt[4] <- round(100 * plot_df$Numbers[4] / sum(plot_df$Numbers[3:4]), 2)
+  
+  ### preserve the pcnt
+  plot_df$Pcnt2 <- plot_df$Pcnt
+  
+  ### annotate "%"
+  plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) != 0)] <- paste0(plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) != 0)], "%")
+  plot_df$Pcnt[which(plot_df$Pcnt == 0)] <- ""
+  
+  ### factorize the time point & state
+  plot_df$GMP_PI <- factor(plot_df$GMP_PI, levels = c("GMP", "PI"))
+  plot_df$CD4_CD8 <- factor(plot_df$CD4_CD8, levels = c("CD4", "CD8"))
+  
+  ### color scale
+  sjcar19_colors <- c("#640B11", "#286278")
+  names(sjcar19_colors) <- c("CD4", "CD8")
+  show_col(sjcar19_colors)
+  
+  ### draw a proportional bar plot
+  p <- ggplot(data=plot_df, aes_string(x="GMP_PI", y="Pcnt2", fill="CD4_CD8", label="Pcnt")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Proportion of CAR+ Cells") +
+    xlab("") + ylab("Percentage") +
+    # geom_text(size = 3, position = position_stack(vjust = 0.5), vjust = 3, color = "blue") +
+    geom_text(aes_string(x="GMP_PI", y="Pcnt2", label = "Pcnt"),
+              position = position_stack(vjust = 0.5),
+              size = 20, color = "white") +
+    coord_flip() +
+    scale_fill_manual(values = sjcar19_colors) +
+    scale_y_continuous(expand = c(0, 0)) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 40),
+          axis.text.y = element_text(size = 40, vjust = 0.5, hjust = 1),
+          axis.ticks = element_blank(),
+          legend.title = element_text(size = 40),
+          legend.text = element_text(size = 30),
+          legend.key.size = unit(2, 'cm'))
+  ggsave(file = paste0(outputDir2, "Percentage_of_CD4_CD8_Fig2D.pdf"), plot = p,
+         width = 18, height = 10, dpi = 350)
   
   
   
