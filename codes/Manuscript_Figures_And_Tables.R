@@ -12231,21 +12231,28 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   names(sjcar19_color_scale) <- unique(JCC_Seurat_Obj$time2)
   show_col(sjcar19_color_scale)
   
+  ### gray to darker
+  gray_color_scale <- colorRampPalette(c("gray85", "black"))(length(unique(JCC_Seurat_Obj$time2)))
+  names(gray_color_scale) <- unique(JCC_Seurat_Obj$time2)
+  show_col(gray_color_scale)
+  
   ### Make GMP cells gray; color PI cells by their time points
   sjcar19_color_scale["GMP"] <- "lightgray"
   p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
                group.by = "time2",
                pt.size = 2, raster = FALSE,
-               cols = sjcar19_color_scale[JCC_Seurat_Obj$time2],
+               cols = gray_color_scale[JCC_Seurat_Obj$time2],
                order = rev(unique(JCC_Seurat_Obj$time2))) +
     ggtitle("") +
     labs(color="Time") +
-    
     theme_classic(base_size = 36) +
+    guides(color = guide_legend(override.aes = list(size = 15))) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
           axis.text.x = element_text(size = 30),
-          axis.title.y = element_text(size = 30))
-  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+          axis.title.y = element_text(size = 30),
+          legend.title = element_text(size = 50),
+          legend.text = element_text(size = 40))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.8
   ggsave(paste0(outputDir2, "UMAP_CARpos_Time2_Fig2B.pdf"), plot = p, width = 15, height = 10, dpi = 350)
   
   #
@@ -13648,28 +13655,76 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                            logfc.threshold = 0.2,
                            test.use = "wilcox")
   
+  ### GMP subsisters vs non-subsisters
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister)
+  de_result2 <- FindMarkers(JCC_Seurat_Obj,
+                            ident.1 = "YES",
+                            ident.2 = "NO",
+                            min.pct = 0.2,
+                            logfc.threshold = 0.2,
+                            test.use = "wilcox")
   
+  ### add module scores
+  JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
+                                   features = list(rownames(de_result)[which(de_result$avg_log2FC > 0)][1:20]),
+                                   name="GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score")
   
+  # FeaturePlot(JCC_Seurat_Obj,
+  #             features = "GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score1", label = TRUE, repel = TRUE) +
+  #   scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu")))
+  
+  JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
+                                   features = list(rownames(de_result2)[which(de_result2$avg_log2FC > 0)][1:20]),
+                                   name="GMP_CARpos_CD8_Persister_Module_Score")
+  
+  # FeaturePlot(JCC_Seurat_Obj,
+  #             features = "GMP_CARpos_CD8_Persister_Module_Score1", label = TRUE, repel = TRUE) +
+  #   scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu")))
+  
+  ### distribution of the module scores
+  plot(density(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score1))
+  plot(density(JCC_Seurat_Obj$GMP_CARpos_CD8_Persister_Module_Score1))
+  
+  ### module score threshold: > 0.5 (around top 10%)
+  module_score_threshold <- 0.5
+  
+  ### get the percentage
+  GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+  names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt) <- unique(JCC_Seurat_Obj$px)
+  GMP_CARpos_CD8_Persister_Module_Score_Pcnt <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+  names(GMP_CARpos_CD8_Persister_Module_Score_Pcnt) <- unique(JCC_Seurat_Obj$px)
+  for(px in unique(JCC_Seurat_Obj$px)) {
+    GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                       which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score1 > module_score_threshold))) * 100 / length(which(JCC_Seurat_Obj$px == px))
+    GMP_CARpos_CD8_Persister_Module_Score_Pcnt[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                       which(JCC_Seurat_Obj$GMP_CARpos_CD8_Persister_Module_Score1 > module_score_threshold))) * 100 / length(which(JCC_Seurat_Obj$px == px))
+  }
   
   ### correlation plot data - PeakCAR
   plot_df <- data.frame(Patient=names(peakcar_ug),
                         TIGIT_Cell_Num=as.numeric(TIGIT_Pos_Cell_Num[names(peakcar_ug)]),
                         TIGIT_CD8_Cell_Num=as.numeric(TIGIT_Pos_CD8_Cell_Num[names(peakcar_ug)]),
+                        GMP_Precursor_Cluster3_8_Module_Score=as.numeric(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt[names(peakcar_ug)]),
+                        GMP_Subsister_Module_Score=as.numeric(GMP_CARpos_CD8_Persister_Module_Score_Pcnt[names(peakcar_ug)]),
                         B_Cell_Recovery_Time=as.numeric(b_cell_recovery_time[names(peakcar_ug)]),
                         PeakCAR_ug=as.numeric(peakcar_ug),
                         PeakCAR_ml=as.numeric(peakcar_ml),
+                        Wk1CAR_ug=as.numeric(wk1car_ug[names(peakcar_ug)]),
+                        Wk1CAR_ml=as.numeric(wk1car_ml[names(peakcar_ug)]),
                         stringsAsFactors = FALSE, check.names = FALSE)
   
-  ### draw the correlation plot - peakcar_ug, cell#
-  p_cor <- round(cor(plot_df$GMP_Precursor_CellNum,
+  ### draw the correlation plot - peakcar_ug, TIGIT cell num
+  p_cor <- round(cor(plot_df$TIGIT_Cell_Num,
                      plot_df$PeakCAR_ug, method = "pearson", use = "complete.obs"), 2)
-  pv <- round(cor.test(plot_df$GMP_Precursor_CellNum,
+  pv <- round(cor.test(plot_df$TIGIT_Cell_Num,
                        plot_df$PeakCAR_ug, method = "pearson", use = "complete.obs")$p.value, 2)
-  p <- ggplot(data = plot_df, aes(x=GMP_Precursor_CellNum, y=PeakCAR_ug)) +
+  p <- ggplot(data = plot_df, aes(x=TIGIT_Cell_Num, y=PeakCAR_ug)) +
     geom_point(col = "#487A8F", size = 8) +
     labs(title = paste0("Pearson Correlation:", p_cor),
          subtitle = paste0("P-value:", pv)) +
-    xlab("Normalized # GMP Precursor Cell (Cluster 3 & 8)") +
+    xlab("TIGIT+ Cell #") +
     ylab("PeakCAR (ug DNA)") +
     geom_label_repel(aes(label = Patient),
                      size = 5,
@@ -13679,10 +13734,238 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
     theme_classic(base_size = 40) +
     theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
-  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Cell_Cluster3_8_PeakCAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_Cell_Num_PeakCAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
   
+  ### draw the correlation plot - wk1car_ug, TIGIT cell num
+  p_cor <- round(cor(plot_df$TIGIT_Cell_Num,
+                     plot_df$Wk1CAR_ug, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$TIGIT_Cell_Num,
+                       plot_df$Wk1CAR_ug, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=TIGIT_Cell_Num, y=Wk1CAR_ug)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("TIGIT+ Cell #") +
+    ylab("Wk1CAR (ug DNA)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_Cell_Num_Wk1CAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
   
+  ### draw the correlation plot - peakcar_ug, TIGIT  CD8 cell num
+  p_cor <- round(cor(plot_df$TIGIT_CD8_Cell_Num,
+                     plot_df$PeakCAR_ug, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$TIGIT_CD8_Cell_Num,
+                       plot_df$PeakCAR_ug, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=TIGIT_CD8_Cell_Num, y=PeakCAR_ug)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("TIGIT+ CD8 Cell #") +
+    ylab("PeakCAR (ug DNA)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_CD8_Cell_Num_PeakCAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
   
+  ### draw the correlation plot - wk1car_ug, TIGIT CD8 cell num
+  p_cor <- round(cor(plot_df$TIGIT_CD8_Cell_Num,
+                     plot_df$Wk1CAR_ug, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$TIGIT_CD8_Cell_Num,
+                       plot_df$Wk1CAR_ug, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=TIGIT_CD8_Cell_Num, y=Wk1CAR_ug)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("TIGIT+ CD8 Cell #") +
+    ylab("Wk1CAR (ug DNA)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_CD8_Cell_Num_Wk1CAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### What if we remove px11?
+  p_cor <- round(cor(plot_df$TIGIT_CD8_Cell_Num[-11],
+                     plot_df$Wk1CAR_ug[-11], method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$TIGIT_CD8_Cell_Num[-11],
+                       plot_df$Wk1CAR_ug[-11], method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df[-11,], aes(x=TIGIT_CD8_Cell_Num, y=Wk1CAR_ug)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("TIGIT+ CD8 Cell #") +
+    ylab("Wk1CAR (ug DNA)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_CD8_Cell_Num_Wk1CAR_ug_noPx11.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - peakcar_ug, GMP_Precursor_Cluster3_8_Module_Score
+  p_cor <- round(cor(plot_df$GMP_Precursor_Cluster3_8_Module_Score,
+                     plot_df$PeakCAR_ug, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Precursor_Cluster3_8_Module_Score,
+                       plot_df$PeakCAR_ug, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Precursor_Cluster3_8_Module_Score, y=PeakCAR_ug)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("GMP Precursor Module Score Cell Percentage") +
+    ylab("PeakCAR (ug DNA)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Module_Score_PeakCAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - wk1car_ug, GMP_Precursor_Cluster3_8_Module_Score
+  p_cor <- round(cor(plot_df$GMP_Precursor_Cluster3_8_Module_Score,
+                     plot_df$Wk1CAR_ug, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Precursor_Cluster3_8_Module_Score,
+                       plot_df$Wk1CAR_ug, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Precursor_Cluster3_8_Module_Score, y=Wk1CAR_ug)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("GMP Precursor Module Score Cell Percentage") +
+    ylab("Wk1CAR (ug DNA)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Module_Score_Wk1CAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - peakcar_ug, GMP_Subsister_Module_Score
+  p_cor <- round(cor(plot_df$GMP_Subsister_Module_Score,
+                     plot_df$PeakCAR_ug, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Subsister_Module_Score,
+                       plot_df$PeakCAR_ug, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Subsister_Module_Score, y=PeakCAR_ug)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("GMP Subsister Module Score Cell Percentage") +
+    ylab("PeakCAR (ug DNA)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Subsister_Module_Score_PeakCAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - wk1car_ug, GMP_Subsister_Module_Score
+  p_cor <- round(cor(plot_df$GMP_Subsister_Module_Score,
+                     plot_df$Wk1CAR_ug, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Subsister_Module_Score,
+                       plot_df$Wk1CAR_ug, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Subsister_Module_Score, y=Wk1CAR_ug)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("GMP Subsister Module Score Cell Percentage") +
+    ylab("Wk1CAR (ug DNA)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Subsister_Module_Score_Wk1CAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - b cell recovery, TIGIT  CD8 cell num
+  p_cor <- round(cor(plot_df$TIGIT_CD8_Cell_Num,
+                     plot_df$B_Cell_Recovery_Time, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$TIGIT_CD8_Cell_Num,
+                       plot_df$B_Cell_Recovery_Time, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=TIGIT_CD8_Cell_Num, y=B_Cell_Recovery_Time)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("TIGIT+ CD8 Cell #") +
+    ylab("B Cell Recovery Time (Days)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_CD8_Cell_Num_B_Cell_Recovery.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - b cell recovery, GMP_Precursor_Cluster3_8_Module_Score
+  p_cor <- round(cor(plot_df$GMP_Precursor_Cluster3_8_Module_Score,
+                     plot_df$B_Cell_Recovery_Time, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Precursor_Cluster3_8_Module_Score,
+                       plot_df$B_Cell_Recovery_Time, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Precursor_Cluster3_8_Module_Score, y=B_Cell_Recovery_Time)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("GMP Precursor Module Score Cell Percentage") +
+    ylab("B Cell Recovery Time (Days)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Module_Score_B_Cell_Recovery.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - b cell recovery, GMP_Subsister_Module_Score
+  p_cor <- round(cor(plot_df$GMP_Subsister_Module_Score,
+                     plot_df$B_Cell_Recovery_Time, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$GMP_Subsister_Module_Score,
+                       plot_df$B_Cell_Recovery_Time, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=GMP_Subsister_Module_Score, y=B_Cell_Recovery_Time)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("GMP Subsister Module Score Cell Percentage") +
+    ylab("B Cell Recovery Time (Days)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Subsister_Module_Score_B_Cell_Recovery.pdf"), plot = p, width = 15, height = 10, dpi = 400)
   
   
   
