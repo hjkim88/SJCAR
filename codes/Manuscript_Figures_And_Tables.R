@@ -12236,12 +12236,17 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   names(gray_color_scale) <- unique(JCC_Seurat_Obj$time2)
   show_col(gray_color_scale)
   
+  ### gray to sjcar19 blue color
+  blue_color_scale <- colorRampPalette(c("gray85", "#487A8F"))(length(unique(JCC_Seurat_Obj$time2)))
+  names(blue_color_scale) <- unique(JCC_Seurat_Obj$time2)
+  show_col(blue_color_scale)
+  
   ### Make GMP cells gray; color PI cells by their time points
   sjcar19_color_scale["GMP"] <- "lightgray"
   p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
                group.by = "time2",
                pt.size = 2, raster = FALSE,
-               cols = gray_color_scale[JCC_Seurat_Obj$time2],
+               cols = blue_color_scale[JCC_Seurat_Obj$time2],
                order = rev(unique(JCC_Seurat_Obj$time2))) +
     ggtitle("") +
     labs(color="Time") +
@@ -13966,6 +13971,92 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme_classic(base_size = 40) +
     theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
   ggsave(file = paste0(outputDir2, "Correlation_GMP_Subsister_Module_Score_B_Cell_Recovery.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  
+  #
+  ### Linear model (mixing TIGIT+ cell # + pre-infusion marrow blast + can play) to predict Wk1CAR, PeakCAR, & B cell recovery time
+  #
+  
+  ### add pre-infusion marrow blast info to the plot_df
+  plot_df$Tumor_Burden <- c(98, 10, 1, 0, 12, 1, 80, 72, 78, 84, 0)
+  
+  ### linear regression - TIGIT_CD8_Cell_Num + Tumor_Burden
+  fit <- lm(Wk1CAR_ug ~ TIGIT_CD8_Cell_Num + Tumor_Burden, data=plot_df)
+  smr <- summary(fit)
+  f <- smr$fstatistic
+  pv <- pf(f[1],f[2],f[3],lower.tail=F)
+  
+  ### make the plot data frame
+  new_plot_df <- data.frame(plot_df,
+                            Residuals=fit$residuals,
+                            Fitted_Values=fit$fitted.values,
+                            stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### draw the correlation plot
+  p <- list()
+  p[[1]] <- ggplot(data = new_plot_df, aes_string(x="Wk1CAR_ug", y="Fitted_Values")) +
+    geom_point(col = "black", size = 8) +
+    geom_abline(intercept = 0, slope = 1, col = "red", size = 2) +
+    labs(title = paste0("Pearson Correlation = ", round(cor(new_plot_df$Wk1CAR_ug, new_plot_df$Fitted_Values, method = "pearson", use = "complete.obs"), 2)),
+         subtitle = paste0("P-value = ", pv <- round(cor.test(new_plot_df$Wk1CAR_ug, new_plot_df$Fitted_Values, method = "pearson", use = "complete.obs")$p.value, 2))) +
+    xlab("Wk1CAR") +
+    ylab("Predicted Values") +
+    geom_smooth(method = lm, color="blue", se=TRUE) +
+    theme_classic(base_size = 24) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 24, color = "blue"))
+  p[[2]] <- ggplot(data = new_plot_df, aes_string(x="Fitted_Values", y="Residuals")) +
+    geom_point(col = "black", size = 8) +
+    geom_line(size = 3) +
+    labs(title = paste0("R2 = ", round(smr$r.squared, 2),
+                        ", Adjusted R2 = ", round(smr$adj.r.squared, 2),
+                        ", P-value = ", round(pv, 2))) +
+    xlab("Predicted Values") +
+    ylab("Residuals") +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 24))
+  g <- arrangeGrob(grobs = p,
+                   nrow = 1,
+                   ncol = 2)
+  ggsave(file = paste0(outputDir2, "Wk1CAR_Linear_Regression_TIGIT_CD8_Cell_Num_TB.pdf"), g, width = 25, height = 10, dpi = 400)
+  
+  ### linear regression - TIGIT_CD8_Cell_Num + Tumor_Burden
+  plot_df2 <- plot_df[which(!is.na(plot_df$B_Cell_Recovery_Time)),]
+  fit <- lm(B_Cell_Recovery_Time ~ TIGIT_CD8_Cell_Num + Tumor_Burden, data=plot_df2)
+  smr <- summary(fit)
+  f <- smr$fstatistic
+  pv <- pf(f[1],f[2],f[3],lower.tail=F)
+  
+  ### make the plot data frame
+  new_plot_df <- data.frame(plot_df2,
+                            Residuals=fit$residuals,
+                            Fitted_Values=fit$fitted.values,
+                            stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### draw the correlation plot
+  p <- list()
+  p[[1]] <- ggplot(data = new_plot_df, aes_string(x="B_Cell_Recovery_Time", y="Fitted_Values")) +
+    geom_point(col = "black", size = 8) +
+    geom_abline(intercept = 0, slope = 1, col = "red", size = 2) +
+    labs(title = paste0("Pearson Correlation = ", round(cor(new_plot_df$Wk1CAR_ug, new_plot_df$Fitted_Values, method = "pearson", use = "complete.obs"), 2)),
+         subtitle = paste0("P-value = ", pv <- round(cor.test(new_plot_df$Wk1CAR_ug, new_plot_df$Fitted_Values, method = "pearson", use = "complete.obs")$p.value, 2))) +
+    xlab("B_Cell_Recovery_Time") +
+    ylab("Predicted Values") +
+    geom_smooth(method = lm, color="blue", se=TRUE) +
+    theme_classic(base_size = 24) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 24, color = "blue"))
+  p[[2]] <- ggplot(data = new_plot_df, aes_string(x="Fitted_Values", y="Residuals")) +
+    geom_point(col = "black", size = 8) +
+    geom_line(size = 3) +
+    labs(title = paste0("R2 = ", round(smr$r.squared, 2),
+                        ", Adjusted R2 = ", round(smr$adj.r.squared, 2),
+                        ", P-value = ", round(pv, 2))) +
+    xlab("Predicted Values") +
+    ylab("Residuals") +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 24))
+  g <- arrangeGrob(grobs = p,
+                   nrow = 1,
+                   ncol = 2)
+  ggsave(file = paste0(outputDir2, "B_Cell_Recovery_Time_Linear_Regression_TIGIT_CD8_Cell_Num_TB.pdf"), g, width = 25, height = 10, dpi = 400)
   
   
   
