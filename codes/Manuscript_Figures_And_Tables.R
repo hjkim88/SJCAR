@@ -14058,6 +14058,86 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                    ncol = 2)
   ggsave(file = paste0(outputDir2, "B_Cell_Recovery_Time_Linear_Regression_TIGIT_CD8_Cell_Num_TB.pdf"), g, width = 25, height = 10, dpi = 400)
   
+  #
+  ### Fig4C - pie chart - quantification of lineage percentage by each cluster
+  #
+  
+  ### this should go along with the Fig4B
+  JCC_Seurat_Obj$ALL_CARpos_Persister2 <- JCC_Seurat_Obj$ALL_CARpos_Persister
+  JCC_Seurat_Obj$ALL_CARpos_Persister2[which(is.na(JCC_Seurat_Obj$ALL_CARpos_Persister2))] <- "NO"
+  JCC_Seurat_Obj$Seurat_Clusters_Subsisters <- as.character(JCC_Seurat_Obj$AllSeuratClusters)
+  JCC_Seurat_Obj$Seurat_Clusters_Subsisters[which(JCC_Seurat_Obj$ALL_CARpos_Persister2 == "YES")] <- "Lineages"
+  
+  ### plot data frame
+  plot_df <- data.frame(Clusters=unique(JCC_Seurat_Obj$AllSeuratClusters),
+                        Lineage_Cell_Numbers=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### calculate numbers
+  cnt <- 1
+  for(clstr in unique(JCC_Seurat_Obj$AllSeuratClusters)) {
+    plot_df$Lineage_Cell_Numbers[cnt] <- length(intersect(which(JCC_Seurat_Obj$AllSeuratClusters == clstr),
+                                                          which(JCC_Seurat_Obj$Seurat_Clusters_Subsisters == "Lineages")))
+    cnt <- cnt + 1
+  }
+  
+  ### calculate percentages
+  plot_df_sum <- sum(as.numeric(plot_df$Lineage_Cell_Numbers))
+  for(i in 1:length(unique(JCC_Seurat_Obj$AllSeuratClusters))) {
+    plot_df$Pcnt[i] <- round(plot_df$Lineage_Cell_Numbers[i] * 100 / plot_df_sum, 2)
+  }
+  
+  ### remove NaN rows
+  plot_df <- plot_df[which(!is.nan(plot_df$Pcnt)),]
+  
+  ### factorize the time point & state
+  plot_df$Clusters <- factor(plot_df$Clusters, levels = levels(JCC_Seurat_Obj$AllSeuratClusters))
+  
+  ### add label column
+  plot_df$Text <- paste0(as.character(plot_df$Clusters),
+                         " (",
+                         plot_df$Pcnt, "%)")
+  
+  ### add label position
+  plot_df <- plot_df %>%
+    mutate(text_y = cumsum(Lineage_Cell_Numbers) - Lineage_Cell_Numbers/2)
+  
+  ### color scale
+  sjcar19_colors <- c("#16101E", "#D0B78F", "#8C8781", "#C7904F", "#133D31", "#82A5B8", "#3B3B53", "#4C8493", "#C31517",
+                      "#D94C21", "#3E89A8", "#AA4C26",  "#CAA638", "#640B11", "#629488", "#BD7897", "#3C2D16", "#25245D",
+                      "#E64E46", "#73BCAA", "#7047C1", "#286278")
+  names(sjcar19_colors) <- levels(JCC_Seurat_Obj$AllSeuratClusters)
+  show_col(sjcar19_colors)
+  
+  ### draw the pie chart
+  options(ggrepel.max.overlaps = Inf)
+  p <- ggplot(data = plot_df,
+              aes(x = "", y = Lineage_Cell_Numbers, fill = Clusters)) +
+    geom_bar(stat = "identity", width = 1) +
+    geom_label_repel(aes(label = Text), position = position_stack_and_nudge(vjust = 0.5, x = 0.5),
+                     show.legend = FALSE, size = 12, color = "cornsilk2", segment.color = NA) +
+    coord_polar(theta="y") +
+    labs(x = NULL, y = NULL, title = "Lineage Quantification") +
+    scale_fill_manual(name = "Clusters",
+                      labels = paste0(as.character(plot_df$Clusters), ": ",
+                                      plot_df$Lineage_Cell_Numbers, " (",
+                                      plot_df$Pcnt, "%)"),
+                      values = sjcar19_colors) +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, color = "black", size = 36),
+          axis.line = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text = element_blank(),
+          legend.position = "none")
+  
+  ### save the plot
+  ggsave(file = paste0(outputDir2, "Lineage_Quantification_Fig4C.pdf"), plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  
+  
+  
   
   
   
