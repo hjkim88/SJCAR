@@ -1711,6 +1711,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   outputDir2 <- paste0(outputDir, "/1/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
+  ### set time points
+  total_time_points <- c("PreTrans", "Wk-1", "Wk0", "GMP", "Wk1", "Wk2", 
+                         "Wk3", "Wk4", "Wk6", "Wk8", "3mo", "6mo", "9mo")
+  gmp_after_time_points <- c("GMP", "Wk1", "Wk2", "Wk3", "Wk4", 
+                             "Wk6", "Wk8", "3mo", "6mo", "9mo")
+  
   ### run for each patient
   total_plot_df <- NULL
   p <- vector("list", length= length(unique(Seurat_Obj@meta.data$px)))
@@ -11052,6 +11058,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
          width = 15, height = 8, dpi = 350)
   
   ### save in different color palette
+  plot_df2$Cluster <- factor(plot_df2$Cluster, levels = levels(JCC_Seurat_Obj$AllSeuratClusters))
+  sjcar19_color_scale <- colorRampPalette(c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53"))(length(unique(plot_df2$Cluster)))
   p <- ggplot(plot_df2,
               aes(x = GMP_PI, stratum = Cluster, alluvium = Connection_Identifier,
                   y = Size,
@@ -11060,17 +11068,16 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     ylab("# Unique Lineage") +
     geom_flow() +
     geom_stratum(alpha = 1) +
-    geom_label_repel(stat = "stratum", size = 5, show.legend = FALSE) +
+    geom_label_repel(stat = "stratum", size = 5, show.legend = FALSE, col = "cornsilk2") +
     rotate_x_text(90) +
-    scale_fill_manual(values = wa_color_scale1) +
-    # scale_fill_manual(values = rev(wa_color_scale3)) +
+    scale_fill_manual(values = sjcar19_color_scale) +
     scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
     theme_classic(base_size = 36) +
     theme(axis.text.x = element_text(size = 30),
           axis.title.x = element_blank(),
           axis.title.y = element_text(size = 30),
           legend.position = "right")
-  ggsave(file = paste0(outputDir2, "Alluvial_CARpos_Subsisters_Lineages_Between_Clusters_GrandBudapest.png"), plot = p,
+  ggsave(file = paste0(outputDir2, "Alluvial_CARpos_Subsisters_Lineages_Between_Clusters_Fig4F.pdf"), plot = p,
          width = 15, height = 8, dpi = 350)
   
   
@@ -11240,6 +11247,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   names(line_colors) <- unique_connection
   line_colors2 <- rainbow(length(unique_connection), alpha = 0.2)
   names(line_colors2) <- unique_connection
+  line_colors3 <- add.alpha(c("#C09969", "#AA4C26", "#640B11", "#D39F3A", "#3B3B53", "#487A8F"), alpha = 0.7)
+  names(line_colors3) <- unique_connection
   
   unique_seg.names <- unique(seg.f$seg.name)
   unique_seg_GMP_PI <- sapply(unique_seg.names, function(x) strsplit(x, split = "_", fixed = TRUE)[[1]][1])
@@ -11253,7 +11262,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### set db
   db <- segAnglePo(seg.f, seg=seg.name, angle.start = 0, angle.end = 360)
   
-  ### draw circular plot and save as pdf
+  ### draw circular plot and save
   png(paste0(outputDir2, "Circos_CARpos_Subsisters_Lineages_Between_Clusters.png"), width = 2000, height = 2000, res = 350)
   par(mar = c(4, 2, 2, 4), xpd = TRUE)
   plot(c(1,1000), c(1,1000), type="n", axes=FALSE, xlab="", ylab="", main="CAR+ Subsister Lineages")
@@ -11272,6 +11281,28 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
          col=cell_colors,
          pch=15, cex = 0.6, xpd = TRUE, inset = c(-0.02, -0.12))
   dev.off()
+  
+  ### draw circular plot and save as pdf (without gene expression version)
+  pdf(paste0(outputDir2, "Circos_CARpos_Subsisters_Lineages_Between_Clusters2.pdf"), width = 5, height = 5)
+  par(mar = c(4, 2, 2, 4), xpd = TRUE)
+  plot(c(1,1000), c(1,1000), type="n", axes=FALSE, xlab="", ylab="", main="CAR+ Subsister Lineages")
+  circos(xc=500, yc=440, R=480, cir=db, W=30, type="chr", col=colorType, print.chr.lab=TRUE, scale=FALSE, cex = 3)
+  circos(xc=500, yc=440, R=440, cir=db, W=30, mapping=seg.f, type="arc2", B=FALSE, col=colorType2, lwd=5, cutoff=0, cex = 3)
+  # circos(xc=500, yc=440, R=400, cir=db, W=50, mapping=seg.v, col.v=3, type="l", B=TRUE, col="deepskyblue", lwd=2, scale=FALSE)
+  # circos(xc=500, yc=440, R=340, cir=db, W=50, mapping=seg.v, col.v=4, type="l", B=TRUE, col="blue", lwd=2, scale=FALSE)
+  # circos(xc=500, yc=440, R=280, cir=db, W=50, mapping=seg.v, col.v=5, type="l", B=TRUE, col="darkblue", lwd=2, scale=FALSE)
+  circos(xc=500, yc=440, R=410, cir=db, W=50, mapping=link.pg.v, type="link.pg", lwd=2, col=line_colors3[connection])
+  # legend("bottomright", 
+  #        legend=c("TIGIT EXP", "SELL EXP", "CD27 EXP"),
+  #        col=c("deepskyblue", "blue","darkblue"),
+  #        pch=15, cex = 0.8, xpd = TRUE, inset = c(-0.12, -0.12))
+  legend("bottomright", 
+         legend=names(cell_colors),
+         col=cell_colors,
+         pch=15, cex = 0.8, xpd = TRUE, inset = c(-0.2, -0.2))
+  dev.off()
+  
+  
   
   
   #
@@ -11654,7 +11685,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                          stringsAsFactors = FALSE, check.names = FALSE)
   
   ### Wes Anderson color palette
-  wa_color_scale3 <- wes_palette("Rushmore1", length(unique(plot_df3$Cluster)), type = "continuous")
+  # wa_color_scale3 <- wes_palette("Rushmore1", length(unique(plot_df3$Cluster)), type = "continuous")
+  sjcar19_color_scale <- colorRampPalette(c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53"))(length(unique(plot_df3$Cluster)))
   
   ### draw an alluvial plot
   plot_df3$Cluster <- factor(plot_df3$Cluster, levels = levels(JCC_Seurat_Obj$AllSeuratClusters))
@@ -11666,16 +11698,16 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     ylab("# Unique Lineage") +
     geom_flow() +
     geom_stratum(alpha = 1) +
-    geom_label_repel(stat = "stratum", size = 5, show.legend = FALSE) +
+    geom_label_repel(stat = "stratum", size = 8, show.legend = FALSE, col = "cornsilk2") +
     rotate_x_text(90) +
-    scale_fill_manual(values = rev(wa_color_scale3)) +
+    scale_fill_manual(values = sjcar19_color_scale) +
     scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
     theme_classic(base_size = 36) +
     theme(axis.text.x = element_text(size = 30),
           axis.title.x = element_blank(),
           axis.title.y = element_text(size = 30),
           legend.position = "right")
-  ggsave(file = paste0(outputDir2, "Alluvial_CARpos_Subsisters_Lineages_Between_Clusters_PI_TO_PI.png"), plot = p,
+  ggsave(file = paste0(outputDir2, "Alluvial_CARpos_Subsisters_Lineages_Between_Clusters_PI_TO_PI_Fig4D.pdf"), plot = p,
          width = 15, height = 8, dpi = 350)
   
   
@@ -12098,6 +12130,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   outputDir2 <- paste0(outputDir, "/32/")
   dir.create(outputDir2, showWarnings = FALSE, recursive = TRUE)
   
+  ### set active assay
+  JCC_Seurat_Obj@active.assay <- "RNA"
+  
   ### set genes of interest (from Tay)
   interesting_genes <- c("GZMK", "GZMM", "GZMH", "GNLY", "NKG7", "KLRD1", "TUBA1B", "TUBB", "STMN1", "CDCA8",
                          "CDK1", "CDC20", "MCM7", "MKI67", "TOP2A", "HLA-DQA1", "HLA-DRB1", "LAG3", "LTB",
@@ -12328,7 +12363,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme_classic(base_size = 30) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
           axis.ticks = element_blank())
-  ggsave(file = paste0(outputDir2, "CARpos_Time_Proportions_In_Clusters.png"), plot = p,
+  ggsave(file = paste0(outputDir2, "CARpos_Time_Proportions_In_Clusters.pdf"), plot = p,
          width = 20, height = 10, dpi = 350)
   
   
@@ -12420,7 +12455,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme_classic(base_size = 30) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
           axis.ticks = element_blank())
-  ggsave(file = paste0(outputDir2, "CARpos_Cluster_Proportions_In_Time_Fig2C.png"), plot = p,
+  ggsave(file = paste0(outputDir2, "CARpos_Cluster_Proportions_In_Time_Fig2C.pdf"), plot = p,
          width = 20, height = 10, dpi = 350)
   
   
@@ -12606,7 +12641,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           legend.text = element_text(size = 24),
           legend.position = "none")
   p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
-  ggsave(paste0(outputDir2, "UMAP_CARpos_Clusters_Fig2a.pdf"), plot = p, width = 12, height = 10, dpi = 350)
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Clusters_Fig1a.pdf"), plot = p, width = 12, height = 10, dpi = 350)
   
   #
   ### Figure2B: UMAP - CD4/CD8
@@ -12630,7 +12665,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme_classic(base_size = 36) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30))
   p[[1]]$layers[[1]]$aes_params$alpha <- 0.5
-  ggsave(paste0(outputDir2, "UMAP_CARpos_CD4_CD8_Fig2b.pdf"), plot = p, width = 15, height = 10, dpi = 350)
+  ggsave(paste0(outputDir2, "UMAP_CARpos_CD4_CD8_Fig2b_supl.pdf"), plot = p, width = 15, height = 10, dpi = 350)
   
   #
   ### Figure2C: Dot plot - Interesting gene expressions with functional groups (refer 32)
@@ -13313,7 +13348,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme(plot.title = element_text(hjust = 0.5),
           axis.text.x = element_text(angle = 90, size = 30, vjust = 0.5, hjust = 1),
           axis.text.y = element_text(size = 40, vjust = 0.5, hjust = 1))
-  ggsave(file = paste0(outputDir2, "DE_Genes_GMP_Precursor.pdf"),
+  ggsave(file = paste0(outputDir2, "DE_Genes_GMP_Precursor_Fig5A.pdf"),
          plot = p, width = 10, height = 15, dpi = 350)
   
   
@@ -13580,19 +13615,23 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "2", "9", "10", "11", "14", "15", "18"))] <- "CD4"
   JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20"))] <- "CD8"
   
-  ### 1. the number of TIGIT+ cells in each patient
+  ### 1. the normalized number of TIGIT+ cells in each patient
   print(identical(rownames(JCC_Seurat_Obj@meta.data), colnames(JCC_Seurat_Obj@assays$RNA@counts)))
-  tigit_pos_idx <- which(JCC_Seurat_Obj@assays$RNA@counts["TIGIT",] > 0)
+  gmp_tigit_pos_idx <- intersect(which(JCC_Seurat_Obj@assays$RNA@counts["TIGIT",] > 0),
+                                 which(JCC_Seurat_Obj$time2 == "GMP"))
   TIGIT_Pos_Cell_Num <- rep(0, length(unique(JCC_Seurat_Obj$px)))
   names(TIGIT_Pos_Cell_Num) <- unique(JCC_Seurat_Obj$px)
   TIGIT_Pos_CD8_Cell_Num <- rep(0, length(unique(JCC_Seurat_Obj$px)))
   names(TIGIT_Pos_CD8_Cell_Num) <- unique(JCC_Seurat_Obj$px)
   for(px in unique(JCC_Seurat_Obj$px)) {
     TIGIT_Pos_Cell_Num[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
-                                               tigit_pos_idx))
+                                               gmp_tigit_pos_idx)) / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                      which(JCC_Seurat_Obj$time2 == "GMP")))
     TIGIT_Pos_CD8_Cell_Num[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
-                                                   intersect(tigit_pos_idx,
-                                                             which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"))))
+                                                   intersect(gmp_tigit_pos_idx,
+                                                             which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))) / length(intersect(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                which(JCC_Seurat_Obj$time2 == "GMP")),
+                                                                                                                                      which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))
   }
   
   #
@@ -13663,7 +13702,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### GMP subsisters vs non-subsisters
   JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
                              cells = rownames(JCC_Seurat_Obj@meta.data),
-                             value = JCC_Seurat_Obj@meta.data$GMP_CARpos_CD8_Persister)
+                             value = JCC_Seurat_Obj@meta.data$GMP_CARpos_Persister)
   de_result2 <- FindMarkers(JCC_Seurat_Obj,
                             ident.1 = "YES",
                             ident.2 = "NO",
@@ -13682,15 +13721,15 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
                                    features = list(rownames(de_result2)[which(de_result2$avg_log2FC > 0)][1:20]),
-                                   name="GMP_CARpos_CD8_Persister_Module_Score")
+                                   name="GMP_CARpos_Persister_Module_Score")
   
   # FeaturePlot(JCC_Seurat_Obj,
-  #             features = "GMP_CARpos_CD8_Persister_Module_Score1", label = TRUE, repel = TRUE) +
+  #             features = "GMP_CARpos_Persister_Module_Score1", label = TRUE, repel = TRUE) +
   #   scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu")))
   
   ### distribution of the module scores
   plot(density(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score1))
-  plot(density(JCC_Seurat_Obj$GMP_CARpos_CD8_Persister_Module_Score1))
+  plot(density(JCC_Seurat_Obj$GMP_CARpos_Persister_Module_Score1))
   
   ### module score threshold: > 0.5 (around top 10%)
   module_score_threshold <- 0.5
@@ -13698,13 +13737,15 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### get the percentage
   GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt <- rep(0, length(unique(JCC_Seurat_Obj$px)))
   names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt) <- unique(JCC_Seurat_Obj$px)
-  GMP_CARpos_CD8_Persister_Module_Score_Pcnt <- rep(0, length(unique(JCC_Seurat_Obj$px)))
-  names(GMP_CARpos_CD8_Persister_Module_Score_Pcnt) <- unique(JCC_Seurat_Obj$px)
+  GMP_CARpos_Persister_Module_Score_Pcnt <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+  names(GMP_CARpos_Persister_Module_Score_Pcnt) <- unique(JCC_Seurat_Obj$px)
   for(px in unique(JCC_Seurat_Obj$px)) {
     GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
-                                                                                       which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score1 > module_score_threshold))) * 100 / length(which(JCC_Seurat_Obj$px == px))
-    GMP_CARpos_CD8_Persister_Module_Score_Pcnt[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
-                                                                       which(JCC_Seurat_Obj$GMP_CARpos_CD8_Persister_Module_Score1 > module_score_threshold))) * 100 / length(which(JCC_Seurat_Obj$px == px))
+                                                                                       which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score1 > module_score_threshold))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                                                                        which(JCC_Seurat_Obj$time2 == "GMP")))
+    GMP_CARpos_Persister_Module_Score_Pcnt[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                       which(JCC_Seurat_Obj$GMP_CARpos_Persister_Module_Score1 > module_score_threshold))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                                        which(JCC_Seurat_Obj$time2 == "GMP")))
   }
   
   ### correlation plot data - PeakCAR
@@ -13712,7 +13753,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                         TIGIT_Cell_Num=as.numeric(TIGIT_Pos_Cell_Num[names(peakcar_ug)]),
                         TIGIT_CD8_Cell_Num=as.numeric(TIGIT_Pos_CD8_Cell_Num[names(peakcar_ug)]),
                         GMP_Precursor_Cluster3_8_Module_Score=as.numeric(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt[names(peakcar_ug)]),
-                        GMP_Subsister_Module_Score=as.numeric(GMP_CARpos_CD8_Persister_Module_Score_Pcnt[names(peakcar_ug)]),
+                        GMP_Subsister_Module_Score=as.numeric(GMP_CARpos_Persister_Module_Score_Pcnt[names(peakcar_ug)]),
                         B_Cell_Recovery_Time=as.numeric(b_cell_recovery_time[names(peakcar_ug)]),
                         PeakCAR_ug=as.numeric(peakcar_ug),
                         PeakCAR_ml=as.numeric(peakcar_ml),
@@ -13729,17 +13770,17 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     geom_point(col = "#487A8F", size = 8) +
     labs(title = paste0("Pearson Correlation:", p_cor),
          subtitle = paste0("P-value:", pv)) +
-    xlab("TIGIT+ Cell #") +
+    xlab("Normalized TIGIT+ Cell #") +
     ylab("PeakCAR (ug DNA)") +
     geom_label_repel(aes(label = Patient),
                      size = 5,
                      col = "#3B3B53",
                      segment.color = "#3B3B53",
-                     nudge_x = 5) +
+                     nudge_x = 0.03) +
     geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
     theme_classic(base_size = 40) +
     theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
-  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_Cell_Num_PeakCAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_Cell_Num_PeakCAR_ug.pdf"), plot = p, width = 12, height = 10, dpi = 400)
   
   ### draw the correlation plot - wk1car_ug, TIGIT cell num
   p_cor <- round(cor(plot_df$TIGIT_Cell_Num,
@@ -13750,17 +13791,17 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     geom_point(col = "#487A8F", size = 8) +
     labs(title = paste0("Pearson Correlation:", p_cor),
          subtitle = paste0("P-value:", pv)) +
-    xlab("TIGIT+ Cell #") +
+    xlab("Normallized TIGIT+ Cell #") +
     ylab("Wk1CAR (ug DNA)") +
     geom_label_repel(aes(label = Patient),
                      size = 5,
                      col = "#3B3B53",
                      segment.color = "#3B3B53",
-                     nudge_x = 5) +
+                     nudge_x = 0.03) +
     geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
     theme_classic(base_size = 40) +
     theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
-  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_Cell_Num_Wk1CAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_Cell_Num_Wk1CAR_ug.pdf"), plot = p, width = 12, height = 10, dpi = 400)
   
   ### draw the correlation plot - peakcar_ug, TIGIT  CD8 cell num
   p_cor <- round(cor(plot_df$TIGIT_CD8_Cell_Num,
@@ -13771,17 +13812,17 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     geom_point(col = "#487A8F", size = 8) +
     labs(title = paste0("Pearson Correlation:", p_cor),
          subtitle = paste0("P-value:", pv)) +
-    xlab("TIGIT+ CD8 Cell #") +
+    xlab("Normalized TIGIT+ CD8 Cell #") +
     ylab("PeakCAR (ug DNA)") +
     geom_label_repel(aes(label = Patient),
                      size = 5,
                      col = "#3B3B53",
                      segment.color = "#3B3B53",
-                     nudge_x = 5) +
+                     nudge_x = 0.03) +
     geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
     theme_classic(base_size = 40) +
     theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
-  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_CD8_Cell_Num_PeakCAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_CD8_Cell_Num_PeakCAR_ug.pdf"), plot = p, width = 12, height = 10, dpi = 400)
   
   ### draw the correlation plot - wk1car_ug, TIGIT CD8 cell num
   p_cor <- round(cor(plot_df$TIGIT_CD8_Cell_Num,
@@ -13792,38 +13833,38 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     geom_point(col = "#487A8F", size = 8) +
     labs(title = paste0("Pearson Correlation:", p_cor),
          subtitle = paste0("P-value:", pv)) +
-    xlab("TIGIT+ CD8 Cell #") +
+    xlab("Normalized TIGIT+ CD8 Cell #") +
     ylab("Wk1CAR (ug DNA)") +
     geom_label_repel(aes(label = Patient),
                      size = 5,
                      col = "#3B3B53",
                      segment.color = "#3B3B53",
-                     nudge_x = 5) +
+                     nudge_x = 0.03) +
     geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
     theme_classic(base_size = 40) +
     theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
-  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_CD8_Cell_Num_Wk1CAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_CD8_Cell_Num_Wk1CAR_ug.pdf"), plot = p, width = 12, height = 10, dpi = 400)
   
-  ### What if we remove px11?
-  p_cor <- round(cor(plot_df$TIGIT_CD8_Cell_Num[-11],
-                     plot_df$Wk1CAR_ug[-11], method = "pearson", use = "complete.obs"), 2)
-  pv <- round(cor.test(plot_df$TIGIT_CD8_Cell_Num[-11],
-                       plot_df$Wk1CAR_ug[-11], method = "pearson", use = "complete.obs")$p.value, 2)
-  p <- ggplot(data = plot_df[-11,], aes(x=TIGIT_CD8_Cell_Num, y=Wk1CAR_ug)) +
+  ### What if we remove px6 & px11?
+  p_cor <- round(cor(plot_df$TIGIT_CD8_Cell_Num[-c(6,11)],
+                     plot_df$Wk1CAR_ug[-c(6,11)], method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$TIGIT_CD8_Cell_Num[-c(6,11)],
+                       plot_df$Wk1CAR_ug[-c(6,11)], method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df[-c(6,11),], aes(x=TIGIT_CD8_Cell_Num, y=Wk1CAR_ug)) +
     geom_point(col = "#487A8F", size = 8) +
     labs(title = paste0("Pearson Correlation:", p_cor),
          subtitle = paste0("P-value:", pv)) +
-    xlab("TIGIT+ CD8 Cell #") +
+    xlab("Normalized TIGIT+ CD8 Cell #") +
     ylab("Wk1CAR (ug DNA)") +
     geom_label_repel(aes(label = Patient),
                      size = 5,
                      col = "#3B3B53",
                      segment.color = "#3B3B53",
-                     nudge_x = 5) +
+                     nudge_x = 0.03) +
     geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
     theme_classic(base_size = 40) +
     theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
-  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_CD8_Cell_Num_Wk1CAR_ug_noPx11.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_CD8_Cell_Num_Wk1CAR_ug_noPx6_and_11.pdf"), plot = p, width = 12, height = 10, dpi = 400)
   
   ### draw the correlation plot - peakcar_ug, GMP_Precursor_Cluster3_8_Module_Score
   p_cor <- round(cor(plot_df$GMP_Precursor_Cluster3_8_Module_Score,
@@ -13843,8 +13884,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                      nudge_x = 5) +
     geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
     theme_classic(base_size = 40) +
-    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
-  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Module_Score_PeakCAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40),
+          axis.title.x = element_text(hjust = 0.5, vjust = 0.5, size = 32))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Module_Score_PeakCAR_ug.pdf"), plot = p, width = 12, height = 10, dpi = 400)
   
   ### draw the correlation plot - wk1car_ug, GMP_Precursor_Cluster3_8_Module_Score
   p_cor <- round(cor(plot_df$GMP_Precursor_Cluster3_8_Module_Score,
@@ -13864,8 +13906,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                      nudge_x = 5) +
     geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
     theme_classic(base_size = 40) +
-    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
-  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Module_Score_Wk1CAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40),
+          axis.title.x = element_text(hjust = 0.5, vjust = 0.5, size = 32))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Module_Score_Wk1CAR_ug.pdf"), plot = p, width = 12, height = 10, dpi = 400)
   
   ### draw the correlation plot - peakcar_ug, GMP_Subsister_Module_Score
   p_cor <- round(cor(plot_df$GMP_Subsister_Module_Score,
@@ -13885,8 +13928,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                      nudge_x = 5) +
     geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
     theme_classic(base_size = 40) +
-    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
-  ggsave(file = paste0(outputDir2, "Correlation_GMP_Subsister_Module_Score_PeakCAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40),
+          axis.title.x = element_text(hjust = 0.5, vjust = 0.5, size = 32))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Subsister_Module_Score_PeakCAR_ug.pdf"), plot = p, width = 12, height = 10, dpi = 400)
   
   ### draw the correlation plot - wk1car_ug, GMP_Subsister_Module_Score
   p_cor <- round(cor(plot_df$GMP_Subsister_Module_Score,
@@ -13906,8 +13950,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                      nudge_x = 5) +
     geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
     theme_classic(base_size = 40) +
-    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
-  ggsave(file = paste0(outputDir2, "Correlation_GMP_Subsister_Module_Score_Wk1CAR_ug.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40),
+          axis.title.x = element_text(hjust = 0.5, vjust = 0.5, size = 32))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Subsister_Module_Score_Wk1CAR_ug.pdf"), plot = p, width = 12, height = 10, dpi = 400)
   
   ### draw the correlation plot - b cell recovery, TIGIT  CD8 cell num
   p_cor <- round(cor(plot_df$TIGIT_CD8_Cell_Num,
@@ -13918,17 +13963,40 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     geom_point(col = "#487A8F", size = 8) +
     labs(title = paste0("Pearson Correlation:", p_cor),
          subtitle = paste0("P-value:", pv)) +
-    xlab("TIGIT+ CD8 Cell #") +
+    xlab("Normalized TIGIT+ CD8 Cell #") +
     ylab("B Cell Recovery Time (Days)") +
     geom_label_repel(aes(label = Patient),
                      size = 5,
                      col = "#3B3B53",
                      segment.color = "#3B3B53",
-                     nudge_x = 5) +
+                     nudge_x = 0.03) +
     geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
     theme_classic(base_size = 40) +
     theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
-  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_CD8_Cell_Num_B_Cell_Recovery.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_CD8_Cell_Num_B_Cell_Recovery.pdf"), plot = p, width = 12, height = 10, dpi = 400)
+  
+  ### What if we remove px6?
+  p_cor <- round(cor(plot_df$TIGIT_CD8_Cell_Num[-6],
+                     plot_df$B_Cell_Recovery_Time[-6], method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$TIGIT_CD8_Cell_Num[-6],
+                       plot_df$B_Cell_Recovery_Time[-6], method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df[-6,], aes(x=TIGIT_CD8_Cell_Num, y=B_Cell_Recovery_Time)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("Normalized TIGIT+ CD8 Cell #") +
+    ylab("B Cell Recovery Time (Days)") +
+    xlim(c(0, 0.2)) +
+    ylim(c(0, 300)) +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 0.03) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_CD8_Cell_Num_B_Cell_Recovery_noPx6.pdf"), plot = p, width = 12, height = 10, dpi = 400)
   
   ### draw the correlation plot - b cell recovery, GMP_Precursor_Cluster3_8_Module_Score
   p_cor <- round(cor(plot_df$GMP_Precursor_Cluster3_8_Module_Score,
@@ -13948,8 +14016,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                      nudge_x = 5) +
     geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
     theme_classic(base_size = 40) +
-    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
-  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Module_Score_B_Cell_Recovery.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40),
+          axis.title.x = element_text(hjust = 0.5, vjust = 0.5, size = 32))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Module_Score_B_Cell_Recovery.pdf"), plot = p, width = 12, height = 10, dpi = 400)
   
   ### draw the correlation plot - b cell recovery, GMP_Subsister_Module_Score
   p_cor <- round(cor(plot_df$GMP_Subsister_Module_Score,
@@ -13969,8 +14038,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                      nudge_x = 5) +
     geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
     theme_classic(base_size = 40) +
-    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
-  ggsave(file = paste0(outputDir2, "Correlation_GMP_Subsister_Module_Score_B_Cell_Recovery.pdf"), plot = p, width = 15, height = 10, dpi = 400)
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40),
+          axis.title.x = element_text(hjust = 0.5, vjust = 0.5, size = 32))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Subsister_Module_Score_B_Cell_Recovery.pdf"), plot = p, width = 12, height = 10, dpi = 400)
   
   #
   ### Linear model (mixing TIGIT+ cell # + pre-infusion marrow blast + can play) to predict Wk1CAR, PeakCAR, & B cell recovery time
@@ -14134,6 +14204,176 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### save the plot
   ggsave(file = paste0(outputDir2, "Lineage_Quantification_Fig4C.pdf"), plot = p,
          width = 15, height = 10, dpi = 350)
+  
+  
+  #
+  ### re-draw the lineage alluvial plot with new color scheme
+  #
+  
+  ### since our big object includes BM data, go back to the New3 (not PB only)
+  px_result_dir="./results/New3/"
+  
+  ### set time points
+  total_time_points <- c("PreTrans", "Wk-1", "Wk0", "GMP", "Wk1", "Wk2", 
+                         "Wk3", "Wk4", "Wk6", "Wk8", "3mo", "6mo", "9mo")
+  gmp_after_time_points <- c("GMP", "Wk1", "Wk2", "Wk3", "Wk4", 
+                             "Wk6", "Wk8", "3mo", "6mo", "9mo")
+  
+  ### run for each patient
+  total_plot_df <- NULL
+  p <- vector("list", length= length(unique(JCC_Seurat_Obj@meta.data$px)))
+  names(p) <- unique(JCC_Seurat_Obj@meta.data$px)
+  for(patient in unique(JCC_Seurat_Obj@meta.data$px)) {
+    
+    ### print progress
+    writeLines(paste(patient))
+    
+    ### load the file
+    target_file <- read.xlsx2(file = paste0(px_result_dir, patient, "/car_clonotype_frequency_over_time_", patient, ".xlsx"),
+                              sheetName = paste0("CARpos_Clonotype_Frequency_One_"), stringsAsFactors = FALSE, check.names = FALSE,
+                              row.names = 1)
+    
+    ### numerize the table
+    for(i in 1:ncol(target_file)) {
+      target_file[,i] <- as.numeric(target_file[,i])
+    }
+    
+    ### combine some redundant time points to one
+    if(length(which(colnames(target_file) == "GMP-redo")) > 0) {
+      target_file[,"GMP"] <- target_file[,"GMP"] + target_file[,"GMP-redo"]
+      target_file <- target_file[,-which(colnames(target_file) == "GMP-redo")]
+    }
+    if(length(which(colnames(target_file) == "PreTransB")) > 0) {
+      if(length(which(colnames(target_file) == "PreTrans")) > 0) {
+        target_file[,"PreTrans"] <- target_file[,"PreTrans"] + target_file[,"PreTransB"]
+        target_file <- target_file[,-which(colnames(target_file) == "PreTransB")]
+      } else {
+        colnames(target_file)[which(colnames(target_file) == "PreTransB")] <- "PreTrans"
+      }
+    }
+    if(length(which(colnames(target_file) == "Wk1b")) > 0) {
+      if(length(which(colnames(target_file) == "Wk1")) > 0) {
+        target_file[,"Wk1"] <- target_file[,"Wk1"] + target_file[,"Wk1b"]
+        target_file <- target_file[,-which(colnames(target_file) == "Wk1b")]
+      } else {
+        colnames(target_file)[which(colnames(target_file) == "Wk1b")] <- "Wk1"
+      }
+    }
+    if(length(which(colnames(target_file) == "Wk-1Run1")) > 0) {
+      if(length(which(colnames(target_file) == "Wk-1")) > 0) {
+        target_file[,"Wk-1"] <- target_file[,"Wk-1"] + target_file[,"Wk-1Run1"]
+        target_file <- target_file[,-which(colnames(target_file) == "Wk-1Run1")]
+      } else {
+        colnames(target_file)[which(colnames(target_file) == "Wk-1Run1")] <- "Wk-1"
+      }
+    }
+    if(length(which(colnames(target_file) == "Wk-1Run2")) > 0) {
+      if(length(which(colnames(target_file) == "Wk-1")) > 0) {
+        target_file[,"Wk-1"] <- target_file[,"Wk-1"] + target_file[,"Wk-1Run2"]
+        target_file <- target_file[,-which(colnames(target_file) == "Wk-1Run2")]
+      } else {
+        colnames(target_file)[which(colnames(target_file) == "Wk-1Run2")] <- "Wk-1"
+      }
+    }
+    
+    ### remove all zero time points
+    time_points <- colnames(target_file)[which(apply(target_file, 2, sum) != 0)]
+    
+    ### get time points except the Total
+    time_points <- setdiff(time_points, c("Total"))
+    
+    ### remove before GMP time points
+    time_points <- intersect(time_points, gmp_after_time_points)
+    
+    ### draw when there are at least two time points
+    if(length(time_points) > 1) {
+      ###  get lineages
+      lineage_table <- target_file[which(apply(target_file[,time_points], 1, function(x) {
+        return(length(which(x > 0)) > 1)  
+      })),time_points]
+      
+      ### get an input data frame for the alluvial plot
+      total_rows <- length(which(lineage_table[,time_points] > 0))
+      if(total_rows > 0) {
+        plot_df <- data.frame(Time=rep("", total_rows),
+                              Clone_Size=rep(0, total_rows),
+                              Clone=rep("", total_rows),
+                              CDR3=rep("", total_rows))
+        cnt <- 1
+        for(i in 1:nrow(lineage_table)) {
+          for(tp in time_points) {
+            if(lineage_table[i,tp] > 0) {
+              plot_df[cnt,] <- c(tp,
+                                 lineage_table[i,tp],
+                                 rownames(lineage_table)[i],
+                                 "CDR3")
+              cnt <- cnt + 1
+            }
+          }
+        }
+        plot_df$Time <- factor(plot_df$Time, levels = intersect(time_points, unique(plot_df$Time)))
+        
+        ### numerize the clone_size column
+        plot_df$Clone_Size <- as.numeric(plot_df$Clone_Size)
+        
+        ### draw an alluvial plot
+        p[[patient]] <- ggplot(plot_df,
+                               aes(x = Time, stratum = Clone, alluvium = Clone,
+                                   y = Clone_Size,
+                                   fill = Clone, label = Clone)) +
+          ggtitle(paste(patient)) +
+          geom_flow() +
+          geom_stratum(alpha = 1) +
+          # geom_text(stat = "stratum", size = 2) +
+          rotate_x_text(90) +
+          theme_pubr(legend = "none") +
+          # theme_cleveland2() +
+          scale_fill_viridis(discrete = T) +
+          scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+          theme_classic(base_size = 36) +
+          theme(axis.text.x = element_text(size = 30),
+                axis.title.x = element_blank(),
+                axis.title.y = element_text(size = 30),
+                legend.position = "none")
+        ggsave(file = paste0(outputDir2, "Car+_Clonal_Tracing_", patient, ".png"),
+               plot = p[[patient]],
+               width = 20, height = 10, dpi = 350)
+        
+        ### combine the plot data into one
+        if(is.null(total_plot_df)) {
+          total_plot_df <- plot_df
+        } else {
+          total_plot_df <- rbind(total_plot_df, plot_df)
+        }
+      }
+    }
+    
+    gc()
+  }
+  
+  ### draw an alluvial plot with all-patient-combined plot data
+  sjcar19_color_scale <- colorRampPalette(c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53"))(length(unique(total_plot_df$Clone)))
+  total_plot_df$Time <- factor(total_plot_df$Time, levels = intersect(total_time_points, unique(total_plot_df$Time)))
+  ggplot(total_plot_df,
+         aes(x = Time, stratum = Clone, alluvium = Clone,
+             y = Clone_Size,
+             fill = Clone, label = Clone)) +
+    ggtitle(paste("")) +
+    geom_flow() +
+    geom_stratum(alpha = 1) +
+    # geom_text(stat = "stratum", size = 2) +
+    rotate_x_text(90) +
+    theme_pubr(legend = "none") +
+    # theme_cleveland2() +
+    scale_fill_manual(values = sjcar19_color_scale) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+    theme_classic(base_size = 36) +
+    theme(axis.text.x = element_text(size = 30),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 30),
+          legend.position = "none")
+  ggsave(file = paste0(outputDir2, "All_CARpos_Clonal_Tracing_Fig4A.pdf"), width = 20, height = 10, dpi = 350)
+  
   
   
   
@@ -14365,7 +14605,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   #
   
   ### get Optitype results
-  result_dir <- "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_data/data/HLA_Run/Optitype/"
+  result_dir <- "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_data/data/HLA_Run/Optitype0/"
   opti_file <- list.files(path = result_dir,
                           pattern = ".tsv$")
   
