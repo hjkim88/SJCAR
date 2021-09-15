@@ -243,6 +243,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     BiocManager::install("RedeR")
     require(RedeR, quietly = TRUE)
   }
+  if(!require(ggbeeswarm, quietly = TRUE)) {
+    install.packages("ggbeeswarm")
+    require(ggbeeswarm, quietly = TRUE)
+  }
   
   ### create outputDir
   dir.create(outputDir, showWarnings = FALSE, recursive = TRUE)
@@ -13597,6 +13601,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                  268449, 356424, 8071, 5835)
   wk1car_ml <- c(9341, 296787, 947250, 24967, 1122227, 50700, 7561, 314646,
                  268449, 1960334, 236747, 66126)
+  wk2car_ug <- c(199054, )
   names(peakcar_ug) <- c("SJCAR19-01", "SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05",
                          "SJCAR19-06", "SJCAR19-07", "SJCAR19-08", "SJCAR19-09", "SJCAR19-10",
                          "SJCAR19-11")
@@ -14374,8 +14379,100 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           legend.position = "none")
   ggsave(file = paste0(outputDir2, "All_CARpos_Clonal_Tracing_Fig4A.pdf"), width = 20, height = 10, dpi = 350)
   
+  #
+  ### correlation between # lineages and TIGIT+ cells
+  #
   
+  ### add # lineages & # lineage cells
+  plot_df$Lineage_Num <- sapply(plot_df$Patient, function(x) {
+    target_idx <- intersect(which(JCC_Seurat_Obj$px == x),
+                            which(JCC_Seurat_Obj$GMP_CARpos_Persister == "YES"))
+    unique_tcrs <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[target_idx])
+    px_cell_num <- length(which(JCC_Seurat_Obj$px == x))
+    
+    return(length(unique_tcrs) / px_cell_num)
+  })
+  plot_df$GMP_Lineage_Cell_Num <- sapply(plot_df$Patient, function(x) {
+    target_idx <- intersect(intersect(which(JCC_Seurat_Obj$px == x),
+                                      which(JCC_Seurat_Obj$GMP_CARpos_Persister == "YES")),
+                            which(JCC_Seurat_Obj$time2 == "GMP"))
+    gmp_cell_num <- length(intersect(which(JCC_Seurat_Obj$px == x),
+                                     which(JCC_Seurat_Obj$time2 == "GMP")))
+    
+    return(length(target_idx) / gmp_cell_num)
+  })
   
+  ### now make a correlation
+  
+  ### draw the correlation plot - # TIGIT+ cells & # lineages
+  p_cor <- round(cor(plot_df$TIGIT_Cell_Num,
+                     plot_df$Lineage_Num, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$TIGIT_Cell_Num,
+                       plot_df$Lineage_Num, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=TIGIT_Cell_Num, y=Lineage_Num)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("Normalized TIGIT+ Cell #") +
+    ylab("Normalized Lineage #") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 0.03) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_Cell_Num_Lineage_Num.pdf"), plot = p, width = 12, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - # TIGIT+ cells & # GMP lineage cells
+  p_cor <- round(cor(plot_df$TIGIT_Cell_Num,
+                     plot_df$GMP_Lineage_Cell_Num, method = "pearson", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$TIGIT_Cell_Num,
+                       plot_df$GMP_Lineage_Cell_Num, method = "pearson", use = "complete.obs")$p.value, 2)
+  p <- ggplot(data = plot_df, aes(x=TIGIT_Cell_Num, y=GMP_Lineage_Cell_Num)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Pearson Correlation:", p_cor),
+         subtitle = paste0("P-value:", pv)) +
+    xlab("Normalized TIGIT+ Cell #") +
+    ylab("Normalized GMP Lineage Cell #") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 0.03) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 40))
+  ggsave(file = paste0(outputDir2, "Correlation_TIGIT_Cell_Num_GMP_Lineage_Cell_Num.pdf"), plot = p, width = 12, height = 10, dpi = 400)
+  
+  #
+  ### categorical analysis - box, beeswarm plot
+  ### 1. b cell recovery yes vs no - compare # TIGIT+ cells
+  ### 2. look at a specific time point and divide the patients into two then compare # TIGIT+ cells
+  #
+  
+  ### set b cell recovery column
+  plot_df$IS_BCELL_RECOVERED <- "NO"
+  plot_df$IS_BCELL_RECOVERED[which(plot_df$B_Cell_Recovery_Time > 0)] <- "YES"
+  
+  ### color scale
+  sjcar19_colors <- c("#640B11", "#487A8F")
+  names(sjcar19_colors) <- unique(plot_df$IS_BCELL_RECOVERED)
+  show_col(sjcar19_colors)
+  
+  ### beeswarm plot
+  p <- ggplot(plot_df, aes_string(x="IS_BCELL_RECOVERED", y="TIGIT_Cell_Num", label="Patient")) +
+    geom_boxplot() +
+    geom_beeswarm(aes_string(col="IS_BCELL_RECOVERED"), na.rm = TRUE, show.legend = FALSE) +
+    geom_label_repel(aes(label = Patient), size = 5, show.legend = FALSE) +
+    stat_compare_means() +
+    xlab("Is B Cell Recovered") + ylab("Normalized TIGIT+ Cell #") +
+    labs(col="Is B Cell Recovered") +
+    scale_color_manual(values = sjcar19_colors) +
+    ggtitle("") +
+    theme_classic(base_size = 30)
+  ggsave(file = paste0(outputDir2, "Comparison_TIGIT_Cell_Num_Is_BCell_Recovered.pdf"), plot = p, width = 12, height = 8, dpi = 400)
   
   
   
