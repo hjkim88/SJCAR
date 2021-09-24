@@ -13818,39 +13818,50 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                         Actual_Precursor_Cells=JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8[which(JCC_Seurat_Obj$time2 == "GMP")],
                         Actual_Subsister_Cells=JCC_Seurat_Obj$GMP_CARpos_Persister[which(JCC_Seurat_Obj$time2 == "GMP")],
                         Precursor_Threshold_Cells=JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score1_Cells[which(JCC_Seurat_Obj$time2 == "GMP")],
-                        Subsister_Treshold_Cells=JCC_Seurat_Obj$GMP_CARpos_Persister_Module_Score1_Cells[which(JCC_Seurat_Obj$time2 == "GMP")],
+                        Subsister_Threshold_Cells=JCC_Seurat_Obj$GMP_CARpos_Persister_Module_Score1_Cells[which(JCC_Seurat_Obj$time2 == "GMP")],
                         stringsAsFactors = FALSE, check.names = FALSE)
   
   plot_df$Actual_Precursor_Cells <- factor(plot_df$Actual_Precursor_Cells, levels = unique(plot_df$Actual_Precursor_Cells))
+  plot_df$Actual_Subsister_Cells[is.na(plot_df$Actual_Subsister_Cells)] <- "NA"
   plot_df$Actual_Subsister_Cells <- factor(plot_df$Actual_Subsister_Cells, levels = unique(plot_df$Actual_Subsister_Cells))
   
-  ggplot(plot_df, aes(x=Precursor_Module_Score, color=Actual_Precursor_Cells)) +
-    geom_histogram(fill="white")
+  p <- ggplot(plot_df, aes(x=Precursor_Module_Score, color=Actual_Precursor_Cells)) +
+    geom_density(size=3) +
+    theme_classic(base_size = 40) +
+    theme(legend.key.size = unit(1, 'cm'),
+          legend.position = "right",
+          legend.title = element_text(size = 30),
+          legend.text = element_text(size = 24))
+  ggsave(file = paste0(outputDir2, "Density_Precursor_Module_Score.png"), plot = p, width = 20, height = 10, dpi = 400)
   
-  ggplot(plot_df[which(plot_df$Actual_Precursor_Cells == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"),], aes(x=Precursor_Module_Score, color=Actual_Precursor_Cells)) +
-    geom_histogram(fill="white")
-  
-  ggplot(plot_df[which(plot_df$Precursor_Threshold_Cells == "YES"),], aes(x=Precursor_Module_Score, color=Actual_Precursor_Cells)) +
-    geom_histogram(fill="white")
-  
-  ggplot(plot_df, aes(x=Precursor_Module_Score, fill=Actual_Precursor_Cells)) +
-    geom_histogram(fill="white") +
-    xlim(0.5,2)
-    ylim(c(0,1000))
-  
-  ggplot(plot_df, aes(x=Precursor_Module_Score, fill=Actual_Precursor_Cells)) +
+  p <- ggplot(plot_df, aes(x=Precursor_Module_Score, fill=Actual_Precursor_Cells)) +
     geom_histogram(bins = 100) +
-    facet_zoom(ylim = c(0, 100))
-    
-  ggplot(plot_df, aes(x=Subsister_Module_Score, color=Actual_Subsister_Cells)) +
-    geom_density()
+    facet_zoom(ylim = c(0, 20)) +
+    theme_classic(base_size = 40) +
+    theme(legend.key.size = unit(1, 'cm'),
+          legend.position = "right",
+          legend.title = element_text(size = 30),
+          legend.text = element_text(size = 24))
+  ggsave(file = paste0(outputDir2, "Histogram_Precursor_Module_Score.png"), plot = p, width = 25, height = 10, dpi = 400)
   
-  ggplot(plot_df, aes(x=Precursor_Module_Score, color=Actual_Precursor_Cells)) +
-    geom_histogram(fill="white")
+  p <- ggplot(plot_df, aes(x=Subsister_Module_Score, color=Actual_Subsister_Cells)) +
+    geom_density(size=3) +
+    theme_classic(base_size = 40) +
+    theme(legend.key.size = unit(1, 'cm'),
+          legend.position = "right",
+          legend.title = element_text(size = 30),
+          legend.text = element_text(size = 24))
+  ggsave(file = paste0(outputDir2, "Density_Subsister_Module_Score.png"), plot = p, width = 20, height = 10, dpi = 400)
   
-  ### organize the histogram plots and redo the correlation/linear model with higher threshold
-  
-  
+  p <- ggplot(plot_df, aes(x=Subsister_Module_Score, fill=Actual_Subsister_Cells)) +
+    geom_histogram(bins = 100) +
+    facet_zoom(ylim = c(0, 20)) +
+    theme_classic(base_size = 40) +
+    theme(legend.key.size = unit(1, 'cm'),
+          legend.position = "right",
+          legend.title = element_text(size = 30),
+          legend.text = element_text(size = 24))
+  ggsave(file = paste0(outputDir2, "Histogram_Subsister_Module_Score.png"), plot = p, width = 25, height = 10, dpi = 400)
   
   
   ### correlation plot data - PeakCAR
@@ -13991,6 +14002,81 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### save it as EXCEL
   write.xlsx2(pairwise_df, file = paste0(outputDir2, "Correlation_Between_All_The_Factors_spearman_FDR.xlsx"),
               sheetName = "Correlation_FDR", row.names = FALSE)
+  
+  
+  ###
+  ### compare FDR (adj.p) across different threshold
+  ###
+  thresh_list <- c(-0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8)
+  factor1_list <- c("TIGIT_Cell_Num", "TIGIT_CD8_Cell_Num", "Precursor_Module_Score", "Precursor_Module_Score2",
+                    "Subsister_Module_Score", "Subsister_Module_Score2")
+  factor2_list <- c("B_Cell_Recovery_Time", "PeakCAR_ug", "Wk1CAR_ug", "Wk2CAR_ug", "Wk3CAR_ug",
+                    "PeakCAR_ml", "Wk1CAR_ml", "Wk2CAR_ml", "Wk3CAR_ml", "Tumor_Burden")
+  test_df <- data.frame(Variable1=rep("", length(factor1_list)*length(factor2_list)*length(thresh_list)),
+                        Variable2=rep("", length(factor1_list)*length(factor2_list)*length(thresh_list)),
+                        Threshold=rep("", length(factor1_list)*length(factor2_list)*length(thresh_list)),
+                        Cor=NA,
+                        PVal=NA,
+                        Adj.Pval=NA,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  cnt <- 1
+  for(thresh in thresh_list) {
+    ### get the percentage
+    GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt2 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+    names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt2) <- unique(JCC_Seurat_Obj$px)
+    GMP_CARpos_Persister_Module_Score_Pcnt2 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+    names(GMP_CARpos_Persister_Module_Score_Pcnt2) <- unique(JCC_Seurat_Obj$px)
+    for(px in unique(JCC_Seurat_Obj$px)) {
+      GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt2[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                          which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score1 > thresh))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                                                           which(JCC_Seurat_Obj$time2 == "GMP")))
+      GMP_CARpos_Persister_Module_Score_Pcnt2[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                      which(JCC_Seurat_Obj$GMP_CARpos_Persister_Module_Score1 > thresh))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                   which(JCC_Seurat_Obj$time2 == "GMP")))
+    }
+    
+    plot_df2 <- data.frame(Patient=names(peakcar_ug),
+                           TIGIT_Cell_Num=as.numeric(TIGIT_Pos_Cell_Num[names(peakcar_ug)]),
+                           TIGIT_CD8_Cell_Num=as.numeric(TIGIT_Pos_CD8_Cell_Num[names(peakcar_ug)]),
+                           Precursor_Module_Score=as.numeric(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt2[names(peakcar_ug)]),
+                           Precursor_Module_Score2=as.numeric(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score2_Pcnt[names(peakcar_ug)]),
+                           Subsister_Module_Score=as.numeric(GMP_CARpos_Persister_Module_Score_Pcnt2[names(peakcar_ug)]),
+                           Subsister_Module_Score2=as.numeric(GMP_CARpos_Persister_Module_Score2_Pcnt[names(peakcar_ug)]),
+                           B_Cell_Recovery_Time=as.numeric(b_cell_recovery_time[names(peakcar_ug)]),
+                           PeakCAR_ug=as.numeric(peakcar_ug),
+                           Wk1CAR_ug=as.numeric(wk1car_ug[names(peakcar_ug)]),
+                           Wk2CAR_ug=as.numeric(wk2car_ug[names(peakcar_ug)]),
+                           Wk3CAR_ug=as.numeric(wk3car_ug[names(peakcar_ug)]),
+                           PeakCAR_ml=as.numeric(peakcar_ml),
+                           Wk1CAR_ml=as.numeric(wk1car_ml[names(peakcar_ug)]),
+                           Wk2CAR_ml=as.numeric(wk2car_ml[names(peakcar_ug)]),
+                           Wk3CAR_ml=as.numeric(wk3car_ml[names(peakcar_ug)]),
+                           Tumor_Burden=c(98, 10, 1, 0, 12, 1, 80, 72, 78, 84, 0),
+                           stringsAsFactors = FALSE, check.names = FALSE)
+    
+    for(a in factor1_list) {
+      for(b in factor2_list) {
+        x <- as.numeric(plot_df2[,a])
+        y <- as.numeric(plot_df2[,b])
+        Cor <- round(cor(x, y, method = "spearman", use = "complete.obs"), 2)
+        Cor_PV <- round(cor.test(x, y, method = "spearman", use = "complete.obs")$p.value, 2)
+        
+        test_df$Variable1[cnt] <- a
+        test_df$Variable2[cnt] <- b
+        test_df$Threshold[cnt] <- thresh
+        test_df$Cor[cnt] <- Cor
+        test_df$PVal[cnt] <- Cor_PV
+        
+        cnt <- cnt + 1
+      }
+    }
+    
+    test_df$Adj.Pval[which(test_df$Threshold == thresh)] <- p.adjust(test_df$PVal[which(test_df$Threshold == thresh)], method = "BH")
+  }
+  
+  ### save it as EXCEL
+  write.xlsx2(test_df, file = paste0(outputDir2, "Correlation_Between_All_The_Factors_spearman_FDR_All_Thresh.xlsx"),
+              sheetName = "Correlation_FDR_All_Thresh", row.names = FALSE)
   
   
   ### draw the correlation plot - peakcar_ug, TIGIT cell num
@@ -14934,7 +15020,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   for(i in 1:length(gene_set)) {
     p[[i]]$labels$title <- names(gene_set)[i]
   }
-  ggsave(paste0(outputDir2, "Fig2C_GMP_Feature_Plots.png"), plot = p, width = 20, height = 8, dpi = 350)
+  ggsave(paste0(outputDir2, "Fig2C_GMP_Feature_Plots2.png"), plot = p, width = 20, height = 8, dpi = 350)
   
   
   
