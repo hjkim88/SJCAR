@@ -10164,7 +10164,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme(legend.position = "top",
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 30))
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_State_Monocle2_Subsisters_Added(2).png"),
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_State_Monocle2_Subsisters_Added(2)_Fig3A.pdf"),
          plot = p,
          width = 15, height = 10, dpi = 350)
   
@@ -10274,7 +10274,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     theme_classic(base_size = 48) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
           axis.ticks = element_blank())
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Monocle2_Bar_Subsisters_Added(2).png"), plot = p,
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Monocle2_Bar_Subsisters_Added(2)_Fig3C.pdf"), plot = p,
          width = 18, height = 10, dpi = 350)
   
   
@@ -11086,6 +11086,75 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           axis.title.y = element_text(size = 30),
           legend.position = "right")
   ggsave(file = paste0(outputDir2, "Alluvial_CARpos_Subsisters_Lineages_Between_Clusters_Fig4F.pdf"), plot = p,
+         width = 15, height = 8, dpi = 350)
+  
+  #
+  ### Fig4F - only with the CD8 lineages
+  #
+  
+  ### CD4/CD8 annotation
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters <- "NA"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "2", "9", "10", "11", "14", "15", "18"))] <- "CD4"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20"))] <- "CD8"
+  
+  plot_df3 <- data.frame(GMP_PI="",
+                         Cluster="",
+                         Connection_Identifier="",
+                         Size=1,
+                         stringsAsFactors = FALSE, check.names = FALSE)
+  for(clone in gmp_subsisters_clones) {
+    gmp_target_idx <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == clone),
+                                intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                          which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))
+    gmp_target_clusters <- unique(as.character(JCC_Seurat_Obj$AllSeuratClusters[gmp_target_idx]))
+    pi_target_idx <- intersect(which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == clone),
+                               intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                         which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))
+    pi_target_clusters <- unique(as.character(JCC_Seurat_Obj$AllSeuratClusters[pi_target_idx]))
+    
+    for(clstr1 in gmp_target_clusters) {
+      for(clstr2 in pi_target_clusters) {
+        plot_df3 <- rbind(plot_df3,
+                          c("GMP", clstr1, paste0(clstr1, "_", clstr2), 1))
+        plot_df3 <- rbind(plot_df3,
+                          c("PI", clstr2, paste0(clstr1, "_", clstr2), 1))
+      }
+    }
+  }
+  plot_df3 <- plot_df3[-1,]
+  plot_df3$Size <- as.numeric(plot_df3$Size)
+  
+  ### sum up the duplicates
+  nodup_idx <- which(!duplicated(plot_df3))
+  for(i in nodup_idx) {
+    target_idx <- intersect(intersect(which(plot_df3$GMP_PI == plot_df3$GMP_PI[i]),
+                                      which(plot_df3$Cluster == plot_df3$Cluster[i])),
+                            which(plot_df3$Connection_Identifier == plot_df3$Connection_Identifier[i]))
+    plot_df3$Size[i] <- length(target_idx)
+  }
+  plot_df3 <- plot_df3[nodup_idx,]
+  
+  ### draw an alluvial plot
+  plot_df3$Cluster <- factor(plot_df3$Cluster, levels = levels(JCC_Seurat_Obj$AllSeuratClusters))
+  sjcar19_color_scale <- colorRampPalette(c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53"))(length(unique(plot_df3$Cluster)))
+  p <- ggplot(plot_df3,
+              aes(x = GMP_PI, stratum = Cluster, alluvium = Connection_Identifier,
+                  y = Size,
+                  fill = Cluster, label = Cluster)) +
+    ggtitle("") +
+    ylab("# Unique Lineage") +
+    geom_flow() +
+    geom_stratum(alpha = 1) +
+    geom_label_repel(stat = "stratum", size = 5, show.legend = FALSE, col = "cornsilk2") +
+    rotate_x_text(90) +
+    scale_fill_manual(values = sjcar19_color_scale) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+    theme_classic(base_size = 36) +
+    theme(axis.text.x = element_text(size = 30),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 30),
+          legend.position = "right")
+  ggsave(file = paste0(outputDir2, "Alluvial_CARpos_Subsisters_Lineages_Between_Clusters_Fig4F_CD8.pdf"), plot = p,
          width = 15, height = 8, dpi = 350)
   
   
@@ -12147,35 +12216,35 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                          "HILPDA", "BNIP3", "ENO1", "SELL", "IL7R", "CASP8", "RPL7", "RPL30", "RPL32", "TOX")
   
   ### cluster functional annotation
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters <- "Others"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "10", "11"))] <- "Proliferating GMP"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("2", "6"))] <- "Cytotoxic GMP"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3"))] <- "GZMK Cytotoxic CD8 Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("4"))] <- "Mixed GMP/PI"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("8"))] <- "Canonical Cytotoxic CD8 Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("9"))] <- "Dysfunctional CD4 GMP"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("12", "15"))] <- "Hypoxic GMP"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13"))] <- "Dysfunctional Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("14"))] <- "Cytotoxic CD4 Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("16", "17"))] <- "Mild Proliferating Effectors"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("20"))] <- "Dying T Cells"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters <- "Others"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "10", "11"))] <- "Proliferating GMP"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("2", "6"))] <- "Cytotoxic GMP"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3"))] <- "GZMK Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("4"))] <- "Mixed GMP/PI"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("8"))] <- "Canonical Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("9"))] <- "Dysfunctional CD4 GMP"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("12", "15"))] <- "Hypoxic GMP"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13"))] <- "Dysfunctional Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("14"))] <- "Cytotoxic CD4 Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("16", "17"))] <- "Mild Proliferating Effectors"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("20"))] <- "Dying T Cells"
   
   ### wa color scale for functional annotations
-  wa_color_scale <- as.character(wes_palette("Rushmore1", length(unique(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters)), type = "continuous"))
-  names(wa_color_scale) <- unique(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters)
+  wa_color_scale <- as.character(wes_palette("Rushmore1", length(unique(JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters)), type = "continuous"))
+  names(wa_color_scale) <- unique(JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters)
   show_col(wa_color_scale)
   
   ### test the functional annotations on UMAP
   DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
-          group.by = "Functinal_Annotation_Based_On_Clusters",
-          cols = wa_color_scale[JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters],
+          group.by = "Functional_Annotation_Based_On_Clusters",
+          cols = wa_color_scale[JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters],
           pt.size = 1)
   
   ### dot plot - like Dave's
   p <- DotPlot(JCC_Seurat_Obj,
                features = interesting_genes,
                cols = c("#12685A", "#AD2C24"),
-               group.by = "Functinal_Annotation_Based_On_Clusters") +
+               group.by = "Functional_Annotation_Based_On_Clusters") +
     scale_size(range = c(2, 15)) +
     coord_flip() +
     xlab("") +
@@ -12466,6 +12535,38 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(file = paste0(outputDir2, "CARpos_Cluster_Proportions_In_Time_Fig2C.pdf"), plot = p,
          width = 20, height = 10, dpi = 350)
   
+  ### NEW FUNCTIONAL ANNOTATION BY TAY - 09/27/2021
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters <- "Others"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "9", "10", "11", "12", "15", "19"))] <- "Proliferating"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("2", "4", "6", "17"))] <- "Transitioning"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3", "8", "14"))] <- "Functional Effector"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13", "20"))] <- "Dysfunctional"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("16"))] <- "Early Effector"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("18"))] <- "Metabolically Active"
+  
+  ### dot plot2 - like Dave's
+  interesting_genes2 <- c("RPL32", "RPL30", "LAG3", "TOX", "CASP8", "IL7R", "SELL", "BNIP3", "MKI67",
+                          "CDC20", "CDK1", "NKG7", "GNLY", "GZMH", "GZMM", "GZMK")
+  temp_obj <- subset(JCC_Seurat_Obj,
+                     cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters != "Others")])
+  p <- DotPlot(temp_obj,
+               features = interesting_genes2,
+               group.by = "New_Functional_Annotation_Based_On_Clusters") +
+    scale_size(range = c(5, 25)) +
+    xlab("") +
+    ylab("") +
+    scale_color_gradientn(colours = c("#487A8F", "#C09969", "#AA4C26")) +
+    theme_classic(base_size = 28) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text.x = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5),
+          axis.text.y = element_text(angle = 0, size = 50, vjust = 0.5, hjust = 1),
+          legend.title = element_text(size = 40),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "Dotplot_CARpos_Functional_Group_GEXP_Fig1C.pdf"),
+         plot = p, width = 34, height = 15, dpi = 350)
+  
+  
+  
   
   #
   ### pie chart - PI CAR+ cells belong to each functional group
@@ -12525,37 +12626,46 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   )
   
   ### cluster functional annotation
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters <- "Others"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "10", "11"))] <- "Proliferating GMP"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("2", "6"))] <- "Cytotoxic GMP"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3"))] <- "GZMK Cytotoxic CD8 Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("4"))] <- "Mixed GMP/PI"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("8"))] <- "Canonical Cytotoxic CD8 Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("9"))] <- "Dysfunctional CD4 GMP"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("12", "15"))] <- "Hypoxic GMP"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13"))] <- "Dysfunctional Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("14"))] <- "Cytotoxic CD4 Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("16", "17"))] <- "Mild Proliferating Effectors"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("20"))] <- "Dying T Cells"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters <- "Others"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "10", "11"))] <- "Proliferating GMP"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("2", "6"))] <- "Cytotoxic GMP"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3"))] <- "GZMK Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("4"))] <- "Mixed GMP/PI"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("8"))] <- "Canonical Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("9"))] <- "Dysfunctional CD4 GMP"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("12", "15"))] <- "Hypoxic GMP"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13"))] <- "Dysfunctional Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("14"))] <- "Cytotoxic CD4 Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("16", "17"))] <- "Mild Proliferating Effectors"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("20"))] <- "Dying T Cells"
+  
+  ### NEW FUNCTIONAL ANNOTATION BY TAY - 09/27/2021
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters <- "Others"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "9", "10", "11", "12", "15", "19"))] <- "Proliferating"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("2", "4", "6", "17"))] <- "Transitioning"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3", "8", "14"))] <- "Functional Effector"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13", "20"))] <- "Dysfunctional"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("16"))] <- "Early Effector"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("18"))] <- "Metabolically Active"
   
   ### draw a pie chart to show the percentage of PI CAR+ cells in each functional group
-  plot_df <- data.frame(Function_Group=unique(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters),
+  plot_df <- data.frame(Function_Group=unique(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters),
                         Numbers=0,
                         Pcnt=0,
                         stringsAsFactors = FALSE, check.names = FALSE)
   
   ### calculate numbers
   cnt <- 1
-  for(fg in unique(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters)) {
+  for(fg in unique(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters)) {
     plot_df$Numbers[cnt] <- length(intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
                                                        which(JCC_Seurat_Obj$CAR == "CARpos")),
-                                             which(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters == fg)))
+                                             which(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters == fg)))
     cnt <- cnt + 1
   }
   
   ### calculate percentages
-  for(i in 1:length(unique(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters))) {
-    plot_df$Pcnt[which(plot_df$Function_Group == unique(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters)[i])] <- round(plot_df$Numbers[which(plot_df$Function_Group == unique(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters)[i])] * 100 / sum(plot_df$Numbers), 1)
+  for(i in 1:length(unique(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters))) {
+    plot_df$Pcnt[which(plot_df$Function_Group == unique(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters)[i])] <- round(plot_df$Numbers[which(plot_df$Function_Group == unique(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters)[i])] * 100 / sum(plot_df$Numbers), 2)
   }
   
   ### remove NaN rows
@@ -12566,7 +12676,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   ### add label column
   plot_df$Text <- paste0(as.character(plot_df$Function_Group),
-                         " (",
+                         "\n(",
                          plot_df$Pcnt, "%)")
   
   ### add label position
@@ -12579,19 +12689,23 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   names(sjcar19_colors) <- unique(plot_df$Function_Group)
   show_col(sjcar19_colors)
   
+  sjcar19_colors <- c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53")
+  names(sjcar19_colors) <- unique(plot_df$Function_Group)
+  show_col(sjcar19_colors)
+  
   ### label change
-  plot_df$Text[1] <- "Proliferating\nGMP (6.3%)"
-  plot_df$Text[2] <- ""
-  plot_df$Text[3] <- "Dysfunctional\nCD4 GMP (2.3%)"
-  plot_df$Text[4] <- "Cytotoxic\nGMP (13.5%)"
-  plot_df$Text[5] <- "Others (0.3%)"
-  plot_df$Text[6] <- "Mixed\nGMP/PI (10.5%)"
-  plot_df$Text[7] <- "Mild Proliferating\nEffectors (8.8%)"
-  plot_df$Text[8] <- "Dying\nT Cells (3.2%)"
-  plot_df$Text[9] <- "Dysfunctional\nEffector (9.9%)"
-  plot_df$Text[10] <- "GZMK Cytotoxic\nCD8 Effector (22.6%)"
-  plot_df$Text[11] <- "Cytotoxic\nCD4 Effector (9.3%)"
-  plot_df$Text[12] <- "Canonical Cytotoxic\nCD8 Effector (13.2%)"
+  # plot_df$Text[1] <- "Proliferating\nGMP (6.3%)"
+  # plot_df$Text[2] <- ""
+  # plot_df$Text[3] <- "Dysfunctional\nCD4 GMP (2.3%)"
+  # plot_df$Text[4] <- "Cytotoxic\nGMP (13.5%)"
+  # plot_df$Text[5] <- "Others (0.3%)"
+  # plot_df$Text[6] <- "Mixed\nGMP/PI (10.5%)"
+  # plot_df$Text[7] <- "Mild Proliferating\nEffectors (8.8%)"
+  # plot_df$Text[8] <- "Dying\nT Cells (3.2%)"
+  # plot_df$Text[9] <- "Dysfunctional\nEffector (9.9%)"
+  # plot_df$Text[10] <- "GZMK Cytotoxic\nCD8 Effector (22.6%)"
+  # plot_df$Text[11] <- "Cytotoxic\nCD4 Effector (9.3%)"
+  # plot_df$Text[12] <- "Canonical Cytotoxic\nCD8 Effector (13.2%)"
   
   ### draw the pie chart
   options(ggrepel.max.overlaps = Inf)
@@ -12615,7 +12729,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           legend.position = "none")
   
   ### save the plot
-  ggsave(file = paste0(outputDir2, "Functions_Proportions_In_PI_CARpos_Fig2A.pdf"), plot = p,
+  ggsave(file = paste0(outputDir2, "New_Functions_Proportions_In_PI_CARpos_Fig2A.pdf"), plot = p,
          width = 15, height = 10, dpi = 350)
   
   
@@ -12688,27 +12802,27 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                           "CDC20", "CDK1", "NKG7", "GNLY", "GZMH", "GZMM", "GZMK")
   
   ### cluster functional annotation
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters <- "Others"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "10", "11"))] <- "Proliferating GMP"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("2", "6"))] <- "Cytotoxic GMP"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3"))] <- "GZMK Cytotoxic CD8 Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("4"))] <- "Mixed GMP/PI"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("8"))] <- "Canonical Cytotoxic CD8 Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("9"))] <- "Dysfunctional CD4 GMP"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("12", "15"))] <- "Hypoxic GMP"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13"))] <- "Dysfunctional Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("14"))] <- "Cytotoxic CD4 Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("16", "17"))] <- "Mild Proliferating Effectors"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("20"))] <- "Dying T Cells"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters <- "Others"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "10", "11"))] <- "Proliferating GMP"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("2", "6"))] <- "Cytotoxic GMP"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3"))] <- "GZMK Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("4"))] <- "Mixed GMP/PI"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("8"))] <- "Canonical Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("9"))] <- "Dysfunctional CD4 GMP"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("12", "15"))] <- "Hypoxic GMP"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13"))] <- "Dysfunctional Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("14"))] <- "Cytotoxic CD4 Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("16", "17"))] <- "Mild Proliferating Effectors"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("20"))] <- "Dying T Cells"
   
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2 <- "NA"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("8"))] <- "Canonical Cytotoxic CD8 Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3"))] <- "GZMK Cytotoxic CD8 Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("14"))] <- "Cytotoxic CD4 Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "10", "11"))] <- "Proliferating GMP"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13"))] <- "Dysfunctional/Exhausted Effector"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("20"))] <- "Dying T Cells"
-  JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2 <- factor(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2,
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters2 <- "NA"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("8"))] <- "Canonical Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3"))] <- "GZMK Cytotoxic CD8 Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("14"))] <- "Cytotoxic CD4 Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "10", "11"))] <- "Proliferating GMP"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13"))] <- "Dysfunctional/Exhausted Effector"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("20"))] <- "Dying T Cells"
+  JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters2 <- factor(JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters2,
                                                                    levels = c("Canonical Cytotoxic CD8 Effector",
                                                                               "GZMK Cytotoxic CD8 Effector",
                                                                               "Cytotoxic CD4 Effector",
@@ -12725,7 +12839,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   p <- DotPlot(JCC_Seurat_Obj,
                features = interesting_genes,
                cols = c("#487A8F", "#C09969"),
-               group.by = "Functinal_Annotation_Based_On_Clusters") +
+               group.by = "Functional_Annotation_Based_On_Clusters") +
     scale_size(range = c(2, 12)) +
     coord_flip() +
     xlab("") +
@@ -12739,10 +12853,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   ### dot plot2 - like Dave's
   temp_obj <- subset(JCC_Seurat_Obj,
-                     cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$Functinal_Annotation_Based_On_Clusters2 != "NA")])
+                     cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$Functional_Annotation_Based_On_Clusters2 != "NA")])
   p <- DotPlot(temp_obj,
                features = interesting_genes2,
-               group.by = "Functinal_Annotation_Based_On_Clusters2") +
+               group.by = "Functional_Annotation_Based_On_Clusters2") +
     scale_size(range = c(5, 25)) +
     xlab("") +
     ylab("") +
@@ -14725,6 +14839,78 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(file = paste0(outputDir2, "Lineage_Quantification_Fig4C.pdf"), plot = p,
          width = 15, height = 10, dpi = 350)
   
+  #
+  ### NOW Fig4C but with functional groups not with clusters
+  #
+  
+  ### plot data frame
+  plot_df <- data.frame(Groups=unique(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters),
+                        Lineage_Cell_Numbers=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### calculate numbers
+  cnt <- 1
+  for(fg in unique(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters)) {
+    plot_df$Lineage_Cell_Numbers[cnt] <- length(intersect(which(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters == fg),
+                                                          which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES")))
+    cnt <- cnt + 1
+  }
+  
+  ### calculate percentages
+  plot_df_sum <- sum(as.numeric(plot_df$Lineage_Cell_Numbers))
+  for(i in 1:length(unique(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters))) {
+    plot_df$Pcnt[i] <- round(plot_df$Lineage_Cell_Numbers[i] * 100 / plot_df_sum, 2)
+  }
+  
+  ### remove NaN rows
+  plot_df <- plot_df[which(!is.nan(plot_df$Pcnt)),]
+  
+  ### factorize the time point & state
+  plot_df$Groups <- factor(plot_df$Groups, levels = unique(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters))
+  
+  ### add label column
+  plot_df$Text <- paste0(as.character(plot_df$Groups),
+                         "\n(",
+                         plot_df$Pcnt, "%)")
+  
+  ### add label position
+  plot_df <- plot_df %>%
+    mutate(text_y = cumsum(Lineage_Cell_Numbers) - Lineage_Cell_Numbers/2)
+  
+  ### since there are none for the others, just remove it
+  plot_df <- plot_df[-which(plot_df$Groups == "Others"),]
+  
+  ### color scale
+  sjcar19_colors <- c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53")
+  names(sjcar19_colors) <- unique(plot_df$Groups)
+  show_col(sjcar19_colors)
+  
+  ### draw the pie chart
+  options(ggrepel.max.overlaps = Inf)
+  p <- ggplot(data = plot_df,
+              aes(x = "", y = Lineage_Cell_Numbers, fill = Groups)) +
+    geom_bar(stat = "identity", width = 1) +
+    geom_label_repel(aes(label = Text), position = position_stack_and_nudge(vjust = 0.5, x = 0.7),
+                     show.legend = FALSE, size = 11, color = "cornsilk2", segment.color = NA) +
+    coord_polar(theta="y") +
+    labs(x = NULL, y = NULL, title = "") +
+    scale_fill_manual(name = "Groups",
+                      labels = paste0(as.character(plot_df$Groups), ": ",
+                                      plot_df$Lineage_Cell_Numbers, " (",
+                                      plot_df$Pcnt, "%)"),
+                      values = sjcar19_colors) +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, color = "black", size = 36),
+          axis.line = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text = element_blank(),
+          legend.position = "none")
+  
+  ### save the plot
+  ggsave(file = paste0(outputDir2, "Lineage_Quantification_FG_Fig4C.pdf"), plot = p,
+         width = 15, height = 10, dpi = 350)
+  
   
   #
   ### re-draw the lineage alluvial plot with new color scheme
@@ -15022,11 +15208,69 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   }
   ggsave(paste0(outputDir2, "Fig2C_GMP_Feature_Plots2.png"), plot = p, width = 20, height = 8, dpi = 350)
   
+  ###
+  ### second one: Dot plot of functional groups and effector gene expression; GMP only
+  ###
   
+  ### subset GMP cells only
+  JCC_GMP_Seurat_Obj <- subset(JCC_Seurat_Obj,
+                               cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$time2 == "GMP")])
   
+  ### annotation
+  JCC_GMP_Seurat_Obj$Funtional_Annotation_Based_On_Clusters_Fig2 <- "Other GMP"
+  JCC_GMP_Seurat_Obj$Funtional_Annotation_Based_On_Clusters_Fig2[which(JCC_GMP_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "9", "10", "11", "12", "15", "19"))] <- "Proliferating GMP"
+  JCC_GMP_Seurat_Obj$Funtional_Annotation_Based_On_Clusters_Fig2[which(JCC_GMP_Seurat_Obj$AllSeuratClusters %in% c("2", "4", "6", "17"))] <- "Transitioning GMP"
   
+  ### draw a dot plot
+  p <- DotPlot(JCC_GMP_Seurat_Obj,
+               features = gene_set,
+               group.by = "Funtional_Annotation_Based_On_Clusters_Fig2") +
+    scale_size(range = c(5, 50)) +
+    xlab("") +
+    ylab("") +
+    scale_color_gradientn(colours = c("#3B3B53", "#D39F3A", "#640B11")) +
+    theme_classic(base_size = 28) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text.x = element_text(angle = 0, size = 50, vjust = 0.5, hjust = 0.5),
+          axis.text.y = element_text(angle = 0, size = 50, vjust = 0.5, hjust = 1),
+          legend.title = element_text(size = 40),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "Dotplot_GMP_Effector_Exp_Fig2C.pdf"),
+         plot = p, width = 35, height = 15, dpi = 350)
   
+  ### annotation2
+  JCC_GMP_Seurat_Obj2 <- subset(JCC_GMP_Seurat_Obj,
+                                cells = rownames(JCC_GMP_Seurat_Obj@meta.data)[union(which(JCC_GMP_Seurat_Obj$Funtional_Annotation_Based_On_Clusters_Fig2 == "Proliferating GMP"),
+                                                                                     which(JCC_GMP_Seurat_Obj$Funtional_Annotation_Based_On_Clusters_Fig2 == "Transitioning GMP"))])
   
+  ### draw a dot plot
+  p <- DotPlot(JCC_GMP_Seurat_Obj2,
+               features = gene_set,
+               group.by = "Funtional_Annotation_Based_On_Clusters_Fig2") +
+    scale_size(range = c(5, 50)) +
+    xlab("") +
+    ylab("") +
+    scale_color_gradientn(colours = c("#3B3B53", "#D39F3A", "#640B11")) +
+    theme_classic(base_size = 28) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text.x = element_text(angle = 0, size = 50, vjust = 0.5, hjust = 0.5),
+          axis.text.y = element_text(angle = 0, size = 50, vjust = 0.5, hjust = 1),
+          legend.title = element_text(size = 40),
+          legend.text = element_text(size = 30))
+  ggsave(file = paste0(outputDir2, "Dotplot_GMP_Effector_Exp_Fig2C2.pdf"),
+         plot = p, width = 35, height = 15, dpi = 350)
+  
+  ### Other GMPs have the highest gene expressions
+  ### which clusters are they?
+  JCC_GMP_Seurat_Obj$Test1 <- JCC_GMP_Seurat_Obj$Funtional_Annotation_Based_On_Clusters_Fig2
+  temp <- as.character(JCC_GMP_Seurat_Obj$AllSeuratClusters[which(JCC_GMP_Seurat_Obj$Test1 == "Other GMP")])
+  JCC_GMP_Seurat_Obj$Test1[which(JCC_GMP_Seurat_Obj$Test1 == "Other GMP")] <- temp
+  
+  p <- RidgePlot(JCC_GMP_Seurat_Obj,
+            features = gene_set,
+            group.by = "Test1")
+  ggsave(file = paste0(outputDir2, "Ridgeplot_GMP_Effector_Exp_Fig2C_Other_GMP_Clusters.pdf"),
+         plot = p, width = 30, height = 20, dpi = 350)
   
   
   #
