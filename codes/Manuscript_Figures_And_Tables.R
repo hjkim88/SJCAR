@@ -12732,6 +12732,80 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(file = paste0(outputDir2, "New_Functions_Proportions_In_PI_CARpos_Fig2A.pdf"), plot = p,
          width = 15, height = 10, dpi = 350)
   
+  #
+  ### Now it's GMP CAR+ cells only
+  #
+  
+  ### draw a pie chart to show the percentage of PI CAR+ cells in each functional group
+  plot_df <- data.frame(Function_Group=unique(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters),
+                        Numbers=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### calculate numbers
+  cnt <- 1
+  for(fg in unique(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters)) {
+    plot_df$Numbers[cnt] <- length(intersect(intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                       which(JCC_Seurat_Obj$CAR == "CARpos")),
+                                             which(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters == fg)))
+    cnt <- cnt + 1
+  }
+  
+  ### calculate percentages
+  for(i in 1:length(unique(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters))) {
+    plot_df$Pcnt[which(plot_df$Function_Group == unique(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters)[i])] <- round(plot_df$Numbers[which(plot_df$Function_Group == unique(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters)[i])] * 100 / sum(plot_df$Numbers), 2)
+  }
+  
+  ### remove NaN rows
+  plot_df <- plot_df[which(!is.nan(plot_df$Pcnt)),]
+  
+  ### factorize the time point & state
+  plot_df$Function_Group <- factor(plot_df$Function_Group, levels = unique(plot_df$Function_Group))
+  
+  ### add label column
+  plot_df$Text <- paste0(as.character(plot_df$Function_Group),
+                         "\n(",
+                         plot_df$Pcnt, "%)")
+  
+  ### add label position
+  plot_df <- plot_df %>%
+    mutate(text_y = cumsum(Numbers) - Numbers/2)
+  
+  ### color scale
+  sjcar19_colors <- c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53")
+  names(sjcar19_colors) <- unique(plot_df$Function_Group)
+  show_col(sjcar19_colors)
+  
+  ### draw the pie chart
+  options(ggrepel.max.overlaps = Inf)
+  p <- ggplot(data = plot_df,
+              aes(x = "", y = Numbers, fill = Function_Group)) +
+    geom_bar(stat = "identity", width = 1) +
+    # geom_label_repel(aes(label = Text), position = position_stack_and_nudge(vjust = 0.5, x = 1.5),
+    #                  show.legend = FALSE, size = 10, color = "white", segment.color = NA) +
+    geom_label_repel(aes(label = Text), position = position_stack(vjust = 0.5),
+                     show.legend = FALSE, size = 7, color = "white", segment.color = NA) +
+    coord_polar(theta="y") +
+    labs(x = NULL, y = NULL, title = "# GMP CAR+ Cells") +
+    scale_fill_manual(name = "Functional Annotations",
+                      labels = paste0(as.character(plot_df$Function_Group), ": ",
+                                      plot_df$Numbers, " (",
+                                      plot_df$Pcnt, "%)"),
+                      values = sjcar19_colors) +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, color = "black", size = 36),
+          axis.line = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text = element_blank(),
+          legend.position = "none")
+  
+  ### save the plot
+  ggsave(file = paste0(outputDir2, "New_Functions_Proportions_In_PI_CARpos_Fig2A_GMP.pdf"), plot = p,
+         width = 15, height = 10, dpi = 350)
+  
+  
+  
+  
   
   #
   ### Figure2A: UMAP based on Seurat clusters
@@ -12744,7 +12818,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   names(sjcar19_colors) <- levels(JCC_Seurat_Obj$AllSeuratClusters)
   show_col(sjcar19_colors)
   
-  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = FALSE,
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = TRUE,
                group.by = "AllSeuratClusters",
                pt.size = 1,
                label = TRUE,
@@ -12759,11 +12833,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           axis.text.x = element_text(size = 48),
           axis.title.x = element_text(size = 48),
           axis.title.y = element_text(size = 48),
+          axis.text = element_text(colour = "black"),
           legend.title = element_text(size = 24),
           legend.text = element_text(size = 24),
           legend.position = "none")
   p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
-  ggsave(paste0(outputDir2, "UMAP_CARpos_Clusters_Fig1a.pdf"), plot = p, width = 12, height = 10, dpi = 350)
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Clusters_Fig1a_Rasterized.pdf"), plot = p, width = 12, height = 10, dpi = 350)
   
   #
   ### Figure2B: UMAP - CD4/CD8
@@ -13695,6 +13770,27 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(file = paste0(outputDir2, "Violin_GEXP_Monocle2_Subsisters_Added_Fig3D.pdf"), plot = p, width = 30, height = 10, dpi = 350)
   
   #
+  ### Ridge plot
+  #
+  
+  p <- RidgePlot(downsampled_seurat_obj,
+                 features = interesting_genes,
+                 group.by = "monocle_state",
+                 cols = sjcar19_colors)
+  for(i in 1:length(interesting_genes)) {
+    p[[i]] <- p[[i]] +
+      ylab("State") +
+      theme_classic(base_size = 40) +
+      theme(legend.position = "none",
+            axis.text = element_text(color = "black"))
+  }
+  
+  ggsave(file = paste0(outputDir2, "Ridgeplot_GEXP_Monocle2_Subsisters_Added_Fig3D.pdf"),
+         plot = p, width = 24, height = 10, dpi = 350)
+  
+  
+  
+  #
   ### correlations between
   #   1. the number of TIGIT+ cells in each patient
   #   2. module score (DE genes between subsisters vs non-subsisters) - threshold set - percentage of feature scores
@@ -13895,30 +13991,52 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   ### module score threshold
   positive_module_score_threshold <- 0.5
-  negative_module_score_threshold <- 0
+  negative_module_score_threshold1 <- -0.3
+  negative_module_score_threshold2 <- -0.1
   
   ### get the percentage
   GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt <- rep(0, length(unique(JCC_Seurat_Obj$px)))
   names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt) <- unique(JCC_Seurat_Obj$px)
   GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score2_Pcnt <- rep(0, length(unique(JCC_Seurat_Obj$px)))
   names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score2_Pcnt) <- unique(JCC_Seurat_Obj$px)
+  
+  GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt_CD8 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+  names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt_CD8) <- unique(JCC_Seurat_Obj$px)
+  
   GMP_CARpos_Persister_Module_Score_Pcnt <- rep(0, length(unique(JCC_Seurat_Obj$px)))
   names(GMP_CARpos_Persister_Module_Score_Pcnt) <- unique(JCC_Seurat_Obj$px)
   GMP_CARpos_Persister_Module_Score2_Pcnt <- rep(0, length(unique(JCC_Seurat_Obj$px)))
   names(GMP_CARpos_Persister_Module_Score2_Pcnt) <- unique(JCC_Seurat_Obj$px)
+  
+  GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt_Double <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+  names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt_Double) <- unique(JCC_Seurat_Obj$px)
+  GMP_CARpos_Persister_Module_Score_Pcnt_Double <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+  names(GMP_CARpos_Persister_Module_Score_Pcnt_Double) <- unique(JCC_Seurat_Obj$px)
+  
+  GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+  names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt) <- unique(JCC_Seurat_Obj$px)
+  
   for(px in unique(JCC_Seurat_Obj$px)) {
     GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
                                                                                        which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score1 > positive_module_score_threshold))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
                                                                                                                                                                                                                         which(JCC_Seurat_Obj$time2 == "GMP")))
     GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score2_Pcnt[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
-                                                                                        which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score21 > negative_module_score_threshold))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                        which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score21 > negative_module_score_threshold1))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
                                                                                                                                                                                                                           which(JCC_Seurat_Obj$time2 == "GMP")))
+    
     GMP_CARpos_Persister_Module_Score_Pcnt[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
                                                                    which(JCC_Seurat_Obj$GMP_CARpos_Persister_Module_Score1 > positive_module_score_threshold))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
                                                                                                                                                                                 which(JCC_Seurat_Obj$time2 == "GMP")))
     GMP_CARpos_Persister_Module_Score2_Pcnt[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
-                                                                    which(JCC_Seurat_Obj$GMP_CARpos_Persister_Module_Score21 > negative_module_score_threshold))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                    which(JCC_Seurat_Obj$GMP_CARpos_Persister_Module_Score21 > negative_module_score_threshold2))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
                                                                                                                                                                                   which(JCC_Seurat_Obj$time2 == "GMP")))
+    
+    GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt_CD8[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                           which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score1 > positive_module_score_threshold))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                                                                                     intersect(which(JCC_Seurat_Obj$time2 == "GMP"),
+                                                                                                                                                                                                                                               which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"))))
+    GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt_Double[px] <- GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt[px] + GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score2_Pcnt[px]
+    GMP_CARpos_Persister_Module_Score_Pcnt_Double[px] <- GMP_CARpos_Persister_Module_Score_Pcnt[px] + GMP_CARpos_Persister_Module_Score2_Pcnt[px]
   }
   
   ### prove that the actual cells are in the percentage
@@ -13984,8 +14102,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                         TIGIT_CD8_Cell_Num=as.numeric(TIGIT_Pos_CD8_Cell_Num[names(peakcar_ug)]),
                         Precursor_Module_Score=as.numeric(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt[names(peakcar_ug)]),
                         Precursor_Module_Score2=as.numeric(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score2_Pcnt[names(peakcar_ug)]),
+                        Precursor_Module_Score3=as.numeric(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt_Double[names(peakcar_ug)]),
                         Subsister_Module_Score=as.numeric(GMP_CARpos_Persister_Module_Score_Pcnt[names(peakcar_ug)]),
                         Subsister_Module_Score2=as.numeric(GMP_CARpos_Persister_Module_Score2_Pcnt[names(peakcar_ug)]),
+                        Subsister_Module_Score3=as.numeric(GMP_CARpos_Persister_Module_Score_Pcnt_Double[names(peakcar_ug)]),
                         B_Cell_Recovery_Time=as.numeric(b_cell_recovery_time[names(peakcar_ug)]),
                         PeakCAR_ug=as.numeric(peakcar_ug),
                         Wk1CAR_ug=as.numeric(wk1car_ug[names(peakcar_ug)]),
@@ -13995,6 +14115,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                         Wk1CAR_ml=as.numeric(wk1car_ml[names(peakcar_ug)]),
                         Wk2CAR_ml=as.numeric(wk2car_ml[names(peakcar_ug)]),
                         Wk3CAR_ml=as.numeric(wk3car_ml[names(peakcar_ug)]),
+                        Tumor_Burden=c(98, 10, 1, 0, 12, 1, 80, 72, 78, 84, 0),
                         stringsAsFactors = FALSE, check.names = FALSE)
   
   ### pairs add-ons
@@ -14040,18 +14161,18 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   }
   
   ### simple correlation plot for checking in
-  pdf(file = paste0(outputDir2, "Correlation_Between_All_The_Factors_spearman.pdf"), width = 20, height = 15)
+  pdf(file = paste0(outputDir2, "Correlation_Between_All_The_Factors_spearman_NEW.pdf"), width = 20, height = 15)
   pairs(data=plot_df,
-        ~TIGIT_Cell_Num + TIGIT_CD8_Cell_Num + Precursor_Module_Score + Precursor_Module_Score2 +
-          Subsister_Module_Score + Subsister_Module_Score2 + B_Cell_Recovery_Time + PeakCAR_ug + PeakCAR_ml +
+        ~TIGIT_Cell_Num + TIGIT_CD8_Cell_Num + Precursor_Module_Score + Precursor_Module_Score2 + Precursor_Module_Score3 +
+          Subsister_Module_Score + Subsister_Module_Score2 + Subsister_Module_Score3 + B_Cell_Recovery_Time + PeakCAR_ug + PeakCAR_ml +
           Wk1CAR_ug + Wk2CAR_ug + Wk3CAR_ug + Wk1CAR_ml + Wk2CAR_ml + Wk3CAR_ml,
         upper.panel = panel.lm, lower.panel = panel.cor, diag.panel = panel.hist,
         font.labels = 2, pch = 19)
   dev.off()
-  png(filename = paste0(outputDir2, "Correlation_Between_All_The_Factors_spearman.png"), width = 6500, height = 4800, res = 310)
+  png(filename = paste0(outputDir2, "Correlation_Between_All_The_Factors_spearman_NEW.png"), width = 6500, height = 4800, res = 310)
   pairs(data=plot_df,
-        ~TIGIT_Cell_Num + TIGIT_CD8_Cell_Num + Precursor_Module_Score + Precursor_Module_Score2 +
-          Subsister_Module_Score + Subsister_Module_Score2 + B_Cell_Recovery_Time + PeakCAR_ug + PeakCAR_ml +
+        ~TIGIT_Cell_Num + TIGIT_CD8_Cell_Num + Precursor_Module_Score + Precursor_Module_Score2 + Precursor_Module_Score3 +
+          Subsister_Module_Score + Subsister_Module_Score2 + Subsister_Module_Score3 + B_Cell_Recovery_Time + PeakCAR_ug + PeakCAR_ml +
           Wk1CAR_ug + Wk2CAR_ug + Wk3CAR_ug + Wk1CAR_ml + Wk2CAR_ml + Wk3CAR_ml,
         upper.panel = panel.lm, lower.panel = panel.cor, diag.panel = panel.hist,
         font.labels = 2, pch = 19)
@@ -14121,8 +14242,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ###
   ### compare FDR (adj.p) across different threshold
   ###
-  thresh_list <- c(-0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8)
-  factor1_list <- c("TIGIT_Cell_Num", "TIGIT_CD8_Cell_Num", "Precursor_Module_Score", "Precursor_Module_Score2",
+  thresh_list <- c(-0.5, -0.4, -0.3, -0.2, -0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8)
+  factor1_list <- c("TIGIT_Cell_Num", "TIGIT_CD8_Cell_Num", "Precursor_Module_Score", "Precursor_Module_Score2", "Precursor_Module_Score_CD8",
                     "Subsister_Module_Score", "Subsister_Module_Score2")
   factor2_list <- c("B_Cell_Recovery_Time", "PeakCAR_ug", "Wk1CAR_ug", "Wk2CAR_ug", "Wk3CAR_ug",
                     "PeakCAR_ml", "Wk1CAR_ml", "Wk2CAR_ml", "Wk3CAR_ml", "Tumor_Burden")
@@ -14138,14 +14259,32 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     ### get the percentage
     GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt2 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
     names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt2) <- unique(JCC_Seurat_Obj$px)
+    GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt3 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+    names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt3) <- unique(JCC_Seurat_Obj$px)
+    GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt4 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+    names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt4) <- unique(JCC_Seurat_Obj$px)
+    GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt5 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+    names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt5) <- unique(JCC_Seurat_Obj$px)
     GMP_CARpos_Persister_Module_Score_Pcnt2 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
     names(GMP_CARpos_Persister_Module_Score_Pcnt2) <- unique(JCC_Seurat_Obj$px)
+    GMP_CARpos_Persister_Module_Score_Pcnt3 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+    names(GMP_CARpos_Persister_Module_Score_Pcnt3) <- unique(JCC_Seurat_Obj$px)
     for(px in unique(JCC_Seurat_Obj$px)) {
       GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt2[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
                                                                                           which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score1 > thresh))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
                                                                                                                                                                                                            which(JCC_Seurat_Obj$time2 == "GMP")))
+      GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt3[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                          which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score21 < thresh))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                                                           which(JCC_Seurat_Obj$time2 == "GMP")))
+      GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt4[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                          which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score21 > thresh))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                                                            intersect(which(JCC_Seurat_Obj$time2 == "GMP"),
+                                                                                                                                                                                                                      which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"))))
       GMP_CARpos_Persister_Module_Score_Pcnt2[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
                                                                       which(JCC_Seurat_Obj$GMP_CARpos_Persister_Module_Score1 > thresh))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                   which(JCC_Seurat_Obj$time2 == "GMP")))
+      GMP_CARpos_Persister_Module_Score_Pcnt3[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                      which(JCC_Seurat_Obj$GMP_CARpos_Persister_Module_Score21 < thresh))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
                                                                                                                                                                    which(JCC_Seurat_Obj$time2 == "GMP")))
     }
     
@@ -14153,9 +14292,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                            TIGIT_Cell_Num=as.numeric(TIGIT_Pos_Cell_Num[names(peakcar_ug)]),
                            TIGIT_CD8_Cell_Num=as.numeric(TIGIT_Pos_CD8_Cell_Num[names(peakcar_ug)]),
                            Precursor_Module_Score=as.numeric(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt2[names(peakcar_ug)]),
-                           Precursor_Module_Score2=as.numeric(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score2_Pcnt[names(peakcar_ug)]),
+                           Precursor_Module_Score2=as.numeric(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt3[names(peakcar_ug)]),
+                           Precursor_Module_Score_CD8=as.numeric(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt4[names(peakcar_ug)]),
                            Subsister_Module_Score=as.numeric(GMP_CARpos_Persister_Module_Score_Pcnt2[names(peakcar_ug)]),
-                           Subsister_Module_Score2=as.numeric(GMP_CARpos_Persister_Module_Score2_Pcnt[names(peakcar_ug)]),
+                           Subsister_Module_Score2=as.numeric(GMP_CARpos_Persister_Module_Score_Pcnt3[names(peakcar_ug)]),
                            B_Cell_Recovery_Time=as.numeric(b_cell_recovery_time[names(peakcar_ug)]),
                            PeakCAR_ug=as.numeric(peakcar_ug),
                            Wk1CAR_ug=as.numeric(wk1car_ug[names(peakcar_ug)]),
@@ -14189,7 +14329,118 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   }
   
   ### save it as EXCEL
-  write.xlsx2(test_df, file = paste0(outputDir2, "Correlation_Between_All_The_Factors_spearman_FDR_All_Thresh.xlsx"),
+  write.xlsx2(test_df, file = paste0(outputDir2, "Correlation_Between_All_The_Factors_spearman_FDR_All_Thresh_NEW.xlsx"),
+              sheetName = "Correlation_FDR_All_Thresh", row.names = FALSE)
+  
+  #
+  ### consider both up&down regulated genes in module score
+  #
+  thresh_list1 <- c(-0.5, -0.4, -0.3, -0.2, -0.1, 0)
+  thresh_list2 <- c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8)
+  factor1_list <- c("TIGIT_Cell_Num", "TIGIT_CD8_Cell_Num", "Precursor_Module_Score", "Precursor_Module_Score2", "Precursor_Module_Score_CD8",
+                    "Subsister_Module_Score", "Subsister_Module_Score2")
+  factor2_list <- c("B_Cell_Recovery_Time", "PeakCAR_ug", "Wk1CAR_ug", "Wk2CAR_ug", "Wk3CAR_ug",
+                    "PeakCAR_ml", "Wk1CAR_ml", "Wk2CAR_ml", "Wk3CAR_ml", "Tumor_Burden")
+  test_df <- data.frame(Variable1=rep("", length(factor1_list)*length(factor2_list)*length(thresh_list1)*length(thresh_list2)),
+                        Variable2=rep("", length(factor1_list)*length(factor2_list)*length(thresh_list1)*length(thresh_list2)),
+                        Threshold1=rep("", length(factor1_list)*length(factor2_list)*length(thresh_list1)*length(thresh_list2)),
+                        Threshold2=rep("", length(factor1_list)*length(factor2_list)*length(thresh_list1)*length(thresh_list2)),
+                        Cor=NA,
+                        PVal=NA,
+                        Adj.Pval=NA,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  cnt <- 1
+  for(thresh1 in thresh_list1) {
+    for(thresh2 in thresh_list2) {
+      ### get the percentage
+      GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt2 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+      names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt2) <- unique(JCC_Seurat_Obj$px)
+      GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt3 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+      names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt3) <- unique(JCC_Seurat_Obj$px)
+      GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt4 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+      names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt4) <- unique(JCC_Seurat_Obj$px)
+      GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt5 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+      names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt5) <- unique(JCC_Seurat_Obj$px)
+      GMP_CARpos_Persister_Module_Score_Pcnt2 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+      names(GMP_CARpos_Persister_Module_Score_Pcnt2) <- unique(JCC_Seurat_Obj$px)
+      GMP_CARpos_Persister_Module_Score_Pcnt3 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+      names(GMP_CARpos_Persister_Module_Score_Pcnt3) <- unique(JCC_Seurat_Obj$px)
+      
+      GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt_Double <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+      names(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt_Double) <- unique(JCC_Seurat_Obj$px)
+      GMP_CARpos_Persister_Module_Score_Pcnt_Double <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+      names(GMP_CARpos_Persister_Module_Score_Pcnt_Double) <- unique(JCC_Seurat_Obj$px)
+      
+      for(px in unique(JCC_Seurat_Obj$px)) {
+        GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt2[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                            which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score1 > thresh1))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                                                             which(JCC_Seurat_Obj$time2 == "GMP")))
+        GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt3[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                            which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score21 < thresh2))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                                                              which(JCC_Seurat_Obj$time2 == "GMP")))
+        GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt4[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                            which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score21 > thresh1))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                                                              intersect(which(JCC_Seurat_Obj$time2 == "GMP"),
+                                                                                                                                                                                                                        which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"))))
+        GMP_CARpos_Persister_Module_Score_Pcnt2[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                        which(JCC_Seurat_Obj$GMP_CARpos_Persister_Module_Score1 > thresh1))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                     which(JCC_Seurat_Obj$time2 == "GMP")))
+        GMP_CARpos_Persister_Module_Score_Pcnt3[px] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                        which(JCC_Seurat_Obj$GMP_CARpos_Persister_Module_Score21 < thresh2))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                      which(JCC_Seurat_Obj$time2 == "GMP")))
+        
+        GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt_Double <- GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt2[px] + GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt3[px]
+        GMP_CARpos_Persister_Module_Score_Pcnt_Double <- GMP_CARpos_Persister_Module_Score_Pcnt2[px] + GMP_CARpos_Persister_Module_Score_Pcnt3[px]
+      }
+      
+      plot_df2 <- data.frame(Patient=names(peakcar_ug),
+                             TIGIT_Cell_Num=as.numeric(TIGIT_Pos_Cell_Num[names(peakcar_ug)]),
+                             TIGIT_CD8_Cell_Num=as.numeric(TIGIT_Pos_CD8_Cell_Num[names(peakcar_ug)]),
+                             Precursor_Module_Score=as.numeric(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt2[names(peakcar_ug)]),
+                             Precursor_Module_Score2=as.numeric(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt3[names(peakcar_ug)]),
+                             Precursor_Module_Score_CD8=as.numeric(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt4[names(peakcar_ug)]),
+                             Subsister_Module_Score=as.numeric(GMP_CARpos_Persister_Module_Score_Pcnt2[names(peakcar_ug)]),
+                             Subsister_Module_Score2=as.numeric(GMP_CARpos_Persister_Module_Score_Pcnt3[names(peakcar_ug)]),
+                             Precursor_Module_Score_Both=as.numeric(GMP_Subsisters_End_Up_In_Cluster38_2_CD8_Module_Score_Pcnt_Double[names(peakcar_ug)]),
+                             Subsister_Module_Score_Both=as.numeric(GMP_CARpos_Persister_Module_Score_Pcnt_Double[names(peakcar_ug)]),
+                             B_Cell_Recovery_Time=as.numeric(b_cell_recovery_time[names(peakcar_ug)]),
+                             PeakCAR_ug=as.numeric(peakcar_ug),
+                             Wk1CAR_ug=as.numeric(wk1car_ug[names(peakcar_ug)]),
+                             Wk2CAR_ug=as.numeric(wk2car_ug[names(peakcar_ug)]),
+                             Wk3CAR_ug=as.numeric(wk3car_ug[names(peakcar_ug)]),
+                             PeakCAR_ml=as.numeric(peakcar_ml),
+                             Wk1CAR_ml=as.numeric(wk1car_ml[names(peakcar_ug)]),
+                             Wk2CAR_ml=as.numeric(wk2car_ml[names(peakcar_ug)]),
+                             Wk3CAR_ml=as.numeric(wk3car_ml[names(peakcar_ug)]),
+                             Tumor_Burden=c(98, 10, 1, 0, 12, 1, 80, 72, 78, 84, 0),
+                             stringsAsFactors = FALSE, check.names = FALSE)
+      
+      for(a in factor1_list) {
+        for(b in factor2_list) {
+          x <- as.numeric(plot_df2[,a])
+          y <- as.numeric(plot_df2[,b])
+          Cor <- round(cor(x, y, method = "spearman", use = "complete.obs"), 2)
+          Cor_PV <- round(cor.test(x, y, method = "spearman", use = "complete.obs")$p.value, 2)
+          
+          test_df$Variable1[cnt] <- a
+          test_df$Variable2[cnt] <- b
+          test_df$Threshold1[cnt] <- thresh1
+          test_df$Threshold2[cnt] <- thresh2
+          test_df$Cor[cnt] <- Cor
+          test_df$PVal[cnt] <- Cor_PV
+          
+          cnt <- cnt + 1
+        }
+      }
+      
+      target_idx <- intersect(which(test_df$Threshold1 == thresh1),
+                              which(test_df$Threshold2 == thresh2))
+      test_df$Adj.Pval[target_idx] <- p.adjust(test_df$PVal[target_idx], method = "BH")
+    }
+  }
+  
+  ### save it as EXCEL
+  write.xlsx2(test_df, file = paste0(outputDir2, "Correlation_Between_All_The_Factors_spearman_FDR_All_Thresh_TOTAL.xlsx"),
               sheetName = "Correlation_FDR_All_Thresh", row.names = FALSE)
   
   
@@ -15079,6 +15330,33 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           axis.title.y = element_text(size = 30),
           legend.position = "none")
   ggsave(file = paste0(outputDir2, "All_CARpos_Clonal_Tracing_Fig4A.pdf"), width = 20, height = 10, dpi = 350)
+  
+  ### make another version that skips wk1
+  total_plot_df2 <- total_plot_df[which(total_plot_df$Time != "Wk1"),]
+  
+  sjcar19_color_scale <- colorRampPalette(c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53"))(length(unique(total_plot_df2$Clone)))
+  total_plot_df2$Time <- factor(total_plot_df2$Time, levels = intersect(total_time_points, unique(total_plot_df2$Time)))
+  ggplot(total_plot_df2,
+         aes(x = Time, stratum = Clone, alluvium = Clone,
+             y = Clone_Size,
+             fill = Clone, label = Clone)) +
+    ggtitle(paste("")) +
+    geom_flow() +
+    geom_stratum(alpha = 1) +
+    # geom_text(stat = "stratum", size = 2) +
+    rotate_x_text(90) +
+    theme_pubr(legend = "none") +
+    # theme_cleveland2() +
+    scale_fill_manual(values = sjcar19_color_scale) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+    theme_classic(base_size = 36) +
+    theme(axis.text.x = element_text(size = 30),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 30),
+          legend.position = "none")
+  ggsave(file = paste0(outputDir2, "All_CARpos_Clonal_Tracing_Fig4A_NoWk1.pdf"), width = 20, height = 10, dpi = 350)
+  
+  
   
   #
   ### correlation between # lineages and TIGIT+ cells
