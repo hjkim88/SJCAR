@@ -10168,6 +10168,19 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
          plot = p,
          width = 15, height = 10, dpi = 350)
   
+  ### by pseudotime
+  p <- plot_cell_trajectory(monocle_cds2, color_by = "Pseudotime", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "top",
+          axis.title = element_text(size = 36, color = "black", face = "bold"),
+          axis.text = element_text(size = 36, color = "black", face = "bold"),
+          legend.title = element_text(size = 36, color = "black", face = "bold"),
+          legend.text = element_text(size = 30, color = "black", face = "bold"))
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Pseudotime_Monocle2_Subsisters_Added(2)_Suppl_Fig3A.png"),
+         plot = p,
+         width = 15, height = 10, dpi = 350)
+  
   p <- plot_complex_cell_trajectory(monocle_cds2, color_by = "State", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
     labs(color="New State") +
     theme_classic(base_size = 36) +
@@ -12357,19 +12370,19 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   sjcar19_color_scale["GMP"] <- "lightgray"
   p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
                group.by = "time2",
-               pt.size = 2, raster = FALSE,
+               pt.size = 2, raster = TRUE,
                cols = blue_color_scale[JCC_Seurat_Obj$time2],
                order = rev(unique(JCC_Seurat_Obj$time2))) +
     ggtitle("") +
     labs(color="Time") +
     theme_classic(base_size = 36) +
     guides(color = guide_legend(override.aes = list(size = 15))) +
-    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
-          axis.text.x = element_text(size = 30),
-          axis.title.y = element_text(size = 30),
-          legend.title = element_text(size = 50),
-          legend.text = element_text(size = 40))
-  p[[1]]$layers[[1]]$aes_params$alpha <- 0.8
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
+          axis.title = element_text(color = "black", face = "bold"),
+          legend.title = element_text(size = 50, color = "black", face = "bold"),
+          legend.text = element_text(size = 40, color = "black", face = "bold"))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.9
   ggsave(paste0(outputDir2, "UMAP_CARpos_Time2_Fig2B.pdf"), plot = p, width = 15, height = 10, dpi = 350)
   
   #
@@ -12552,18 +12565,20 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   p <- DotPlot(temp_obj,
                features = interesting_genes2,
                group.by = "New_Functional_Annotation_Based_On_Clusters") +
-    scale_size(range = c(5, 25)) +
+    scale_size(range = c(5, 38)) +
     xlab("") +
     ylab("") +
     scale_color_gradientn(colours = c("#487A8F", "#C09969", "#AA4C26")) +
     theme_classic(base_size = 28) +
-    theme(plot.title = element_text(hjust = 0.5),
+    theme(plot.title = element_text(hjust = 0.5, color = "black", face = "bold"),
           axis.text.x = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5),
           axis.text.y = element_text(angle = 0, size = 50, vjust = 0.5, hjust = 1),
-          legend.title = element_text(size = 40),
-          legend.text = element_text(size = 30))
+          axis.text = element_text(color = "black", face = "bold"),
+          legend.title = element_text(size = 50, color = "black", face = "bold"),
+          legend.text = element_text(size = 50, color = "black", face = "bold"),
+          legend.key.size = unit(0.8, 'cm'))
   ggsave(file = paste0(outputDir2, "Dotplot_CARpos_Functional_Group_GEXP_Fig1C.pdf"),
-         plot = p, width = 34, height = 15, dpi = 350)
+         plot = p, width = 36, height = 10, dpi = 350)
   
   
   
@@ -12829,13 +12844,9 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     ggtitle("") +
     labs(color="Clusters") +
     theme_classic(base_size = 48) +
-    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
-          axis.text.x = element_text(size = 48),
-          axis.title.x = element_text(size = 48),
-          axis.title.y = element_text(size = 48),
-          axis.text = element_text(colour = "black"),
-          legend.title = element_text(size = 24),
-          legend.text = element_text(size = 24),
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48, color = "black", face = "bold"),
+          axis.title = element_text(color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
           legend.position = "none")
   p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
   ggsave(paste0(outputDir2, "UMAP_CARpos_Clusters_Fig1a_Rasterized.pdf"), plot = p, width = 12, height = 10, dpi = 350)
@@ -15506,15 +15517,19 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     scale_size(range = c(5, 50)) +
     xlab("") +
     ylab("") +
-    scale_color_gradientn(colours = c("#3B3B53", "#D39F3A", "#640B11")) +
-    theme_classic(base_size = 28) +
-    theme(plot.title = element_text(hjust = 0.5),
-          axis.text.x = element_text(angle = 0, size = 50, vjust = 0.5, hjust = 0.5),
-          axis.text.y = element_text(angle = 0, size = 50, vjust = 0.5, hjust = 1),
-          legend.title = element_text(size = 40),
-          legend.text = element_text(size = 30))
+    scale_color_gradientn(colours = c("#3B3B53", "#D39F3A", "#640B11"),
+                          n.breaks = 3) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0.5, color = "black", face = "bold"),
+          axis.text.x = element_text(angle = 0, size = 50, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text.y = element_text(angle = 0, size = 50, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
+          legend.title = element_text(size = 50, color = "black", face = "bold"),
+          legend.text = element_text(size = 50, color = "black", face = "bold"),
+          legend.key.size = unit(1, 'cm'),
+          legend.position = "top",
+          legend.direction = "horizontal")
   ggsave(file = paste0(outputDir2, "Dotplot_GMP_Effector_Exp_Fig2C.pdf"),
-         plot = p, width = 35, height = 15, dpi = 350)
+         plot = p, width = 40, height = 10, dpi = 350)
   
   ### annotation2
   JCC_GMP_Seurat_Obj2 <- subset(JCC_GMP_Seurat_Obj,
