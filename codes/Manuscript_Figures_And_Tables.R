@@ -10170,16 +10170,38 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   ### by pseudotime
   p <- plot_cell_trajectory(monocle_cds2, color_by = "Pseudotime", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
-    labs(color="") +
+    labs(color="Pseudotime") +
     theme_classic(base_size = 36) +
+    scale_color_gradientn(colours = c("#3B3B53", "#D39F3A", "#640B11"),
+                          n.breaks = 3) +
     theme(legend.position = "top",
           axis.title = element_text(size = 36, color = "black", face = "bold"),
-          axis.text = element_text(size = 36, color = "black", face = "bold"),
+          axis.text = element_text(size = 30, color = "black", face = "bold"),
           legend.title = element_text(size = 36, color = "black", face = "bold"),
           legend.text = element_text(size = 30, color = "black", face = "bold"))
-  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Pseudotime_Monocle2_Subsisters_Added(2)_Suppl_Fig3A.png"),
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Pseudotime_Monocle2_Subsisters_Added(2)_Suppl_Fig3A.pdf"),
          plot = p,
          width = 15, height = 10, dpi = 350)
+  
+  ### by each cluster
+  sjcar19_colors <- c("#16101E", "#D0B78F", "#8C8781", "#C7904F", "#133D31", "#82A5B8", "#3B3B53", "#4C8493", "#C31517",
+                      "#D94C21", "#3E89A8", "#AA4C26",  "#CAA638", "#640B11", "#629488", "#BD7897", "#3C2D16", "#25245D",
+                      "#E64E46", "#73BCAA", "#7047C1", "#286278")
+  names(sjcar19_colors) <- levels(JCC_Seurat_Obj$AllSeuratClusters)
+  p <- plot_cell_trajectory(monocle_cds2, color_by = "AllSeuratClusters", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
+    labs(color="Clusters") +
+    scale_color_manual(values = sjcar19_colors) +
+    theme_classic(base_size = 36) +
+    theme(legend.position = "none",
+          text = element_text(size = 36, color = "black", face = "bold"),
+          axis.title = element_text(size = 36, color = "black", face = "bold"),
+          axis.text = element_text(size = 30, color = "black", face = "bold"),
+          legend.title = element_text(size = 36, color = "black", face = "bold"),
+          legend.text = element_text(size = 30, color = "black", face = "bold")) +
+    facet_wrap(~AllSeuratClusters, ncol = 7)
+  ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Cluster_Monocle2_Subsisters_Added(2)_Suppl_Fig3B.pdf"),
+         plot = p,
+         width = 20, height = 15, dpi = 350)
   
   p <- plot_complex_cell_trajectory(monocle_cds2, color_by = "State", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
     labs(color="New State") +
@@ -15622,6 +15644,268 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
             offsetRow=-152, offsetCol = 5, lwid = c(1.5, 8), lhei = c(1, 8),
             adjRow = c(1, 0.5), srtCol = 0, adjCol = c(0.5, 0.5))
   dev.off()
+  
+  #
+  ### Suppl Table1. A table with different definitions of lineage
+  ### rows: patient (lineage #)
+  ### cols: different lineage definitions
+  #
+  
+  ### make an empty table
+  result_df <- data.frame(matrix(0, nrow = length(unique(JCC_Seurat_Obj$px))+1, ncol = 4),
+                          stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(result_df) <- c(unique(JCC_Seurat_Obj$px), "Total")
+  colnames(result_df) <- c("Alpha Only", "Beta Only", "One Alpha & One Beta", "Exact")
+  
+  ### only use the cells that have both alpha & beta chains
+  both_alpha_beta_idx <- NULL
+  for(i in 1:length(JCC_Seurat_Obj$cdr3_one_alpha_beta)) {
+    if(grepl("TRA:", JCC_Seurat_Obj$cdr3_one_alpha_beta[i]) && grepl("TRB:", JCC_Seurat_Obj$cdr3_one_alpha_beta[i])) {
+      both_alpha_beta_idx <- c(both_alpha_beta_idx, i)
+    }
+  }
+  
+  ### fill out the table
+  for(px in unique(JCC_Seurat_Obj$px)) {
+    
+    px_idx <- which(JCC_Seurat_Obj$px == px)
+    
+    ### Alpha Only
+    gmp_lineage_alpha_tcrs <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_alpha[intersect(px_idx,
+                                                                                            which(JCC_Seurat_Obj$GMP == "GMP"))])
+    pi_lineage_alpha_tcrs <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_alpha[intersect(px_idx,
+                                                                                           which(JCC_Seurat_Obj$GMP == "PI"))])
+    temp <- unique(intersect(gmp_lineage_alpha_tcrs,
+                             pi_lineage_alpha_tcrs))
+    temp <- temp[which(!is.na(temp))]
+    result_df[px,"Alpha Only"] <- length(temp)
+    
+    ### Beta Only
+    gmp_lineage_alpha_tcrs <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_beta[intersect(px_idx,
+                                                                                           which(JCC_Seurat_Obj$GMP == "GMP"))])
+    pi_lineage_alpha_tcrs <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_beta[intersect(px_idx,
+                                                                                          which(JCC_Seurat_Obj$GMP == "PI"))])
+    temp <- unique(intersect(gmp_lineage_alpha_tcrs,
+                             pi_lineage_alpha_tcrs))
+    temp <- temp[which(!is.na(temp))]
+    result_df[px,"Beta Only"] <- length(temp)
+    
+    ### One Alpha & One Beta
+    gmp_lineage_alpha_tcrs <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(intersect(px_idx,
+                                                                                                               both_alpha_beta_idx),
+                                                                                                     which(JCC_Seurat_Obj$GMP == "GMP"))])
+    pi_lineage_alpha_tcrs <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(intersect(px_idx,
+                                                                                                              both_alpha_beta_idx),
+                                                                                                    which(JCC_Seurat_Obj$GMP == "PI"))])
+    temp <- unique(intersect(gmp_lineage_alpha_tcrs,
+                             pi_lineage_alpha_tcrs))
+    temp <- temp[which(!is.na(temp))]
+    result_df[px,"One Alpha & One Beta"] <- length(temp)
+    
+    ### Exact
+    gmp_lineage_alpha_tcrs <- unique(JCC_Seurat_Obj$clonotype_id_by_patient[intersect(px_idx,
+                                                                                      which(JCC_Seurat_Obj$GMP == "GMP"))])
+    pi_lineage_alpha_tcrs <- unique(JCC_Seurat_Obj$clonotype_id_by_patient[intersect(px_idx,
+                                                                                     which(JCC_Seurat_Obj$GMP == "PI"))])
+    temp <- unique(intersect(gmp_lineage_alpha_tcrs,
+                             pi_lineage_alpha_tcrs))
+    temp <- temp[which(!is.na(temp))]
+    result_df[px,"Exact"] <- length(temp)
+    
+  }
+  
+  ### Total
+  result_df["Total",] <- sapply(1:ncol(result_df), function(x) {
+    return(sum(as.numeric(result_df[,x])))
+  })
+  
+  ### save the result
+  write.xlsx2(data.frame(Patient=rownames(result_df),
+                         result_df,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir2, "SJCAR19_Lineage_Different_Definition_Suppl_Table1.xlsx"),
+              sheetName = "Lineage_Info",
+              row.names = FALSE)
+  
+  
+  #
+  ### classification with precursor
+  #
+  
+  ### PI subsisters in the cluster3&8
+  cluster3_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                   which(JCC_Seurat_Obj$AllSeuratClusters == "3")),
+                                                                         which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]
+  cluster8_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                   which(JCC_Seurat_Obj$AllSeuratClusters == "8")),
+                                                                         which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]
+  cluster38_pi_subsisters <- c(cluster3_pi_subsisters, cluster8_pi_subsisters)
+  
+  ### PI subsister clones in the cluster3&8
+  cluster3_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster3_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
+  cluster8_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster8_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
+  cluster38_pi_subsister_clones <- unique(c(cluster3_pi_subsister_clones, cluster8_pi_subsister_clones))
+  
+  ### remove NA clones
+  cluster3_pi_subsister_clones <- cluster3_pi_subsister_clones[which(!is.na(cluster3_pi_subsister_clones))]
+  cluster8_pi_subsister_clones <- cluster8_pi_subsister_clones[which(!is.na(cluster8_pi_subsister_clones))]
+  cluster38_pi_subsister_clones <- cluster38_pi_subsister_clones[which(!is.na(cluster38_pi_subsister_clones))]
+  
+  ### get the GMP subsister indicies that end up in PI cluster 3 & 8
+  GMP_Subsisters_PI_Cluster38_idx <- intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                               which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% cluster38_pi_subsister_clones))
+  
+  ### add a column for the info
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 <- "Others"
+  JCC_Seurat_Obj@meta.data[cluster38_pi_subsisters, "GMP_Subsisters_End_Up_In_Cluster38"] <- "PI_Subsisters_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38[GMP_Subsisters_PI_Cluster38_idx] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38[intersect(which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "Others"),
+                                                              which(JCC_Seurat_Obj$GMP_CARpos_Persister == "YES"))] <- "Other_GMP_Subsisters"
+  
+  ### GMP subsisters end up in cluster3 and 8 vs other CD8 GMP subsisters
+  JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_CD8 <- "Others"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_CD8[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_CD8[intersect(which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20")),
+                                                                  which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "Other_GMP_Subsisters"))] <- "Other_CD8_GMP_Subsisters"
+  
+  ### GMP subsisters end up in cluster3 and 8 vs all other GMPs
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2 <- "Others"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2[setdiff(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                              which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"))] <- "Other_GMPs"
+  
+  ### GMP subsisters end up in cluster3 and 8 vs all other CD8 GMPs
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 <- "Others"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8[intersect(which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20")),
+                                                                    which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2 == "Other_GMPs"))] <- "Other_CD8_GMPs"
+  
+  ### GMP subsisters end up in cluster3 and 8 vs other GMP subsisters
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_2_CD8)
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "GMP_Subsisters_End_Up_In_Cluster_3_And_8",
+                           ident.2 = "Other_CD8_GMPs",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  de_result <- de_result[order(de_result$p_val_adj),]
+  
+  #'******************************************************************************
+  #' A function to transform RNA-Seq data with VST in DESeq2 package
+  #' readCount: RNA-Seq rawcounts in a matrix or in a data frame form
+  #'            Rows are genes and columns are samples
+  #' filter_thresh: The function filters out genes that have at least one sample
+  #'                with counts larger than the 'filter_thresh' value
+  #'                e.g., if the 'filter_thresh' = 1, then it removes genes
+  #'                that have counts <= 1 across all the samples
+  #'                if 0, then there will be no filtering
+  #'******************************************************************************
+  normalizeRNASEQwithVST <- function(readCount, filter_thresh=1) {
+    
+    ### load library
+    if(!require(DESeq2, quietly = TRUE)) {
+      if(!requireNamespace("BiocManager", quietly = TRUE))
+        install.packages("BiocManager")
+      BiocManager::install("DESeq2")
+      require(DESeq2, quietly = TRUE)
+    }
+    
+    ### make a design matrix for DESeq2 data
+    condition <- data.frame(factor(rep("OneClass", ncol(readCount))))
+    
+    ### Data preparation for DESeq2 format
+    deSeqData <- DESeqDataSetFromMatrix(countData=readCount, colData=condition, design= ~0)
+    
+    if(filter_thresh > 0) {
+      ### Remove rubbish rows - this will decrease the number of rows
+      keep = apply(counts(deSeqData), 1, function(r){
+        return(sum(r > filter_thresh) > 0)
+      })
+      deSeqData <- deSeqData[keep,]
+    }
+    
+    ### VST
+    vsd <- varianceStabilizingTransformation(deSeqData)
+    transCnt <- data.frame(assay(vsd), check.names = FALSE)
+    
+    return (transCnt)
+    
+  }
+  
+  ### a function to select genes based on variance
+  selectTopV <- function(x, selectNum) {
+    v <- apply(x, 1, var)
+    x <- x[order(-v),]
+    x <- x[1:selectNum,]
+    
+    return (x)
+  }
+  
+  ### parameter setting for a classifier
+  iteration <- 10
+  set.seed(2990)
+  featureSelectionNum <- 100
+  sampleNum <- 100
+  methodTypes <- c("svmLinear", "svmRadial", "gbm", "knn")
+  methodNames <- c("SVMLinear", "SVMRadial", "GBM", "K-NN")
+  train_control <- trainControl(method="LOOCV", classProbs = TRUE, savePredictions = TRUE, verboseIter = FALSE)
+  
+  ### rownames in the meta.data should be in the same order as colnames in the counts
+  print(identical(rownames(JCC_Seurat_Obj@meta.data), colnames(JCC_Seurat_Obj@assays$RNA@counts)))
+  
+  ### iteratively build a classifier
+  for(i in 1:iteration) {
+    
+    ### normalize the read counts
+    ### before the normalization, only keep the samples that will be used in the classifier
+    input_data <- normalizeRNASEQwithVST(readCount = data.frame(JCC_Seurat_Obj@assays$RNA@counts[rownames(de_result)[1:featureSelectionNum],
+                                                                                                 c(sample(which(JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"), sampleNum),
+                                                                                                   sample(which(JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "Other_CD8_GMPs"), sampleNum))],
+                                                                stringsAsFactors = FALSE, check.names = FALSE))
+    
+    # ### reduce the gene size based on variance
+    # ### only select high variance genes
+    # input_data <- selectTopV(input_data, featureSelectionNum)
+    
+    ### annotate class for the input data
+    input_data <- data.frame(t(input_data), stringsAsFactors = FALSE, check.names = FALSE)
+    input_data$Class <- factor(c(rep("GMP_Last", sampleNum),
+                                 rep("GMP_Not_Last", sampleNum)),
+                               levels = c("GMP_Last", "GMP_Not_Last"))
+    
+    ### build classifier and test
+    ### LOOCV
+    p <- list()
+    acc <- NULL
+    for(j in 1:length(methodTypes)) {
+      writeLines(paste(methodTypes[j]))
+      model <- train(Class~., data=input_data, trControl=train_control, method=methodTypes[j])
+      roc <- roc(model$pred$obs, model$pred$GMP_Last)
+      acc <- c(acc, round(mean(model$results$Accuracy), 3))
+      p[[j]] <- plot.roc(roc, main = paste(methodNames[j], "Using Gene Expressions\n",
+                                           "Accuracy =", acc[j]),
+                         legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+                         xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+      gc()
+    }
+    
+    ### draw ROC curves
+    png(paste0(outputDir2, "Classifier_GMP_Precursor_vs_Other_CD8_GMP_", featureSelectionNum, "_(", i, ").png"),
+        width = 2000, height = 2000, res = 350)
+    par(mfrow=c(3, 2))
+    for(j in 1:length(methodTypes)) {
+      plot.roc(p[[j]], main = paste(methodNames[j], "Using Gene Expressions\n",
+                                    "Accuracy =", acc[j]),
+               legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+               xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+    }
+    dev.off()
+    
+    gc()
+    
+  }
   
   
   
