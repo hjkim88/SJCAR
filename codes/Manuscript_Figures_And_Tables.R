@@ -12580,8 +12580,8 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### draw a proportional bar plot
   p <- ggplot(data=plot_df, aes_string(x="Time", y="Pcnt2", fill="Cluster", label="Pcnt")) +
     geom_bar(position = "stack", stat = "identity") +
-    ggtitle("Proportion of Cells") +
-    xlab("Time") + ylab("Percentage") +
+    # ggtitle("Proportion of Cells") +
+    xlab("") + ylab("Percentage") +
     # geom_text(size = 3, position = position_stack(vjust = 0.5), vjust = 3, color = "blue") +
     geom_text(aes_string(x="Time", y="Pcnt2", label = "Cluster2"),
               position = position_stack(vjust = 0.5),
@@ -12590,7 +12590,13 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     scale_fill_manual(values = sjcar19_colors) +
     scale_y_continuous(expand = c(0, 0)) +
     theme_classic(base_size = 30) +
-    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+    theme(plot.title = element_text(hjust = 0.5, color = "black", face = "bold"),
+          axis.text.x = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text.y = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
+          axis.title = element_text(size = 35, color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"),
+          legend.key.size = unit(0.7, 'cm'),
           axis.ticks = element_blank())
   ggsave(file = paste0(outputDir2, "CARpos_Cluster_Proportions_In_Time_Fig2C.pdf"), plot = p,
          width = 20, height = 10, dpi = 350)
@@ -13794,8 +13800,11 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   #
   
   ### make the down-sampled seurat object
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj@meta.data$downsampled2)
   downsampled_seurat_obj <- subset(JCC_Seurat_Obj,
-                                   cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj@meta.data$downsampled2 == "YES")])
+                                   idents = "YES")
   downsampled_seurat_obj$monocle_state <- monocle_cds2@phenoData@data[rownames(downsampled_seurat_obj@meta.data),"State"]
   
   print(identical(rownames(downsampled_seurat_obj@meta.data), colnames(downsampled_seurat_obj@assays$RNA@counts)))
@@ -13845,6 +13854,29 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ggsave(file = paste0(outputDir2, "Ridgeplot_GEXP_Monocle2_Subsisters_Added_Fig3D.pdf"),
          plot = p, width = 24, height = 10, dpi = 350)
   
+  #
+  ### Dotplot
+  #
+  
+  p <- DotPlot(downsampled_seurat_obj,
+               features = interesting_genes,
+               group.by = "monocle_state") +
+    scale_size(range = c(5, 35)) +
+    xlab("") +
+    ylab("State") +
+    scale_color_gradientn(colours = c("#3B3B53", "#D39F3A", "#640B11"),
+                          n.breaks = 3) +
+    theme_classic(base_size = 28) +
+    theme(plot.title = element_text(hjust = 0.5, color = "black", face = "bold"),
+          axis.text.x = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text.y = element_text(angle = 0, size = 35, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
+          axis.title = element_text(hjust = 0.5, size = 35, color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"),
+          legend.key.size = unit(0.7, 'cm'))
+  ggsave(file = paste0(outputDir2, "Dotplot_GEXP_Monocle2_Subsisters_Added_Fig3D.pdf"),
+         plot = p, width = 18, height = 10, dpi = 350)
   
   
   #
@@ -14047,7 +14079,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   dev.off()
   
   ### module score threshold
-  positive_module_score_threshold <- 0.5
+  positive_module_score_threshold <- 0.4
   negative_module_score_threshold1 <- -0.3
   negative_module_score_threshold2 <- -0.1
   
@@ -14337,6 +14369,32 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           axis.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
           axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"))
   ggsave(file = paste0(outputDir2, "Correlation_GMP_Subsister_Module_Score_PeakCAR_ml_NEW.pdf"), plot = p, width = 12, height = 10, dpi = 400)
+  
+  ### draw the correlation plot - Precursor Module score - Wk2CAR
+  p_cor <- round(cor(plot_df$Precursor_Module_Score,
+                     plot_df$Wk2CAR_ml, method = "spearman", use = "complete.obs"), 2)
+  pv <- round(cor.test(plot_df$Precursor_Module_Score,
+                       plot_df$Wk2CAR_ml, method = "spearman", use = "complete.obs")$p.value, 2)
+  FDR <- pairwise_df$Adj.Pval[intersect(which(pairwise_df$Variable1 == "Precursor_Module_Score"),
+                                        which(pairwise_df$Variable2 == "Wk2CAR_ml"))]
+  p <- ggplot(data = plot_df, aes(x=Precursor_Module_Score, y=Wk2CAR_ml)) +
+    geom_point(col = "#487A8F", size = 8) +
+    labs(title = paste0("Spearman Correlation:", p_cor),
+         subtitle = paste0("FDR:", FDR)) +
+    xlab("GMP Precursor Module Score Cell Percentage") +
+    ylab("Wk2CAR (ml)") +
+    geom_label_repel(aes(label = Patient),
+                     size = 5,
+                     col = "#3B3B53",
+                     segment.color = "#3B3B53",
+                     nudge_x = 5) +
+    geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          plot.subtitle = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"))
+  ggsave(file = paste0(outputDir2, "Correlation_GMP_Precursor_Module_Score_Wk2CAR_ml_NEW.pdf"), plot = p, width = 12, height = 10, dpi = 400)
   
   ### draw the correlation plot - Precursor Module score - Wk3CAR
   p_cor <- round(cor(plot_df$Precursor_Module_Score,
@@ -15729,19 +15787,18 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   pdf(paste0(outputDir2, "Fig2D_Heatmap.pdf"),
       width = 30, height = 25)
-  par(oma=c(10,0,5,0), xpd = TRUE, cex.main = 4)
+  par(oma=c(10,0,3,5), xpd = TRUE, cex.main = 4, font = 2, font.lab = 2, font.axis = 2)
   heatmap.2(heatmap_mat, col = colorpanel(24, low = "#487A8F", mid = "#C09969", high = "#640B11"),
             scale = "row", dendrogram = "none", trace = "none",
             Rowv = FALSE, Colv = FALSE,
             cexRow = 6, cexCol = 5,
             key.title = "", keysize = 2, density.info = "none",
-            densadj = 1,
+            key.xlab = "Z-Score", key.ylab = "", key.par = list(mar=c(6,0,0,0), xpd=TRUE, cex.lab=2, cex.axis=1.5, cex=2, font=1, font.axis=1),
             # main = "Average Gene Expression Across Post-Infusion",
             hclustfun = hclustfunc, distfun = distfunc,
             lmat = rbind(3:4,2:1),
             labRow = rownames(heatmap_mat), labCol = adv_col_names,
-            key.xlab = "Z-Score", key.ylab = "", key.par = list(mar=c(6,5,0,0), cex=1.5),
-            offsetRow=-152, offsetCol = 10, lwid = c(1.5, 8), lhei = c(1, 8),
+            offsetRow=-148, offsetCol = 10, lwid = c(1.5, 8), lhei = c(1.5, 8),
             adjRow = c(1, 0.5), srtCol = 0, adjCol = c(0.5, 0.5))
   dev.off()
   
@@ -16007,9 +16064,26 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     
   }
   
+  #
+  ### checking some things
+  ### patient effect on the clusters
+  #
   
+  ### check the cell # of each patient in PI cluster 3 & 8
+  result <- sapply(unique(JCC_Seurat_Obj$px), function(x) {
+    return(length(intersect(which(JCC_Seurat_Obj$px == x),
+                            intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                      union(which(JCC_Seurat_Obj$AllSeuratClusters == "3"),
+                                            which(JCC_Seurat_Obj$AllSeuratClusters == "8"))))))
+  })
+  print(result)
   
-  
+  ### check the cell # of each patient in GMP Precursors
+  result <- sapply(unique(JCC_Seurat_Obj$px), function(x) {
+    return(length(intersect(which(JCC_Seurat_Obj$px == x),
+                            which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"))))
+  })
+  print(result)
   
   
   
