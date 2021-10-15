@@ -251,6 +251,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     install.packages("ggbeeswarm")
     require(ggbeeswarm, quietly = TRUE)
   }
+  if(!require(shadowtext, quietly = TRUE)) {
+    install.packages("shadowtext")
+    require(shadowtext, quietly = TRUE)
+  }
   
   ### create outputDir
   dir.create(outputDir, showWarnings = FALSE, recursive = TRUE)
@@ -10157,13 +10161,15 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
          width = 15, height = 10, dpi = 350)
   
   p <- plot_cell_trajectory(monocle_cds2, color_by = "State", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
-    labs(color="New State") +
-    scale_color_manual(values = sjcar19_colors, name = "New State") +
+    labs(color="State") +
+    scale_color_manual(values = sjcar19_colors, name = "State") +
     guides(color = guide_legend(override.aes = list(size = 10))) +
-    theme_classic(base_size = 36) +
+    theme_classic(base_size = 30) +
     theme(legend.position = "top",
-          legend.title = element_text(size = 36),
-          legend.text = element_text(size = 30))
+          axis.title = element_text(size = 30, color = "black", face = "bold"),
+          axis.text = element_text(size = 25, color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"))
   ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_State_Monocle2_Subsisters_Added(2)_Fig3A.pdf"),
          plot = p,
          width = 15, height = 10, dpi = 350)
@@ -12895,11 +12901,14 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     guides(color = guide_legend(override.aes = list(size = 10))) +
     ggtitle("") +
     labs(color="Clusters") +
-    theme_classic(base_size = 48) +
-    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48, color = "black", face = "bold"),
-          axis.title = element_text(color = "black", face = "bold"),
-          axis.text = element_text(color = "black", face = "bold"),
+    theme_classic(base_size = 40) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 40, color = "black", face = "bold"),
+          axis.title = element_text(size = 25, color = "black", face = "bold"),
+          axis.text = element_text(size = 20, color = "black", face = "bold"),
           legend.position = "none")
+  p <- p + geom_shadowtext(data = p$layers[[2]]$data, aes(x = UMAP_1, y = UMAP_2, label=AllSeuratClusters),
+                           size=10, color="cornsilk2", bg.color="black", bg.r=0.2)
+  p$layers[[2]] <- NULL
   p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
   ggsave(paste0(outputDir2, "UMAP_CARpos_Clusters_Fig1a_Rasterized.pdf"), plot = p, width = 12, height = 10, dpi = 350)
   
