@@ -10300,20 +10300,34 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   names(sjcar19_colors) <- unique(plot_df$State)
   show_col(sjcar19_colors)
   
+  ### add % to the label
+  plot_df$Pcnt <- sapply(plot_df$Pcnt, function(x) {
+    if(x == "") {
+      return("")
+    } else {
+      return(paste0(x, "%"))
+    }
+  })
+  
   ### draw a proportional bar plot
   ### pcnt < 10 -> ""
   plot_df$Pcnt[which(as.numeric(plot_df$Pcnt) < 10)] <- ""
   plot_df$Pcnt <- as.character(plot_df$Pcnt)
   p <- ggplot(data=plot_df, aes_string(x="Time_Point", y="Numbers", fill="State", label="Pcnt")) +
     geom_bar(position = "stack", stat = "identity") +
-    ggtitle("Proportion of Cells") +
+    ggtitle("") +
     xlab("Time") + ylab("Cell #") +
-    geom_text(size = 7, position = position_stack(vjust = 0.5)) +
+    geom_text(size = 6, position = position_stack(vjust = 0.5), color = "black", fontface = 2) +
     coord_flip() +
-    scale_fill_manual(values = sjcar19_colors, name = "New State") +
+    scale_fill_manual(values = sjcar19_colors, name = "State") +
     guides(color = guide_legend(override.aes = list(size = 20))) +
-    theme_classic(base_size = 48) +
-    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+    theme_classic(base_size = 35) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          axis.text = element_text(size = 20, color = "black", face = "bold"),
+          axis.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.title = element_text(size = 35, color = "black", face = "bold"),
+          legend.text = element_text(size = 30, color = "black", face = "bold"),
+          legend.key.size = unit(2, 'cm'),
           axis.ticks = element_blank())
   ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_Monocle2_Bar_Subsisters_Added(2)_Fig3C.pdf"), plot = p,
          width = 18, height = 10, dpi = 350)
@@ -10715,23 +10729,23 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   names(sjcar19_colors) <- levels(JCC_Seurat_Obj$AllSeuratClusters)
   show_col(sjcar19_colors)
   
-  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = FALSE,
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap", raster = TRUE,
                group.by = "Seurat_Clusters_Subsisters",
                pt.size = 1,
                cols = c("Lineages" = "blue", sjcar19_colors),
                order = c("Lineages", levels(JCC_Seurat_Obj$AllSeuratClusters))) +
     guides(color = guide_legend(override.aes = list(size = 10))) +
     ggtitle("") +
-    labs(color="") +
-    theme_classic(base_size = 48) +
-    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
-          axis.text.x = element_text(size = 48),
-          axis.title.x = element_text(size = 48),
-          axis.title.y = element_text(size = 48),
-          legend.title = element_text(size = 24),
-          legend.text = element_text(size = 24))
-  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
-  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_In_Clusters_Fig5b.png"), plot = p, width = 13, height = 10, dpi = 350)
+    labs(color="Lineage Cells/Clusters") +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
+          axis.title = element_text(color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"),
+          legend.key.size = unit(1, 'cm'))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.8
+  ggsave(paste0(outputDir2, "UMAP_CARpos_Subsisters_In_Clusters_Fig4b.pdf"), plot = p, width = 17, height = 10, dpi = 350)
   
   
   ### UMAP: Non-Subsisters - lightgray, subsisters colored based on time
@@ -11114,17 +11128,21 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                   y = Size,
                   fill = Cluster, label = Cluster)) +
     ggtitle("") +
-    ylab("# Unique Lineage") +
+    ylab("# Unique Lineages") +
     geom_flow() +
     geom_stratum(alpha = 1) +
-    geom_label_repel(stat = "stratum", size = 5, show.legend = FALSE, col = "cornsilk2") +
+    geom_label_repel(stat = "stratum", size = 12, show.legend = FALSE, col = "cornsilk2") +
     rotate_x_text(90) +
     scale_fill_manual(values = sjcar19_color_scale) +
     scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
-    theme_classic(base_size = 36) +
-    theme(axis.text.x = element_text(size = 30),
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          axis.text = element_text(size = 25, color = "black", face = "bold"),
+          axis.title = element_text(size = 30, color = "black", face = "bold"),
           axis.title.x = element_blank(),
-          axis.title.y = element_text(size = 30),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"),
+          legend.key.size = unit(1, 'cm'),
           legend.position = "right")
   ggsave(file = paste0(outputDir2, "Alluvial_CARpos_Subsisters_Lineages_Between_Clusters_Fig4F.pdf"), plot = p,
          width = 15, height = 8, dpi = 350)
@@ -11183,17 +11201,21 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                   y = Size,
                   fill = Cluster, label = Cluster)) +
     ggtitle("") +
-    ylab("# Unique Lineage") +
+    ylab("# Unique Lineages") +
     geom_flow() +
     geom_stratum(alpha = 1) +
-    geom_label_repel(stat = "stratum", size = 5, show.legend = FALSE, col = "cornsilk2") +
+    geom_label_repel(stat = "stratum", size = 12, show.legend = FALSE, col = "cornsilk2") +
     rotate_x_text(90) +
     scale_fill_manual(values = sjcar19_color_scale) +
     scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
-    theme_classic(base_size = 36) +
-    theme(axis.text.x = element_text(size = 30),
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          axis.text = element_text(size = 25, color = "black", face = "bold"),
+          axis.title = element_text(size = 30, color = "black", face = "bold"),
           axis.title.x = element_blank(),
-          axis.title.y = element_text(size = 30),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"),
+          legend.key.size = unit(1, 'cm'),
           legend.position = "right")
   ggsave(file = paste0(outputDir2, "Alluvial_CARpos_Subsisters_Lineages_Between_Clusters_Fig4F_CD8.pdf"), plot = p,
          width = 15, height = 8, dpi = 350)
@@ -11813,17 +11835,21 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                   y = Size,
                   fill = Cluster, label = Cluster)) +
     ggtitle("") +
-    ylab("# Unique Lineage") +
+    ylab("# Unique Lineages") +
     geom_flow() +
     geom_stratum(alpha = 1) +
-    geom_label_repel(stat = "stratum", size = 8, show.legend = FALSE, col = "cornsilk2") +
+    geom_label_repel(stat = "stratum", size = 12, show.legend = FALSE, col = "cornsilk2") +
     rotate_x_text(90) +
     scale_fill_manual(values = sjcar19_color_scale) +
     scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
-    theme_classic(base_size = 36) +
-    theme(axis.text.x = element_text(size = 30),
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          axis.text = element_text(size = 25, color = "black", face = "bold"),
+          axis.title = element_text(size = 30, color = "black", face = "bold"),
           axis.title.x = element_blank(),
-          axis.title.y = element_text(size = 30),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"),
+          legend.key.size = unit(1, 'cm'),
           legend.position = "right")
   ggsave(file = paste0(outputDir2, "Alluvial_CARpos_Subsisters_Lineages_Between_Clusters_PI_TO_PI_Fig4D.pdf"), plot = p,
          width = 15, height = 8, dpi = 350)
@@ -12490,7 +12516,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   plot_df <- plot_df[which(!plot_df$Time %in% c("Wk6", "6mo")),]
   
   ### color scale
-  sjcar19_colors <- rev(c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53"))
+  sjcar19_colors <- c("#487A8F", "#3B3B53", "#287B66", "#640B11", "#D39F3A", "#AA4C26", "#C09969")
   names(sjcar19_colors) <- unique(plot_df$Time)
   show_col(sjcar19_colors)
   
@@ -12499,14 +12525,20 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     geom_bar(position = "stack", stat = "identity") +
     ggtitle("Proportion of Cells (Time)") +
     xlab("Clusters") + ylab("Cell #") +
-    geom_text(size = 3.5, position = position_stack(vjust = 0.5), hjust = 0.5, color = "#D94C21") +
+    geom_text(size = 4, position = position_stack(vjust = 0.5), hjust = 0.5, color = "cornsilk2", fontface = "bold") +
     coord_flip() +
     scale_fill_manual(values = sjcar19_colors) +
     scale_y_continuous(expand = c(0, 0)) +
     theme_classic(base_size = 30) +
-    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+    theme(plot.title = element_text(size = 30, hjust = 0.5, color = "black", face = "bold"),
+          axis.text.x = element_text(angle = 0, size = 20, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text.y = element_text(angle = 0, size = 20, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
+          axis.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"),
+          legend.key.size = unit(1.2, 'cm'),
           axis.ticks = element_blank())
-  ggsave(file = paste0(outputDir2, "CARpos_Time_Proportions_In_Clusters.pdf"), plot = p,
+  ggsave(file = paste0(outputDir2, "CARpos_Time_Proportions_In_Clusters_Suppl_Fig2A.pdf"), plot = p,
          width = 20, height = 10, dpi = 350)
   
   
@@ -12638,6 +12670,26 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
           legend.key.size = unit(0.7, 'cm'))
   ggsave(file = paste0(outputDir2, "Dotplot_CARpos_Functional_Group_GEXP_Fig1C.pdf"),
          plot = p, width = 36, height = 10, dpi = 350)
+  
+  ### make labels bigger in the dot plot for presentation slides
+  p <- DotPlot(temp_obj,
+               features = interesting_genes2,
+               group.by = "New_Functional_Annotation_Based_On_Clusters") +
+    scale_size(range = c(5, 35)) +
+    xlab("") +
+    ylab("") +
+    scale_color_gradientn(colours = c("#487A8F", "#C09969", "#AA4C26")) +
+    theme_classic(base_size = 28) +
+    theme(plot.title = element_text(hjust = 0.5, color = "black", face = "bold"),
+          axis.text.x = element_text(angle = -45, size = 45, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text.y = element_text(angle = 0, size = 50, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
+          legend.title = element_text(size = 35, color = "black", face = "bold"),
+          legend.text = element_text(size = 30, color = "black", face = "bold"),
+          legend.key.size = unit(0.7, 'cm'))
+  ggsave(file = paste0(outputDir2, "Dotplot_CARpos_Functional_Group_GEXP_Fig1C_ForSlide.pdf"),
+         plot = p, width = 36, height = 12, dpi = 350)
+  
   
   
   
@@ -13608,17 +13660,21 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
                             "GZMH", "KLRD1", "GZMK", "IFNG", "LAG3", "LEF1", "IL7R"),
                cols = c("#487A8F", "#640B11"),
                group.by = "GMP_Subsisters_End_Up_In_Cluster38_2_CD8") +
-    scale_size(range = c(2, 15)) +
+    scale_size(range = c(2, 18)) +
     coord_flip() +
     xlab("") +
     ylab("") +
-    scale_y_discrete(labels = c("Effector GMP Precursors", "Other CD8 GMPs")) +
-    theme_classic(base_size = 36) +
-    theme(plot.title = element_text(hjust = 0.5),
-          axis.text.x = element_text(angle = 90, size = 30, vjust = 0.5, hjust = 1),
-          axis.text.y = element_text(size = 40, vjust = 0.5, hjust = 1))
+    scale_y_discrete(labels = c("GMP Effector Precursors", "Other CD8 GMPs")) +
+    theme_classic(base_size = 30) +
+    theme(legend.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          legend.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          plot.title = element_text(hjust = 0, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          plot.subtitle = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title = element_blank(),
+          axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
+          axis.text.x = element_text(angle = 90, size = 25, vjust = 0.5, hjust = 1, color = "black", face = "bold"))
   ggsave(file = paste0(outputDir2, "DE_Genes_GMP_Precursor_Fig5A.pdf"),
-         plot = p, width = 10, height = 15, dpi = 350)
+         plot = p, width = 8, height = 13, dpi = 350)
   
   
   #
@@ -13665,7 +13721,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   plot_df$CD4_CD8 <- factor(plot_df$CD4_CD8, levels = c("CD4", "CD8"))
   
   ### color scale
-  sjcar19_colors <- c("#640B11", "#286278")
+  sjcar19_colors <- c("#AD5327", "#3B3B53")
   names(sjcar19_colors) <- c("CD4", "CD8")
   show_col(sjcar19_colors)
   
@@ -13681,14 +13737,14 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     coord_flip() +
     scale_fill_manual(values = sjcar19_colors) +
     scale_y_continuous(expand = c(0, 0)) +
-    theme_classic(base_size = 40) +
-    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 40),
-          axis.text.y = element_text(size = 40, vjust = 0.5, hjust = 1),
+    theme_classic(base_size = 35) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 35, color = "black", face = "bold"),
+          axis.text = element_text(size = 35, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
           axis.ticks = element_blank(),
-          legend.title = element_text(size = 40),
-          legend.text = element_text(size = 30),
+          legend.title = element_text(size = 35, color = "black", face = "bold"),
+          legend.text = element_text(size = 30, color = "black", face = "bold"),
           legend.key.size = unit(2, 'cm'))
-  ggsave(file = paste0(outputDir2, "Percentage_of_CD4_CD8_Fig2D.pdf"), plot = p,
+  ggsave(file = paste0(outputDir2, "Percentage_of_CD4_CD8_Suppl_Fig1C.pdf"), plot = p,
          width = 18, height = 10, dpi = 350)
   
   
@@ -13773,12 +13829,14 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   
   p <- plot_cell_trajectory(monocle_cds2, color_by = "GMP", cell_size = 3, cell_link_size = 3, show_branch_points = FALSE) +
     labs(color="") +
-    scale_color_manual(values = two_color_scale, name = "") +
+    scale_color_manual(labels = c("GMP", "Post-Infusion"), values = two_color_scale, name = "") +
     guides(color = guide_legend(override.aes = list(size = 10))) +
     theme_classic(base_size = 36) +
     theme(legend.position = "top",
-          legend.title = element_text(size = 36),
-          legend.text = element_text(size = 40))
+          plot.title = element_text(hjust = 0, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          plot.subtitle = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"))
   ggsave(file = paste0(outputDir2, "CARpos_Trajectory_Inference_GMP_PI_Monocle2_Fig3B.pdf"),
          plot = p,
          width = 15, height = 10, dpi = 350)
@@ -13793,13 +13851,17 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### draw a gene expression monocle plot
   p <- plot_cell_trajectory(monocle_cds2, markers = interesting_genes, use_color_gradient = TRUE,
                             cell_size = 3, cell_link_size = 1, show_branch_points = FALSE) +
-    labs(color="") +
+    labs(color="Normalized\nExpression") +
     scale_color_gradientn(colours = c("#487A8F", "#C09969", "#AA4C26")) +
-    theme_classic(base_size = 60) +
+    theme_classic(base_size = 40) +
     theme(legend.key.size = unit(3, 'cm'),
           legend.position = "right",
-          legend.title = element_text(size = 40),
-          legend.text = element_text(size = 36))
+          legend.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          legend.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          plot.title = element_text(hjust = 0, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          plot.subtitle = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"))
   ggsave(file = paste0(outputDir2, "GEXP_Monocle2_Subsisters_Added_Fig3D.pdf"),
          plot = p,
          width = 22, height = 10, dpi = 350)
@@ -13833,12 +13895,17 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   for(i in 1:length(interesting_genes)) {
     p[[i]] <- p[[i]] + geom_boxplot(width=0.1) +
       # stat_compare_means(size = 8) +
-      xlab("New State") +
-      stat_summary(fun=mean, geom="point", size=3, color="lightgray") +
+      xlab("State") +
+      stat_summary(fun=mean, geom="point", size=3, color="black") +
       theme_classic(base_size = 40) +
-      theme(plot.title = element_text(size = 50),
+      theme(legend.key.size = unit(3, 'cm'),
             legend.position = "none",
-            axis.title.x = element_blank())
+            legend.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+            legend.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+            plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 35, color = "black", face = "bold"),
+            plot.subtitle = element_text(hjust = 0.5, vjust = 0.5, size = 25, color = "black", face = "bold"),
+            axis.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+            axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"))
   }
   
   ### save the violin plot
@@ -13856,8 +13923,14 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     p[[i]] <- p[[i]] +
       ylab("State") +
       theme_classic(base_size = 40) +
-      theme(legend.position = "none",
-            axis.text = element_text(color = "black"))
+      theme(legend.key.size = unit(3, 'cm'),
+            legend.position = "none",
+            legend.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+            legend.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+            plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 35, color = "black", face = "bold"),
+            plot.subtitle = element_text(hjust = 0.5, vjust = 0.5, size = 25, color = "black", face = "bold"),
+            axis.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+            axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"))
   }
   
   ggsave(file = paste0(outputDir2, "Ridgeplot_GEXP_Monocle2_Subsisters_Added_Fig3D.pdf"),
@@ -15504,7 +15577,7 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   ### draw an alluvial plot with all-patient-combined plot data
   sjcar19_color_scale <- colorRampPalette(c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53"))(length(unique(total_plot_df$Clone)))
   total_plot_df$Time <- factor(total_plot_df$Time, levels = intersect(total_time_points, unique(total_plot_df$Time)))
-  ggplot(total_plot_df,
+  p <- ggplot(total_plot_df,
          aes(x = Time, stratum = Clone, alluvium = Clone,
              y = Clone_Size,
              fill = Clone, label = Clone)) +
@@ -15518,18 +15591,23 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     scale_fill_manual(values = sjcar19_color_scale) +
     scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
     theme_classic(base_size = 36) +
-    theme(axis.text.x = element_text(size = 30),
+    theme(plot.title = element_text(hjust = 0.5, color = "black", face = "bold"),
+          axis.text.x = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text.y = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
+          axis.title = element_text(size = 35, color = "black", face = "bold"),
           axis.title.x = element_blank(),
-          axis.title.y = element_text(size = 30),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"),
+          legend.key.size = unit(0.7, 'cm'),
           legend.position = "none")
-  ggsave(file = paste0(outputDir2, "All_CARpos_Clonal_Tracing_Fig4A.pdf"), width = 20, height = 10, dpi = 350)
+  ggsave(file = paste0(outputDir2, "All_CARpos_Clonal_Tracing_Fig4A.pdf"), plot = p, width = 20, height = 10, dpi = 350)
   
   ### make another version that skips wk1
   total_plot_df2 <- total_plot_df[which(total_plot_df$Time != "Wk1"),]
   
   sjcar19_color_scale <- colorRampPalette(c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53"))(length(unique(total_plot_df2$Clone)))
   total_plot_df2$Time <- factor(total_plot_df2$Time, levels = intersect(total_time_points, unique(total_plot_df2$Time)))
-  ggplot(total_plot_df2,
+  p <- ggplot(total_plot_df2,
          aes(x = Time, stratum = Clone, alluvium = Clone,
              y = Clone_Size,
              fill = Clone, label = Clone)) +
@@ -15543,11 +15621,17 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     scale_fill_manual(values = sjcar19_color_scale) +
     scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
     theme_classic(base_size = 36) +
-    theme(axis.text.x = element_text(size = 30),
+    theme(plot.title = element_text(hjust = 0.5, color = "black", face = "bold"),
+          axis.text.x = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text.y = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
+          axis.title = element_text(size = 35, color = "black", face = "bold"),
           axis.title.x = element_blank(),
-          axis.title.y = element_text(size = 30),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"),
+          legend.key.size = unit(0.7, 'cm'),
           legend.position = "none")
-  ggsave(file = paste0(outputDir2, "All_CARpos_Clonal_Tracing_Fig4A_NoWk1.pdf"), width = 20, height = 10, dpi = 350)
+  ggsave(file = paste0(outputDir2, "All_CARpos_Clonal_Tracing_Fig4A_NoWk1.pdf"),
+         plot = p, width = 18, height = 10, dpi = 350)
   
   
   
