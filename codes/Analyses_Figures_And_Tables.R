@@ -18616,12 +18616,12 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
   for(px in training_px) {
     
     ### divide training and test index
-    training_idx <- intersect(which(JCC_Seurat_Obj$px == px),
+    test_idx <- intersect(which(JCC_Seurat_Obj$px == px),
                               union(which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"),
                                     which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "Other_CD8_GMPs")))
-    test_idx <- setdiff(union(which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"),
-                              which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "Other_CD8_GMPs")),
-                        training_idx)
+    training_idx <- setdiff(union(which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"),
+                                  which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "Other_CD8_GMPs")),
+                            training_idx)
     
     ### new obj for the training data & set idents with the info
     classifier_seurat_obj <- subset(JCC_Seurat_Obj, cells = rownames(JCC_Seurat_Obj@meta.data)[training_idx])
@@ -18667,9 +18667,10 @@ manuscript_prep <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR1
     
   }
   
+  # save(list = c("acc", "roc"), file = "./classification_result.robj")
+  # load(file = "./classification_result.robj")
   
-  
-  
+  ### 
   
   
   
