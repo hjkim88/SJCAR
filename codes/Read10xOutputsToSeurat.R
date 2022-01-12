@@ -57,13 +57,14 @@ read10x_and_make_seuratobj <- function(ten_x_dir="C:/Users/hkim8/SJ/SJCAR19/JCC2
   ### Filter cells that have > 10% mitochondrial counts
   SJCAR19_Oct2020_Seurat_Obj <- subset(SJCAR19_Oct2020_Seurat_Obj, subset = nFeature_RNA > 300 & nFeature_RNA < 5000 & percent.mt < 10)
   
+  ### normalization
+  SJCAR19_Oct2020_Seurat_Obj <- NormalizeData(SJCAR19_Oct2020_Seurat_Obj,
+                                              normalization.method = "LogNormalize", scale.factor = 10000)
+  
   ### Cell cycle score (will be used later for regression out)
   SJCAR19_Oct2020_Seurat_Obj <- CellCycleScoring(object = SJCAR19_Oct2020_Seurat_Obj,
                                                  g2m.features = cc.genes$g2m.genes,
                                                  s.features = cc.genes$s.genes)
-  ### normalization
-  SJCAR19_Oct2020_Seurat_Obj <- NormalizeData(SJCAR19_Oct2020_Seurat_Obj,
-                                              normalization.method = "LogNormalize", scale.factor = 10000)
   
   ### find variable genes
   SJCAR19_Oct2020_Seurat_Obj <- FindVariableFeatures(SJCAR19_Oct2020_Seurat_Obj,
