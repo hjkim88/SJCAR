@@ -5,6 +5,8 @@
 #   Email     : hyunjin.kim@stjude.org
 #   Purpose   : 1. a) DE genes between cluster 3 & 8
 #                  b) DE genes between GMP that ends up with cluster 3 vs GMP that ends up with cluster 8
+#               2. a) DE genes between CAR > 0 VS CAR = 0
+#                  b) DE genes between CAR > 0; HIGH vs CAR > 0; low
 #               
 #   Instruction
 #               1. Source("CD_Revision.R")
@@ -127,6 +129,79 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
               file = paste0(outputDir, "/1_DE_GMP_End_In_Clstr3_vs_8.xlsx"),
               sheetName = "1_DE_GMP_End_In_Clstr3_vs_8", row.names = FALSE)
   
+  ### there can be GMP cells that will end up in both cluster3 and in cluster 8
+  ### remove those and rerun the DE analysis
+  
+  ### set new column for GMP cells that end up in PI cluster 3 and in PI cluster 8
+  ### but no duplicates this time
+  JCC_Seurat_Obj$GMP_End_In_PI_Cluster3_8 <- "Others"
+  JCC_Seurat_Obj$GMP_End_In_PI_Cluster3_8[setdiff(GMP_Subsisters_PI_Cluster3_idx,
+                                                  GMP_Subsisters_PI_Cluster8_idx)] <- "GMP_End_In_Cluster3"
+  JCC_Seurat_Obj$GMP_End_In_PI_Cluster3_8[setdiff(GMP_Subsisters_PI_Cluster8_idx,
+                                                  GMP_Subsisters_PI_Cluster3_idx)] <- "GMP_End_In_Cluster8"
+  
+  ### set idents
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj$GMP_End_In_PI_Cluster3_8)
+  
+  ### cluster3 vs cluster8
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "GMP_End_In_Cluster3",
+                           ident.2 = "GMP_End_In_Cluster8",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.1,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/1_DE_GMP_End_In_Clstr3_vs_8(2).xlsx"),
+              sheetName = "1_DE_GMP_End_In_Clstr3_vs_8", row.names = FALSE)
+  
+  
+  ###
+  ### 2. a) DE genes between CAR > 0 VS CAR = 0
+  #      b) DE genes between CAR > 0; HIGH vs CAR > 0; low
+  ###
+  ###    This should be done in 2 versions - 1. GMP only, 2. PI only
+  ###    To see how CAR expression correlates with differentiation, exhaustion and/or apoptosis
+  ###    Because the reviewer suspect that high CAR can drive those.
+  ###
+  
+  ### The current JCC_Seurat_Obj is only with CAR+ cells
+  ### need to load the full dataset
+  ### make sure this is the right data - PB/BM all included with the same patient filtered
+  ### why "Analyses_Figures_And_Tables.R" firstly use this file but later used JCC object?
+  ### CAR? PB/BM? CD4/CD8? Maybe we wanna compare
+  Seurat_Obj <- readRDS(file = "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_data/data/NEW_SJCAR_SEURAT_OBJ/SJCAR19_Oct2020_Seurat_Obj_Total2.rds")
+  
+  
+  ### check UMAP based on CAR
+  DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+          group.by = "CAR", label = TRUE,
+          pt.size = 0.5, raster = TRUE)
+  
+  ### set new column for PI cluster 3 and PI cluster 8
+  JCC_Seurat_Obj$PI_Cluster3_8 <- "Others"
+  JCC_Seurat_Obj$PI_Cluster3_8[intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                         which(JCC_Seurat_Obj$AllSeuratClusters == "3"))] <- "PI_Cluster3"
+  JCC_Seurat_Obj$PI_Cluster3_8[intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                         which(JCC_Seurat_Obj$AllSeuratClusters == "8"))] <- "PI_Cluster8"
+  
+  ### set idents
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj$PI_Cluster3_8)
+  
+  ### cluster3 vs cluster8
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "PI_Cluster3",
+                           ident.2 = "PI_Cluster8",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.1,
+                           test.use = "wilcox")
   
   
   
