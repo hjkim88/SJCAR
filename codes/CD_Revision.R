@@ -401,16 +401,63 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   plot(density(Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",]),
        xlim = c(0,10))
   
-  ### 2 maybe a good threshold
+  ### 4 maybe a good threshold
+  ### > 4: 126329 cells
+  ### > 0 & <= 4: 59348 cells
+  print(length(which(Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",] > 4)))
+  print(length(intersect(which(Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",] > 0),
+                         which(Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",] <= 4))))
+  
+  ### set new column for High CAR vs Low CAR
+  Seurat_Obj$CAR2 <- "Others"
+  Seurat_Obj$CAR2[which(Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",] > 4)] <- "HighCAR"
+  Seurat_Obj$CAR2[intersect(which(Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",] > 0),
+                            which(Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",] <= 4))] <- "LowCAR"
+  
+  ### set idents
+  Seurat_Obj <- SetIdent(object = Seurat_Obj,
+                         cells = rownames(Seurat_Obj@meta.data),
+                         value = Seurat_Obj$CAR2)
+  
+  ### High CAR vs Low CAR
+  de_result <- FindMarkers(Seurat_Obj,
+                           ident.1 = "HighCAR",
+                           ident.2 = "LowCAR",
+                           min.pct = 0.5,
+                           logfc.threshold = 0.6,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/2_DE_HighCAR_vs_LowCAR.xlsx"),
+              sheetName = "2_DE_HighCAR_vs_LowCAR", row.names = FALSE)
+  
+  ### get entrez ids for the genes
+  de_entrez_ids <- mapIds(org.Hs.eg.db,
+                          rownames(de_result)[which(de_result$p_val_adj < 0.01)],
+                          "ENTREZID", "SYMBOL")
+  de_entrez_ids <- de_entrez_ids[!is.na(de_entrez_ids)]
+  
+  ### GO & KEGG
+  pathway_result_GO <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                          org = "human", database = "GO",
+                                          title = paste0("Pathways_DE_Genes_HighCAR_vs_LowCAR"),
+                                          displayNum = 10, imgPrint = TRUE,
+                                          dir = outputDir)
+  pathway_result_KEGG <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                            org = "human", database = "KEGG",
+                                            title = paste0("Pathways_DE_Genes_HighCAR_vs_LowCAR"),
+                                            displayNum = 10, imgPrint = TRUE,
+                                            dir = outputDir)
+  write.xlsx2(pathway_result_GO, file = paste0(outputDir, "GO_Pathways_DE_genes_HighCAR_vs_LowCAR.xlsx"),
+              row.names = FALSE, sheetName = paste0("GO_Results"))
+  write.xlsx2(pathway_result_KEGG, file = paste0(outputDir, "KEGG_Pathways_DE_genes_HighCAR_vs_LowCAR.xlsx"),
+              row.names = FALSE, sheetName = paste0("KEGG_Results"))
   
   
-  ### set new column for GMP cells that end up in PI cluster 3 and in PI cluster 8
-  ### but no duplicates this time
-  JCC_Seurat_Obj$GMP_End_In_PI_Cluster3_8 <- "Others"
-  JCC_Seurat_Obj$GMP_End_In_PI_Cluster3_8[setdiff(GMP_Subsisters_PI_Cluster3_idx,
-                                                  GMP_Subsisters_PI_Cluster8_idx)] <- "GMP_End_In_Cluster3"
-  JCC_Seurat_Obj$GMP_End_In_PI_Cluster3_8[setdiff(GMP_Subsisters_PI_Cluster8_idx,
-                                                  GMP_Subsisters_PI_Cluster3_idx)] <- "GMP_End_In_Cluster8"
+  
   
   
   
