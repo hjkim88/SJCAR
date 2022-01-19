@@ -3,12 +3,18 @@
 #   Author    : Hyunjin Kim
 #   Date      : Jan 11, 2022
 #   Email     : hyunjin.kim@stjude.org
-#   Purpose   : 1. a) DE genes between cluster 3 & 8
+#   Purpose   : 1. R3C2
+#                  a) DE genes between cluster 3 & 8
 #                  b) DE genes between GMP that ends up with cluster 3 vs GMP that ends up with cluster 8
-#               2. a) DE genes between CAR > 0 VS CAR = 0
+#               2. R1C1
+#                  a) DE genes between CAR > 0 VS CAR = 0
 #                  b) DE genes between CAR > 0; HIGH vs CAR > 0; low
-#               3. PBMC and BMMC samples are treated identically. It would be interesting to understand how much cells
+#               3. R3C5
+#                  PBMC and BMMC samples are treated identically. It would be interesting to understand how much cells
 #                  from these different samples are driving some of the differences in the clusters.
+#               4. R4C7 & R4C8
+#                  expression of CASP8 was highest in state B relative to all other states (Fig 3C)". Is it significant?
+#                  higher relative expression of TOX and LAG3. Is it significant? - State C
 #
 #               
 #   Instruction
@@ -39,6 +45,12 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
       install.packages("BiocManager")
     BiocManager::install("org.Hs.eg.db")
     require(org.Hs.eg.db, quietly = TRUE)
+  }
+  if(!require(monocle, quietly = TRUE)) {
+    if (!requireNamespace("BiocManager", quietly = TRUE))
+      install.packages("BiocManager")
+    BiocManager::install("monocle")
+    require(monocle, quietly = TRUE)
   }
   
   # ******************************************************************************************
@@ -395,6 +407,53 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   write.xlsx2(pathway_result_KEGG, file = paste0(outputDir, "KEGG_Pathways_DE_genes_CARpos_vs_CARneg.xlsx"),
               row.names = FALSE, sheetName = paste0("KEGG_Results"))
   
+  ### up-regulated genes only
+  de_entrez_ids <- mapIds(org.Hs.eg.db,
+                          rownames(de_result)[intersect(which(de_result$p_val_adj < 0.01),
+                                                        which(de_result$avg_log2FC > 0))],
+                          "ENTREZID", "SYMBOL")
+  de_entrez_ids <- de_entrez_ids[!is.na(de_entrez_ids)]
+  
+  ### GO & KEGG
+  pathway_result_GO <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                          org = "human", database = "GO",
+                                          title = paste0("UP_Pathways_DE_Genes_CARpos_vs_CARneg"),
+                                          displayNum = 10, imgPrint = TRUE,
+                                          dir = outputDir)
+  pathway_result_KEGG <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                            org = "human", database = "KEGG",
+                                            title = paste0("UP_Pathways_DE_Genes_CARpos_vs_CARneg"),
+                                            displayNum = 10, imgPrint = TRUE,
+                                            dir = outputDir)
+  write.xlsx2(pathway_result_GO, file = paste0(outputDir, "GO_UP_Pathways_DE_genes_CARpos_vs_CARneg.xlsx"),
+              row.names = FALSE, sheetName = paste0("GO_UP_Results"))
+  write.xlsx2(pathway_result_KEGG, file = paste0(outputDir, "KEGG_UP_Pathways_DE_genes_CARpos_vs_CARneg.xlsx"),
+              row.names = FALSE, sheetName = paste0("KEGG_UP_Results"))
+  
+  ### down-regulated genes only
+  de_entrez_ids <- mapIds(org.Hs.eg.db,
+                          rownames(de_result)[intersect(which(de_result$p_val_adj < 0.01),
+                                                        which(de_result$avg_log2FC < 0))],
+                          "ENTREZID", "SYMBOL")
+  de_entrez_ids <- de_entrez_ids[!is.na(de_entrez_ids)]
+  
+  ### GO & KEGG
+  pathway_result_GO <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                          org = "human", database = "GO",
+                                          title = paste0("DOWN_Pathways_DE_Genes_CARpos_vs_CARneg"),
+                                          displayNum = 10, imgPrint = TRUE,
+                                          dir = outputDir)
+  pathway_result_KEGG <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                            org = "human", database = "KEGG",
+                                            title = paste0("DOWN_Pathways_DE_Genes_CARpos_vs_CARneg"),
+                                            displayNum = 10, imgPrint = TRUE,
+                                            dir = outputDir)
+  write.xlsx2(pathway_result_GO, file = paste0(outputDir, "GO_DOWN_Pathways_DE_genes_CARpos_vs_CARneg.xlsx"),
+              row.names = FALSE, sheetName = paste0("GO_DOWN_Results"))
+  write.xlsx2(pathway_result_KEGG, file = paste0(outputDir, "KEGG_DOWN_Pathways_DE_genes_CARpos_vs_CARneg.xlsx"),
+              row.names = FALSE, sheetName = paste0("KEGG_DOWN_Results"))
+  
+  
   ### see distribution of the CAR expressions
   plot(density(Seurat_Obj@assays$RNA@counts["JCC-SJCAR19short",]),
        xlim = c(0,50))
@@ -423,8 +482,8 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   de_result <- FindMarkers(Seurat_Obj,
                            ident.1 = "HighCAR",
                            ident.2 = "LowCAR",
-                           min.pct = 0.5,
-                           logfc.threshold = 0.6,
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
                            test.use = "wilcox")
   
   ### write out the DE result
@@ -457,7 +516,140 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
               row.names = FALSE, sheetName = paste0("KEGG_Results"))
   
   
+  ### up-regulated genes only
+  de_entrez_ids <- mapIds(org.Hs.eg.db,
+                          rownames(de_result)[intersect(which(de_result$p_val_adj < 0.01),
+                                                        which(de_result$avg_log2FC > 0))],
+                          "ENTREZID", "SYMBOL")
+  de_entrez_ids <- de_entrez_ids[!is.na(de_entrez_ids)]
   
+  ### GO & KEGG
+  pathway_result_GO <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                          org = "human", database = "GO",
+                                          title = paste0("UP_Pathways_DE_Genes_HighCAR_vs_LowCAR"),
+                                          displayNum = 10, imgPrint = TRUE,
+                                          dir = outputDir)
+  pathway_result_KEGG <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                            org = "human", database = "KEGG",
+                                            title = paste0("UP_Pathways_DE_Genes_HighCAR_vs_LowCAR"),
+                                            displayNum = 10, imgPrint = TRUE,
+                                            dir = outputDir)
+  write.xlsx2(pathway_result_GO, file = paste0(outputDir, "GO_UP_Pathways_DE_genes_HighCAR_vs_LowCAR.xlsx"),
+              row.names = FALSE, sheetName = paste0("GO_UP_Results"))
+  write.xlsx2(pathway_result_KEGG, file = paste0(outputDir, "KEGG_UP_Pathways_DE_genes_HighCAR_vs_LowCAR.xlsx"),
+              row.names = FALSE, sheetName = paste0("KEGG_UP_Results"))
+  
+  ### down-regulated genes only
+  de_entrez_ids <- mapIds(org.Hs.eg.db,
+                          rownames(de_result)[intersect(which(de_result$p_val_adj < 0.01),
+                                                        which(de_result$avg_log2FC < 0))],
+                          "ENTREZID", "SYMBOL")
+  de_entrez_ids <- de_entrez_ids[!is.na(de_entrez_ids)]
+  
+  ### GO & KEGG
+  pathway_result_GO <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                          org = "human", database = "GO",
+                                          title = paste0("DOWN_Pathways_DE_Genes_HighCAR_vs_LowCAR"),
+                                          displayNum = 10, imgPrint = TRUE,
+                                          dir = outputDir)
+  pathway_result_KEGG <- pathwayAnalysis_CP(geneList = de_entrez_ids,
+                                            org = "human", database = "KEGG",
+                                            title = paste0("DOWN_Pathways_DE_Genes_HighCAR_vs_LowCAR"),
+                                            displayNum = 10, imgPrint = TRUE,
+                                            dir = outputDir)
+  write.xlsx2(pathway_result_GO, file = paste0(outputDir, "GO_DOWN_Pathways_DE_genes_HighCAR_vs_LowCAR.xlsx"),
+              row.names = FALSE, sheetName = paste0("GO_DOWN_Results"))
+  write.xlsx2(pathway_result_KEGG, file = paste0(outputDir, "KEGG_DOWN_Pathways_DE_genes_HighCAR_vs_LowCAR.xlsx"),
+              row.names = FALSE, sheetName = paste0("KEGG_DOWN_Results"))
+  
+  
+  
+  
+  ###
+  ### 4. expression of CASP8 was highest in state B relative to all other states (Fig 3C)". Is it significant?
+  #   higher relative expression of TOX and LAG3. Is it significant? - State C
+  ###
+  
+  ### cell # for each time point
+  cell_num <- sapply(unique(JCC_Seurat_Obj@meta.data$time2), function(x) {
+    return(length(which(JCC_Seurat_Obj@meta.data$time2 == x)))
+  })
+  
+  ### remove wk6 & 6mo data since there are only 1 & 7 cells
+  cell_num <- cell_num[-c(6,9)]
+  
+  ### the data is too big (can't run for monocle), so we down-sample the cells in each time point
+  set.seed(1234)
+  fixed_min_cell_num <- min(cell_num)
+  JCC_Seurat_Obj@meta.data$downsampled <- "NO"
+  for(tp in names(cell_num)) {
+    JCC_Seurat_Obj@meta.data$downsampled[sample(which(JCC_Seurat_Obj@meta.data$time2 == tp), fixed_min_cell_num)] <- "YES"
+  }
+  
+  ### the data is too big (can't run for monocle), so we down-sample the cells in each time point
+  ### BUT THIS TIME, INCLUDE ALL THE SUBSISTERS (IN ADDITION TO THE ORIGINAL DOWNSAMPLED ONES)
+  JCC_Seurat_Obj@meta.data$downsampled2 <- JCC_Seurat_Obj@meta.data$downsampled
+  JCC_Seurat_Obj@meta.data$downsampled2[which(JCC_Seurat_Obj@meta.data$ALL_CARpos_Persister == "YES")] <- "YES"
+  
+  ### Construct a monocle cds
+  monocle_metadata <- JCC_Seurat_Obj@meta.data[rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj@meta.data$downsampled2 == "YES")],]
+  monocle_metadata$time2 <- factor(monocle_metadata$time2, levels = unique(monocle_metadata$time2))
+  monocle_cds2 <- newCellDataSet(as(as.matrix(JCC_Seurat_Obj@assays$RNA@data[,rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj@meta.data$downsampled2 == "YES")]]), 'sparseMatrix'),
+                                 phenoData = new('AnnotatedDataFrame', data = monocle_metadata),
+                                 featureData = new('AnnotatedDataFrame', data = data.frame(gene_short_name = row.names(JCC_Seurat_Obj@assays$RNA@data),
+                                                                                           row.names = row.names(JCC_Seurat_Obj@assays$RNA@data),
+                                                                                           stringsAsFactors = FALSE, check.names = FALSE)),
+                                 lowerDetectionLimit = 0.5,
+                                 expressionFamily = negbinomial.size())
+  
+  ### run monocle
+  monocle_cds2 <- estimateSizeFactors(monocle_cds2)
+  monocle_cds2 <- estimateDispersions(monocle_cds2)
+  monocle_cds2 <- reduceDimension(monocle_cds2, reduction_method = "DDRTree")
+  monocle_cds2 <- orderCells(monocle_cds2)
+  
+  ### determine the beginning state
+  plot_cell_trajectory(monocle_cds2, color_by = "time2")
+  plot_cell_trajectory(monocle_cds2, color_by = "State")
+  plot_complex_cell_trajectory(monocle_cds2, color_by = "time2")
+  plot_complex_cell_trajectory(monocle_cds2, color_by = "State")
+  ### this root state should be checked if we want to rerun this -> Sometimes it's 6 and sometimes it's 1
+  monocle_cds2 <- orderCells(monocle_cds2, root_state = "6")
+  
+  ### add previous monocle_state to the current one
+  monocle_cds2$Original_State <- "NEW"
+  monocle_cds2@phenoData@data[rownames(monocle_cds@phenoData@data),"Original_State"] <- monocle_cds$State
+  
+  ### change the state numbers to alphabets
+  monocle_cds2$State <- as.character(monocle_cds2$State)
+  monocle_cds2$State[which(monocle_cds2$State == "6")] <- "A"
+  monocle_cds2$State[which(monocle_cds2$State == "5")] <- "B"
+  monocle_cds2$State[which(monocle_cds2$State == "4")] <- "C"
+  monocle_cds2$State[which(monocle_cds2$State == "7")] <- "D"
+  monocle_cds2$State[which(monocle_cds2$State == "3")] <- "E"
+  monocle_cds2$State[which(monocle_cds2$State == "1")] <- "F"
+  monocle_cds2$State[which(monocle_cds2$State == "2")] <- "G"
+  monocle_cds2$State <- factor(monocle_cds2$State, levels = c("A", "B", "C", "D", "E", "F", "G"))
+  plot_cell_trajectory(monocle_cds2, color_by = "State")
+  
+  ### color scale
+  sjcar19_colors <- c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53")
+  names(sjcar19_colors) <- levels(monocle_cds2$State)
+  show_col(sjcar19_colors)
+  
+  ### draw monocle plot for checking
+  plot_cell_trajectory(monocle_cds2, color_by = "State",
+                       cell_size = 3, cell_link_size = 3,
+                       show_branch_points = FALSE) +
+    labs(color="State") +
+    scale_color_manual(values = sjcar19_colors, name = "State") +
+    guides(color = guide_legend(override.aes = list(size = 10))) +
+    theme_classic(base_size = 30) +
+    theme(legend.position = "top",
+          axis.title = element_text(size = 30, color = "black", face = "bold"),
+          axis.text = element_text(size = 25, color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"))
   
   
   
