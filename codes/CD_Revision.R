@@ -9,6 +9,7 @@
 #               2. R1C1
 #                  a) DE genes between CAR > 0 VS CAR = 0
 #                  b) DE genes between CAR > 0; HIGH vs CAR > 0; low
+#                  c) Does the functional groups correlate with CAR expression?
 #               3. R3C5
 #                  PBMC and BMMC samples are treated identically. It would be interesting to understand how much cells
 #                  from these different samples are driving some of the differences in the clusters.
@@ -318,7 +319,8 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   
   ###
   ### 2. a) DE genes between CAR > 0 VS CAR = 0
-  #      b) DE genes between CAR > 0; HIGH vs CAR > 0; low
+  ###    b) DE genes between CAR > 0; HIGH vs CAR > 0; low
+  ###    c) Does the functional groups correlate with CAR expression?
   ###
   ###    This should be done in 2 versions - 1. GMP only, 2. PI only
   ###    To see how CAR expression correlates with differentiation, exhaustion and/or apoptosis
@@ -562,6 +564,22 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   write.xlsx2(pathway_result_KEGG, file = paste0(outputDir, "KEGG_DOWN_Pathways_DE_genes_HighCAR_vs_LowCAR.xlsx"),
               row.names = FALSE, sheetName = paste0("KEGG_DOWN_Results"))
   
+  ###
+  ### c) Does the functional groups correlate with CAR expression?
+  ###
+  
+  
+  
+  
+  ###
+  ### 3. PBMC and BMMC samples are treated identically. It would be interesting to understand how much cells
+  #   from these different samples are driving some of the differences in the clusters.
+  ###
+  
+  
+  
+  
+  
   
   
   
@@ -616,10 +634,6 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   ### this root state should be checked if we want to rerun this -> Sometimes it's 6 and sometimes it's 1
   monocle_cds2 <- orderCells(monocle_cds2, root_state = "6")
   
-  ### add previous monocle_state to the current one
-  monocle_cds2$Original_State <- "NEW"
-  monocle_cds2@phenoData@data[rownames(monocle_cds@phenoData@data),"Original_State"] <- monocle_cds$State
-  
   ### change the state numbers to alphabets
   monocle_cds2$State <- as.character(monocle_cds2$State)
   monocle_cds2$State[which(monocle_cds2$State == "6")] <- "A"
@@ -632,24 +646,92 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   monocle_cds2$State <- factor(monocle_cds2$State, levels = c("A", "B", "C", "D", "E", "F", "G"))
   plot_cell_trajectory(monocle_cds2, color_by = "State")
   
+  ### make the down-sampled seurat object
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj@meta.data$downsampled2)
+  downsampled_seurat_obj <- subset(JCC_Seurat_Obj,
+                                   idents = "YES")
+  downsampled_seurat_obj$monocle_state <- monocle_cds2@phenoData@data[rownames(downsampled_seurat_obj@meta.data),"State"]
+  
+  print(identical(rownames(downsampled_seurat_obj@meta.data), colnames(downsampled_seurat_obj@assays$RNA@counts)))
+  print(identical(names(Idents(object = downsampled_seurat_obj)), rownames(downsampled_seurat_obj@meta.data)))
+  
   ### color scale
   sjcar19_colors <- c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53")
   names(sjcar19_colors) <- levels(monocle_cds2$State)
   show_col(sjcar19_colors)
   
   ### draw monocle plot for checking
-  plot_cell_trajectory(monocle_cds2, color_by = "State",
-                       cell_size = 3, cell_link_size = 3,
-                       show_branch_points = FALSE) +
-    labs(color="State") +
-    scale_color_manual(values = sjcar19_colors, name = "State") +
-    guides(color = guide_legend(override.aes = list(size = 10))) +
-    theme_classic(base_size = 30) +
-    theme(legend.position = "top",
-          axis.title = element_text(size = 30, color = "black", face = "bold"),
-          axis.text = element_text(size = 25, color = "black", face = "bold"),
+  downsampled_seurat_obj$monocle_state <- factor(downsampled_seurat_obj$monocle_state, levels = rev(levels(downsampled_seurat_obj$monocle_state)))
+  DotPlot(downsampled_seurat_obj,
+               features = "CASP8",
+               group.by = "monocle_state") +
+    scale_size(range = c(5, 35)) +
+    xlab("") +
+    ylab("State") +
+    scale_color_gradientn(colours = c("#3B3B53", "#D39F3A", "#640B11"),
+                          n.breaks = 3) +
+    theme_classic(base_size = 28) +
+    theme(plot.title = element_text(hjust = 0.5, color = "black", face = "bold"),
+          axis.text.x = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text.y = element_text(angle = 0, size = 35, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
+          axis.title = element_text(hjust = 0.5, size = 35, color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
           legend.title = element_text(size = 30, color = "black", face = "bold"),
-          legend.text = element_text(size = 25, color = "black", face = "bold"))
+          legend.text = element_text(size = 25, color = "black", face = "bold"),
+          legend.key.size = unit(0.7, 'cm'))
+  
+  ### now everything is confirmed so let's begin the analysis
+  downsampled_seurat_obj$R4C7 <- "Others"
+  downsampled_seurat_obj$R4C7[which(as.character(downsampled_seurat_obj$monocle_state) == "B")] <- "B"
+  
+  ### set idents
+  downsampled_seurat_obj <- SetIdent(object = downsampled_seurat_obj,
+                                     cells = rownames(downsampled_seurat_obj@meta.data),
+                                     value = downsampled_seurat_obj$R4C7)
+  
+  ### State B vs Others
+  de_result <- FindMarkers(downsampled_seurat_obj,
+                           ident.1 = "B",
+                           ident.2 = "Others",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/4_DE_StateB_vs_Others.xlsx"),
+              sheetName = "4_DE_StateB_vs_Others", row.names = FALSE)
+  
+  ### now everything is confirmed so let's begin the analysis
+  downsampled_seurat_obj$R4C8 <- "Others"
+  downsampled_seurat_obj$R4C8[which(as.character(downsampled_seurat_obj$monocle_state) == "C")] <- "C"
+  
+  ### set idents
+  downsampled_seurat_obj <- SetIdent(object = downsampled_seurat_obj,
+                                     cells = rownames(downsampled_seurat_obj@meta.data),
+                                     value = downsampled_seurat_obj$R4C8)
+  
+  ### State B vs Others
+  de_result <- FindMarkers(downsampled_seurat_obj,
+                           ident.1 = "C",
+                           ident.2 = "Others",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/4_DE_StateC_vs_Others.xlsx"),
+              sheetName = "4_DE_StateC_vs_Others", row.names = FALSE)
+  
+  
+  
   
   
   
