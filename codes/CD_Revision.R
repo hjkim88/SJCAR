@@ -16,6 +16,10 @@
 #               4. R4C7 & R4C8
 #                  expression of CASP8 was highest in state B relative to all other states (Fig 3C)". Is it significant?
 #                  higher relative expression of TOX and LAG3. Is it significant? - State C
+#               5. R4C11
+#                  Why were TIGIT, SELL and CD27 selected? According to the supplementary data file, they are not the most
+#                  differentially expressed genes between the groups. What's the prediction accuracy of using only these 3 genes
+#                  as features in the SVM classifier analysis?
 #
 #               
 #   Instruction
@@ -64,6 +68,14 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   if(!require(gridExtra, quietly = TRUE)) {
     install.packages("gridExtra")
     require(gridExtra, quietly = TRUE)
+  }
+  if(!require(caret, quietly = TRUE)) {
+    install.packages("caret")
+    require(caret, quietly = TRUE)
+  }
+  if(!require(pROC, quietly = TRUE)) {
+    install.packages("pROC")
+    require(pROC, quietly = TRUE)
   }
   
   # ******************************************************************************************
@@ -804,7 +816,80 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   ### See violin plots of the marker genes in each group - PB vs BM
   ### Wk4 & 3mo data only
   
+  ### what are the clusters in Wk4 & 3mo?
+  ### all the clusters except 21
+  print(unique(JCC_Seurat_Obj$AllSeuratClusters[which(JCC_Seurat_Obj$time2 %in% c("Wk4", "3mo"))]))
   
+  ### dotplot/violin plot similar to Fig1D but PB/BM separated
+  ### if there is a lot difference between PB and BM, that would be a problem
+  ### meaning one cell type if driving the difference
+  
+  ### replicate Fig1D
+  interesting_genes2 <- c("RPL32", "RPL30", "LAG3", "TOX", "CASP8", "IL7R", "SELL", "BNIP3", "MKI67",
+                          "CDC20", "CDK1", "NKG7", "GNLY", "GZMH", "GZMM", "GZMK")
+  p <- DotPlot(JCC_Seurat_Obj,
+               features = interesting_genes2,
+               group.by = "New_Functional_Annotation_Based_On_Clusters") +
+    scale_size(range = c(5, 35)) +
+    xlab("") +
+    ylab("") +
+    scale_color_gradientn(colours = c("#487A8F", "#C09969", "#AA4C26")) +
+    guides(color = guide_colorbar(title = "Relative Expression")) +
+    theme_classic(base_size = 28) +
+    theme(plot.title = element_text(hjust = 0.5, color = "black", face = "bold"),
+          axis.text.x = element_text(angle = -45, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text.y = element_text(angle = 0, size = 35, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"),
+          legend.key.size = unit(0.7, 'cm'))
+  
+  ### label the groups with PB/BM
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters2 <- paste0(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters,
+                                                                        "_", JCC_Seurat_Obj$tissue)
+  
+  ### choose Wk4/3mo cells only
+  temp_obj <- subset(JCC_Seurat_Obj,
+                     cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$time2 %in% c("Wk4", "3mo"))])
+  
+  ### make an order in the column
+  temp_obj$New_Functional_Annotation_Based_On_Clusters2 <- factor(temp_obj$New_Functional_Annotation_Based_On_Clusters2)
+  
+  ### dotplot with PB and BM separately
+  p <- DotPlot(temp_obj,
+               features = interesting_genes2,
+               group.by = "New_Functional_Annotation_Based_On_Clusters2") +
+    scale_size(range = c(5, 20)) +
+    xlab("") +
+    ylab("") +
+    scale_color_gradientn(colours = c("#487A8F", "#C09969", "#AA4C26")) +
+    guides(color = guide_colorbar(title = "Relative Expression")) +
+    theme_classic(base_size = 28) +
+    theme(plot.title = element_text(hjust = 0.5, color = "black", face = "bold"),
+          axis.text.x = element_text(angle = -45, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text.y = element_text(angle = 0, size = 35, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"),
+          legend.key.size = unit(0.7, 'cm'))
+  ggsave(file = paste0(outputDir, "3_Dotplot_PB_BM.png"),
+         plot = p, width = 25, height = 10, dpi = 350)
+  
+  ### violin plot with PB and BM separately
+  temp_obj <- SetIdent(object = temp_obj,
+                       cells = rownames(temp_obj@meta.data),
+                       value = temp_obj$New_Functional_Annotation_Based_On_Clusters2)
+  p <- VlnPlot(temp_obj, features = interesting_genes2, pt.size = 0)
+  for(i in 1:length(interesting_genes2)) {
+    p[[i]] <- p[[i]] + geom_boxplot(width=0.1) +
+      xlab("") +
+      theme_classic() +
+      theme(axis.text = element_text(angle = 90, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
+            legend.position = "none")
+  }
+  
+  ### save the violin plot
+  ggsave(file = paste0(outputDir, "3_Violin_PB_BM.png"), plot = p, width = 20, height = 15, dpi = 350)
   
   
   ###
@@ -953,6 +1038,126 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
                          stringsAsFactors = FALSE, check.names = FALSE),
               file = paste0(outputDir, "/4_DE_StateC_vs_Others.xlsx"),
               sheetName = "4_DE_StateC_vs_Others", row.names = FALSE)
+  
+  
+  ###
+  ### 5. R4C11
+  #      Why were TIGIT, SELL and CD27 selected? According to the supplementary data file, they are not the most
+  #      differentially expressed genes between the groups. What's the prediction accuracy of using only these 3 genes
+  #      as features in the SVM classifier analysis?
+  ###
+  
+  #'******************************************************************************
+  #' A function to transform RNA-Seq data with VST in DESeq2 package
+  #' readCount: RNA-Seq rawcounts in a matrix or in a data frame form
+  #'            Rows are genes and columns are samples
+  #' filter_thresh: The function filters out genes that have at least one sample
+  #'                with counts larger than the 'filter_thresh' value
+  #'                e.g., if the 'filter_thresh' = 1, then it removes genes
+  #'                that have counts <= 1 across all the samples
+  #'                if 0, then there will be no filtering
+  #'******************************************************************************
+  normalizeRNASEQwithVST <- function(readCount, filter_thresh=1) {
+    
+    ### load library
+    if(!require(DESeq2, quietly = TRUE)) {
+      if(!requireNamespace("BiocManager", quietly = TRUE))
+        install.packages("BiocManager")
+      BiocManager::install("DESeq2")
+      require(DESeq2, quietly = TRUE)
+    }
+    
+    ### make a design matrix for DESeq2 data
+    condition <- data.frame(factor(rep("OneClass", ncol(readCount))))
+    
+    ### Data preparation for DESeq2 format
+    deSeqData <- DESeqDataSetFromMatrix(countData=readCount, colData=condition, design= ~0)
+    
+    if(filter_thresh > 0) {
+      ### Remove rubbish rows - this will decrease the number of rows
+      keep = apply(counts(deSeqData), 1, function(r){
+        return(sum(r > filter_thresh) > 0)
+      })
+      deSeqData <- deSeqData[keep,]
+    }
+    
+    ### VST
+    vsd <- varianceStabilizingTransformation(deSeqData)
+    transCnt <- data.frame(assay(vsd), check.names = FALSE)
+    
+    return (transCnt)
+    
+  }
+  
+  ### parameter setting for a classifier
+  iteration <- 10
+  set.seed(4321)
+  sampleNum <- 100
+  genes <- c("TIGIT", "SELL", "CD27")
+  methodTypes <- "svmRadial"
+  methodNames <- "SVMRadial"
+  train_control <- trainControl(method="LOOCV", classProbs = TRUE, savePredictions = TRUE, verboseIter = FALSE)
+  
+  ### rownames in the meta.data should be in the same order as colnames in the counts
+  print(identical(rownames(JCC_Seurat_Obj@meta.data), colnames(JCC_Seurat_Obj@assays$RNA@counts)))
+  
+  ### iteratively build a classifier
+  p <- vector("list", length = iteration)
+  acc <- NULL
+  auc <- NULL
+  for(i in 1:iteration) {
+    
+    ### normalize the read counts
+    ### before the normalization, only keep the samples that will be used in the classifier
+    input_data <- normalizeRNASEQwithVST(readCount = data.frame(JCC_Seurat_Obj@assays$RNA@counts[genes,
+                                                                                                 c(sample(which(JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"), sampleNum),
+                                                                                                   sample(which(JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "Other_CD8_GMPs"), sampleNum))],
+                                                                stringsAsFactors = FALSE, check.names = FALSE)+1,
+                                         filter_thresh = 0)
+    
+    # ### reduce the gene size based on variance
+    # ### only select high variance genes
+    # input_data <- selectTopV(input_data, featureSelectionNum)
+    
+    ### annotate class for the input data
+    input_data <- data.frame(t(input_data), stringsAsFactors = FALSE, check.names = FALSE)
+    input_data$Class <- factor(c(rep("GMP_Last", sampleNum),
+                                 rep("GMP_Not_Last", sampleNum)),
+                               levels = c("GMP_Last", "GMP_Not_Last"))
+    
+    ### build classifier and test
+    ### LOOCV
+    model <- train(Class~., data=input_data, trControl=train_control, method=methodTypes[j])
+    roc <- roc(model$pred$obs, model$pred$GMP_Last)
+    acc <- c(acc, round(mean(model$results$Accuracy), 3))
+    auc <- c(auc, round(as.numeric(roc$auc), 3))
+    p[[i]] <- plot.roc(roc, main = paste(methodNames, "Using Gene Expressions\n",
+                                         "Accuracy =", acc[i]),
+                       legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+                       xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+    gc()
+    
+  }
+  
+  ### draw ROC curves
+  png(paste0(outputDir, "5_Classifier_GMP_Precursor_vs_Other_CD8_GMP_3_genes.png"),
+      width = 2000, height = 2000, res = 350)
+  par(mfrow=c(4, 3))
+  for(i in 1:iteration) {
+    plot.roc(p[[i]], main = paste(methodNames, "Using Gene Expressions\n",
+                                  "Accuracy =", acc[i]),
+             legacy.axes = TRUE, print.auc = TRUE, auc.polygon = TRUE,
+             xlim = c(1,0), ylim = c(0,1), grid = TRUE, cex.main = 1)
+  }
+  dev.off()
+  
+  ### print average ACC and AUC
+  print(paste0("3-Gene-Classifier Avearge ACC: ", mean(acc), " Average AUC: ", mean(auc)))
+  
+  
+  
+  
+  
   
   
   
