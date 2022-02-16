@@ -29,6 +29,9 @@ if(!require(xlsx, quietly = TRUE)) {
 ### set variables
 module_score_cut_off <- c(-0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.5, 2)
 input_de_gene_num <- c(3, 5, 10, 20, 30, 50, 100, 200) # TIGIT, SELL, CD27 or all significant DE genes
+nbins <- 50 # default: 24
+nctrl_genes <- 200 # default: 100
+seed <- 1234 # default: 1
 
 ### load Jeremy's object
 JCC_Seurat_Obj <- readRDS(file = "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_data/data/NEW_SJCAR_SEURAT_OBJ/CARpos_JCC.rds")
@@ -181,12 +184,21 @@ test_set <- list()
 test_cnt <- 1
 for(de_gene_num in input_de_gene_num) {
   
+  ### print progress
+  writeLines(paste(de_gene_num))
+  
   ### add module scores
   JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
                                    features = list(rownames(de_result)[which(de_result$avg_log2FC > 0)][1:de_gene_num]),
+                                   nbin = nbins,
+                                   ctrl = nctrl_genes,
+                                   seed = seed,
                                    name="PM_positive")
   JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
                                    features = list(rownames(de_result)[which(de_result$avg_log2FC < 0)][1:de_gene_num]),
+                                   nbin = nbins,
+                                   ctrl = nctrl_genes,
+                                   seed = seed,
                                    name="PM_negative")
   
   ### pairwise factor set
@@ -234,13 +246,13 @@ for(de_gene_num in input_de_gene_num) {
       
       Precursor_Pcnt2[px] <- length(intersect(intersect(which(JCC_Seurat_Obj$px == px),
                                                         which(JCC_Seurat_Obj$time2 == "GMP")),
-                                              which(JCC_Seurat_Obj$PM_positive1 < thresh))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                              which(JCC_Seurat_Obj$PM_negative1 < thresh))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
                                                                                                                      which(JCC_Seurat_Obj$time2 == "GMP")))
       
       Precursor_CD8_Pcnt2[px] <- length(intersect(intersect(which(JCC_Seurat_Obj$px == px),
                                                             which(JCC_Seurat_Obj$time2 == "GMP")),
                                                   intersect(which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"),
-                                                            which(JCC_Seurat_Obj$PM_positive1 < thresh)))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                            which(JCC_Seurat_Obj$PM_negative1 < thresh)))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
                                                                                                                                     intersect(which(JCC_Seurat_Obj$time2 == "GMP"),
                                                                                                                                               which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"))))
       
@@ -290,13 +302,134 @@ for(de_gene_num in input_de_gene_num) {
     test_df$Adj.Pval[which(test_df$Threshold == thresh)] <- p.adjust(test_df$PVal[which(test_df$Threshold == thresh)], method = "BH")
   }
   
+  test_df <- test_df[order(test_df$Adj.Pval),]
+  test_df$DE_Gene_Num <- de_gene_num
+  
   test_set[[test_cnt]] <- test_df
   test_cnt <- test_cnt + 1
 }
+names(test_set) <- de_gene_num
+
+### unlist test_df and order it
+test_df2 <- Reduce(function(d1, d2) rbind(d1, d2), test_set)
+test_df2 <- test_df2[order(test_df2$Adj.Pval),]
+
 
 ### just look at the 3 genes - TIGIT, SELL, CD27
 
+### add module scores
+JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
+                                 features = list(c("TIGIT")),
+                                 nbin = nbins,
+                                 ctrl = nctrl_genes,
+                                 seed = seed,
+                                 name="TIGIT_Module")
+JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
+                                 features = list(c("SELL", "CD27")),
+                                 nbin = nbins,
+                                 ctrl = nctrl_genes,
+                                 seed = seed,
+                                 name="SELL_CD27_Module")
 
+### pairwise factor set
+factor1_list <- c("TIGIT_Pcnt", "TIGIT_CD8_Pcnt",
+                  "SELL_CD27_Pcnt", "SELL_CD27_CD8_Pcnt", "Precursor_Pcnt3", "Precursor_CD8_Pcnt3")
+factor2_list <- c("B_Cell_Recovery_Time", "PeakCAR_ug", "Wk1CAR_ug", "Wk2CAR_ug", "Wk3CAR_ug",
+                  "PeakCAR_ml", "Wk1CAR_ml", "Wk2CAR_ml", "Wk3CAR_ml", "Tumor_Burden")
+test_df3 <- data.frame(Variable1=rep("", length(factor1_list)*length(factor2_list)*length(module_score_cut_off)),
+                       Variable2=rep("", length(factor1_list)*length(factor2_list)*length(module_score_cut_off)),
+                       Threshold=rep("", length(factor1_list)*length(factor2_list)*length(module_score_cut_off)),
+                       Cor=NA,
+                       PVal=NA,
+                       Adj.Pval=NA,
+                       stringsAsFactors = FALSE, check.names = FALSE)
+
+cnt <- 1
+for(thresh in module_score_cut_off) {
+  
+  ### get the percentage
+  TIGIT_Pcnt <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+  names(TIGIT_Pcnt) <- unique(JCC_Seurat_Obj$px)
+  TIGIT_CD8_Pcnt <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+  names(TIGIT_CD8_Pcnt) <- unique(JCC_Seurat_Obj$px)
+  SELL_CD27_Pcnt <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+  names(SELL_CD27_Pcnt) <- unique(JCC_Seurat_Obj$px)
+  SELL_CD27_CD8_Pcnt <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+  names(SELL_CD27_CD8_Pcnt) <- unique(JCC_Seurat_Obj$px)
+  Precursor_Pcnt3 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+  names(Precursor_Pcnt3) <- unique(JCC_Seurat_Obj$px)
+  Precursor_CD8_Pcnt3 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+  names(Precursor_CD8_Pcnt3) <- unique(JCC_Seurat_Obj$px)
+  
+  for(px in unique(JCC_Seurat_Obj$px)) {
+    TIGIT_Pcnt[px] <- length(intersect(intersect(which(JCC_Seurat_Obj$px == px),
+                                                 which(JCC_Seurat_Obj$time2 == "GMP")),
+                                       which(JCC_Seurat_Obj$TIGIT_Module1 > thresh))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                               which(JCC_Seurat_Obj$time2 == "GMP")))
+    
+    TIGIT_CD8_Pcnt[px] <- length(intersect(intersect(which(JCC_Seurat_Obj$px == px),
+                                                     which(JCC_Seurat_Obj$time2 == "GMP")),
+                                           intersect(which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"),
+                                                     which(JCC_Seurat_Obj$TIGIT_Module1 > thresh)))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                              intersect(which(JCC_Seurat_Obj$time2 == "GMP"),
+                                                                                                                                        which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"))))
+    
+    SELL_CD27_Pcnt[px] <- length(intersect(intersect(which(JCC_Seurat_Obj$px == px),
+                                                     which(JCC_Seurat_Obj$time2 == "GMP")),
+                                           which(JCC_Seurat_Obj$SELL_CD27_Module1 < thresh))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                       which(JCC_Seurat_Obj$time2 == "GMP")))
+    
+    SELL_CD27_CD8_Pcnt[px] <- length(intersect(intersect(which(JCC_Seurat_Obj$px == px),
+                                                         which(JCC_Seurat_Obj$time2 == "GMP")),
+                                               intersect(which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"),
+                                                         which(JCC_Seurat_Obj$SELL_CD27_Module1 < thresh)))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                      intersect(which(JCC_Seurat_Obj$time2 == "GMP"),
+                                                                                                                                                which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"))))
+    
+    Precursor_Pcnt3[px] <- (TIGIT_Pcnt[px] + SELL_CD27_Pcnt[px]) / 2
+    Precursor_CD8_Pcnt3[px] <- (TIGIT_CD8_Pcnt[px] + SELL_CD27_CD8_Pcnt[px]) / 2
+    
+  }
+  
+  plot_df <- data.frame(Patient=names(peakcar_ug),
+                        TIGIT_Pcnt=as.numeric(TIGIT_Pcnt[names(peakcar_ug)]),
+                        TIGIT_CD8_Pcnt=as.numeric(TIGIT_CD8_Pcnt[names(peakcar_ug)]),
+                        SELL_CD27_Pcnt=as.numeric(SELL_CD27_Pcnt[names(peakcar_ug)]),
+                        SELL_CD27_CD8_Pcnt=as.numeric(SELL_CD27_CD8_Pcnt[names(peakcar_ug)]),
+                        Precursor_Pcnt3=as.numeric(Precursor_Pcnt3[names(peakcar_ug)]),
+                        Precursor_CD8_Pcnt3=as.numeric(Precursor_CD8_Pcnt3[names(peakcar_ug)]),
+                        B_Cell_Recovery_Time=as.numeric(b_cell_recovery_time[names(peakcar_ug)]),
+                        PeakCAR_ug=as.numeric(peakcar_ug),
+                        Wk1CAR_ug=as.numeric(wk1car_ug[names(peakcar_ug)]),
+                        Wk2CAR_ug=as.numeric(wk2car_ug[names(peakcar_ug)]),
+                        Wk3CAR_ug=as.numeric(wk3car_ug[names(peakcar_ug)]),
+                        PeakCAR_ml=as.numeric(peakcar_ml),
+                        Wk1CAR_ml=as.numeric(wk1car_ml[names(peakcar_ug)]),
+                        Wk2CAR_ml=as.numeric(wk2car_ml[names(peakcar_ug)]),
+                        Wk3CAR_ml=as.numeric(wk3car_ml[names(peakcar_ug)]),
+                        Tumor_Burden=as.numeric(Tumor_Burden[names(peakcar_ug)]),
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  for(a in factor1_list) {
+    for(b in factor2_list) {
+      x <- as.numeric(plot_df[,a])
+      y <- as.numeric(plot_df[,b])
+      Cor <- round(cor(x, y, method = "spearman", use = "complete.obs"), 2)
+      Cor_PV <- round(cor.test(x, y, method = "spearman", use = "complete.obs")$p.value, 2)
+      
+      test_df3$Variable1[cnt] <- a
+      test_df3$Variable2[cnt] <- b
+      test_df3$Threshold[cnt] <- thresh
+      test_df3$Cor[cnt] <- Cor
+      test_df3$PVal[cnt] <- Cor_PV
+      
+      cnt <- cnt + 1
+    }
+  }
+  
+  test_df3$Adj.Pval[which(test_df3$Threshold == thresh)] <- p.adjust(test_df3$PVal[which(test_df3$Threshold == thresh)], method = "BH")
+}
+test_df3 <- test_df3[order(test_df3$Adj.Pval),]
 
 
 
