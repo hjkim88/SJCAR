@@ -25,12 +25,16 @@ if(!require(xlsx, quietly = TRUE)) {
   install.packages("xlsx")
   require(xlsx, quietly = TRUE)
 }
+if(!require(ggrepel, quietly = TRUE)) {
+  install.packages("ggrepel")
+  require(ggrepel, quietly = TRUE)
+}
 
 ### set variables
 module_score_cut_off <- c(-0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.5, 2)
 input_de_gene_num <- c(3, 5, 10, 20, 30, 50, 100, 200) # TIGIT, SELL, CD27 or all significant DE genes
-nbins <- 50 # default: 24
-nctrl_genes <- 200 # default: 100
+nbins <- 24 # default: 24
+nctrl_genes <- 100 # default: 100
 seed <- 1234 # default: 1
 
 ### load Jeremy's object
@@ -94,6 +98,52 @@ names(wk2car_ml) <- c("SJCAR19-01", "SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "S
 names(wk3car_ml) <- c("SJCAR19-01", "SJCAR19-02", "SJCAR19-03", "SJCAR19-04", "SJCAR19-05",
                       "SJCAR19-06", "SJCAR19-07", "SJCAR19-08", "SJCAR19-09", "SJCAR19-10",
                       "SJCAR19-11", "SJCAR19-13", "SJCAR19-14", "SJCAR19-15")
+
+### pairs add-ons
+panel.hist <- function(x, ...) {
+  usr <- par("usr")
+  on.exit(par(usr))
+  par(usr = c(usr[1:2], 0, 1.5))
+  his <- hist(x, plot = FALSE)
+  breaks <- his$breaks
+  nB <- length(breaks)
+  y <- his$counts
+  y <- y/max(y)
+  rect(breaks[-nB], 0, breaks[-1], y, col = "#D39F3A", ...)
+  # lines(density(x), col = 2, lwd = 2) # Uncomment to add density lines
+}
+panel.lm =  function (x, y, col = par("col"), bg = NA, pch = par("pch"), 
+                      cex = 1, col.smooth = "#487A8F", span = 2/3, iter = 3, ...)  {
+  reg <- function(x, y, col) abline(lm(y~x), col=col)
+  points(x, y, pch = pch, col = col, bg = bg, cex = cex)
+  ok <- is.finite(x) & is.finite(y)
+  Cor_PV <- round(cor.test(x, y, method = "spearman", use = "complete.obs")$p.value, 2)
+  if(!is.na(Cor_PV)) {
+    if(Cor_PV < 0.05) col.smooth = "red"
+    if (any(ok)) reg(x[ok], y[ok], col.smooth)
+  }
+}
+panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...) {
+  usr <- par("usr")
+  on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  Cor <- cor(x, y, method = "spearman", use = "complete.obs")
+  Cor_PV <- round(cor.test(x, y, method = "spearman", use = "complete.obs")$p.value, 2)
+  if(!is.na(Cor_PV)) {
+    txt <- paste0(prefix, format(c(Cor, 0.123456789), digits = digits)[1])
+    if(missing(cex.cor)) {
+      cex.cor <- 0.4 / strwidth(txt)
+    }
+    if(Cor_PV < 0.05) {
+      text(0.5, 0.5, paste0("r=", txt, "\np=", Cor_PV),
+           cex = 1 + cex.cor * abs(Cor),
+           col = "red")
+    } else {
+      text(0.5, 0.5, paste0("r=", txt, "\np=", Cor_PV),
+           cex = 0.8 + cex.cor * abs(Cor))
+    }
+  }
+}
 
 ### CD4/CD8 annotation
 JCC_Seurat_Obj$CD4_CD8_by_Clusters <- "NA"
@@ -300,6 +350,16 @@ for(de_gene_num in input_de_gene_num) {
     }
     
     test_df$Adj.Pval[which(test_df$Threshold == thresh)] <- p.adjust(test_df$PVal[which(test_df$Threshold == thresh)], method = "BH")
+    
+    ### Multiple correlation plots
+    pdf(file = paste0("./results/New3/Manuscript/Module_Score_Correlations/Original_Cors_pairwise_plot_", de_gene_num, "_", thresh, ".pdf"), width = 20, height = 15)
+    pairs(data=plot_df,
+          ~TIGIT_Cell_Num + TIGIT_CD8_Cell_Num + Precursor_Pcnt + Precursor_CD8_Pcnt + Precursor_Pcnt2 +
+            Precursor_CD8_Pcnt2 + Precursor_Pcnt3 + Precursor_CD8_Pcnt3 + B_Cell_Recovery_Time + PeakCAR_ug + PeakCAR_ml +
+            Wk1CAR_ug + Wk2CAR_ug + Wk3CAR_ug + Wk1CAR_ml + Wk2CAR_ml + Wk3CAR_ml + Tumor_Burden,
+          upper.panel = panel.lm, lower.panel = panel.cor, diag.panel = panel.hist,
+          font.labels = 2, pch = 19)
+    dev.off()
   }
   
   test_df <- test_df[order(test_df$Adj.Pval),]
@@ -430,6 +490,357 @@ for(thresh in module_score_cut_off) {
   test_df3$Adj.Pval[which(test_df3$Threshold == thresh)] <- p.adjust(test_df3$PVal[which(test_df3$Threshold == thresh)], method = "BH")
 }
 test_df3 <- test_df3[order(test_df3$Adj.Pval),]
+
+### write out
+saveRDS(test_df2, file = "./Original_Cors.rds")
+saveRDS(test_df3, file = "./Only_3_Cors.rds")
+write.xlsx2(test_df2, file = "./Original_Cors.xlsx", row.names = FALSE)
+write.xlsx2(test_df3, file = "./Only_3_Cors.xlsx", row.names = FALSE)
+
+### distribution
+pdf(file = paste0("./Original_Cors_positive_distribution.pdf"), width = 10, height = 10)
+plot(density(JCC_Seurat_Obj$PM_positive1[which(JCC_Seurat_Obj$time2 == "GMP")]),
+     main = "Precursor_Module_Score_Positive")
+dev.off()
+pdf(file = paste0("./Original_Cors_negative_distribution.pdf"), width = 10, height = 10)
+plot(density(JCC_Seurat_Obj$PM_negative1[which(JCC_Seurat_Obj$time2 == "GMP")]),
+     main = "Precursor_Module_Score_Negative")
+dev.off()
+
+pdf(file = paste0("./Only_3_Cors_positive_distribution.pdf"), width = 10, height = 10)
+plot(density(JCC_Seurat_Obj$TIGIT_Module1[which(JCC_Seurat_Obj$time2 == "GMP")]),
+     main = "Precursor_Module_Score_Positive")
+dev.off()
+pdf(file = paste0("./Only_3_Cors_negative_distribution.pdf"), width = 10, height = 10)
+plot(density(JCC_Seurat_Obj$SELL_CD27_Module1[which(JCC_Seurat_Obj$time2 == "GMP")]),
+     main = "Precursor_Module_Score_Negative")
+dev.off()
+
+
+### subset GMP cells only and calculate the module scores
+### is there a difference with calculating with all the cells?
+### compare the distribution to the result from PI only?
+
+### subset the object into GMP only and PI only
+GMP_Seurat_Obj <- subset(JCC_Seurat_Obj,
+                         cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$GMP == "GMP")])
+PI_Seurat_Obj <- subset(JCC_Seurat_Obj,
+                        cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$GMP == "PI")])
+
+### calculate module scores
+JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
+                                 features = list(rownames(de_result)[which(de_result$avg_log2FC > 0)][1:20]),
+                                 nbin = nbins,
+                                 ctrl = nctrl_genes,
+                                 seed = seed,
+                                 name="Precursor_Pcnt")
+
+GMP_Seurat_Obj <- AddModuleScore(GMP_Seurat_Obj,
+                                 features = list(rownames(de_result)[which(de_result$avg_log2FC > 0)][1:20]),
+                                 nbin = nbins,
+                                 ctrl = nctrl_genes,
+                                 seed = seed,
+                                 name="Precursor_Pcnt")
+
+PI_Seurat_Obj <- AddModuleScore(PI_Seurat_Obj,
+                                features = list(rownames(de_result)[which(de_result$avg_log2FC > 0)][1:20]),
+                                nbin = nbins,
+                                ctrl = nctrl_genes,
+                                seed = seed,
+                                name="Precursor_Pcnt")
+
+pdf(file = paste0("./results/New3/Manuscript/Module_Score_Tests/GMP_From_All_Module_Score_Positive_Distribution.pdf"), width = 10, height = 10)
+plot(density(JCC_Seurat_Obj$Precursor_Pcnt1[which(JCC_Seurat_Obj$GMP == "GMP")]),
+     main = "GMP_From_All_Precursor_Module_Score_Positive")
+dev.off()
+
+pdf(file = paste0("./results/New3/Manuscript/Module_Score_Tests/GMP_Only_Module_Score_Positive_Distribution.pdf"), width = 10, height = 10)
+plot(density(GMP_Seurat_Obj$Precursor_Pcnt1[which(GMP_Seurat_Obj$GMP == "GMP")]),
+     main = "GMP_ONLY_Precursor_Module_Score_Positive")
+dev.off()
+
+pdf(file = paste0("./results/New3/Manuscript/Module_Score_Tests/PI_Only_Module_Score_Positive_Distribution.pdf"), width = 10, height = 10)
+plot(density(PI_Seurat_Obj$Precursor_Pcnt1[which(PI_Seurat_Obj$GMP == "PI")]),
+     main = "PI_ONLY_Precursor_Module_Score_Positive")
+dev.off()
+
+a <- JCC_Seurat_Obj$Precursor_Pcnt1[which(JCC_Seurat_Obj$GMP == "GMP")]
+b <- GMP_Seurat_Obj$Precursor_Pcnt1[which(GMP_Seurat_Obj$GMP == "GMP")]
+identical(names(a), names(b))
+cor(a, b)
+identical(a, b)
+mean(a)
+mean(b)
+
+### why length(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+###                      which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% cluster38_pi_subsister_clones)))
+### and length(which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "PI_Subsisters_In_Cluster_3_And_8"))
+### are different? 321 vs 291
+### ANSWER: In the first one, those clones can be also in other PI clusters but the second one is only in PI cluster3&8
+
+
+### GMP effector precursor proportion correlates with the proportion of effectors post infusion
+PI_Effector_Pcnt <- sapply(unique(JCC_Seurat_Obj$px), function(x) {
+  return(length(intersect(which(JCC_Seurat_Obj$px == x),
+                          which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "PI_Subsisters_In_Cluster_3_And_8"))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == x),
+                                                                                                                                                    which(JCC_Seurat_Obj$GMP == "PI"))))
+})
+
+### calculate module score
+JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
+                                 features = list(rownames(de_result)[which(de_result$avg_log2FC > 0)][1:20]),
+                                 nbin = nbins,
+                                 ctrl = nctrl_genes,
+                                 seed = seed,
+                                 name="Precursor_Pcnt")
+JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
+                                 features = list(rownames(de_result)[which(de_result$avg_log2FC < 0)][1:20]),
+                                 nbin = nbins,
+                                 ctrl = nctrl_genes,
+                                 seed = seed,
+                                 name="Precursor_Pcnt2")
+
+### positive
+Avg_Pos_Module_Score <- sapply(unique(JCC_Seurat_Obj$px), function(x) {
+  return(mean(JCC_Seurat_Obj$Precursor_Pcnt1[intersect(which(JCC_Seurat_Obj$px == x),
+                                                       which(JCC_Seurat_Obj$GMP == "GMP"))]))
+})
+Avg_Neg_Module_Score <- sapply(unique(JCC_Seurat_Obj$px), function(x) {
+  return(mean(JCC_Seurat_Obj$Precursor_Pcnt21[intersect(which(JCC_Seurat_Obj$px == x),
+                                                        which(JCC_Seurat_Obj$GMP == "GMP"))]))
+})
+
+### draw the correlation plot
+plot_df <- data.frame(Patient=names(PI_Effector_Pcnt),
+                      PI_Effector_Pcnt=PI_Effector_Pcnt,
+                      Avg_Pos_Module_Score=Avg_Pos_Module_Score,
+                      Avg_Neg_Module_Score=Avg_Neg_Module_Score,
+                      stringsAsFactors = FALSE, check.names = FALSE)
+### positive
+p_cor <- round(cor(plot_df$PI_Effector_Pcnt,
+                   plot_df$Avg_Pos_Module_Score, method = "spearman", use = "complete.obs"), 2)
+pv <- round(cor.test(plot_df$PI_Effector_Pcnt,
+                     plot_df$Avg_Pos_Module_Score, method = "spearman", use = "complete.obs")$p.value, 2)
+p <- ggplot(data = plot_df, aes(x=PI_Effector_Pcnt, y=Avg_Pos_Module_Score)) +
+  geom_point(col = "#487A8F", size = 8) +
+  labs(title = paste0("Spearman Correlation:", p_cor),
+       subtitle = paste0("P.Val:", pv)) +
+  xlab("Average_Positive_Module_Score") +
+  ylab("PI_Effector_Precursor_Pcnt") +
+  geom_label_repel(aes(label = Patient),
+                   size = 5,
+                   col = "#3B3B53",
+                   segment.color = "#3B3B53") +
+  # geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+  theme_classic(base_size = 40) +
+  theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 30, color = "black", face = "bold"),
+        plot.subtitle = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+        axis.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+        axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"))
+ggsave(file = paste0("./results/New3/Manuscript/Cor_Avg_Pos_MS_vs_PI_Effect_Prcs_Pcnt.pdf"), plot = p, width = 12, height = 10, dpi = 400)
+
+### negative
+p_cor <- round(cor(plot_df$PI_Effector_Pcnt,
+                   plot_df$Avg_Neg_Module_Score, method = "spearman", use = "complete.obs"), 2)
+pv <- round(cor.test(plot_df$PI_Effector_Pcnt,
+                     plot_df$Avg_Neg_Module_Score, method = "spearman", use = "complete.obs")$p.value, 2)
+p <- ggplot(data = plot_df, aes(x=PI_Effector_Pcnt, y=Avg_Neg_Module_Score)) +
+  geom_point(col = "#487A8F", size = 8) +
+  labs(title = paste0("Spearman Correlation:", p_cor),
+       subtitle = paste0("P.Val:", pv)) +
+  xlab("Average_Negative_Module_Score") +
+  ylab("PI_Effector_Precursor_Pcnt") +
+  geom_label_repel(aes(label = Patient),
+                   size = 5,
+                   col = "#3B3B53",
+                   segment.color = "#3B3B53") +
+  # geom_smooth(method = lm, color="#AA4C26", se=TRUE) +
+  theme_classic(base_size = 40) +
+  theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 30, color = "black", face = "bold"),
+        plot.subtitle = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+        axis.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+        axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"))
+ggsave(file = paste0("./results/New3/Manuscript/Cor_Avg_Neg_MS_vs_PI_Effect_Prcs_Pcnt.pdf"), plot = p, width = 12, height = 10, dpi = 400)
+
+### look at the correlations of average values
+plot_df <- data.frame(Patient=names(peakcar_ug),
+                      Avg_Pos_Module_Score=Avg_Pos_Module_Score[names(peakcar_ug)],
+                      Avg_Neg_Module_Score=Avg_Neg_Module_Score[names(peakcar_ug)],
+                      B_Cell_Recovery_Time=as.numeric(b_cell_recovery_time[names(peakcar_ug)]),
+                      PeakCAR_ug=as.numeric(peakcar_ug),
+                      Wk1CAR_ug=as.numeric(wk1car_ug[names(peakcar_ug)]),
+                      Wk2CAR_ug=as.numeric(wk2car_ug[names(peakcar_ug)]),
+                      Wk3CAR_ug=as.numeric(wk3car_ug[names(peakcar_ug)]),
+                      PeakCAR_ml=as.numeric(peakcar_ml),
+                      Wk1CAR_ml=as.numeric(wk1car_ml[names(peakcar_ug)]),
+                      Wk2CAR_ml=as.numeric(wk2car_ml[names(peakcar_ug)]),
+                      Wk3CAR_ml=as.numeric(wk3car_ml[names(peakcar_ug)]),
+                      Tumor_Burden=as.numeric(Tumor_Burden[names(peakcar_ug)]),
+                      stringsAsFactors = FALSE, check.names = FALSE)
+
+pdf(file = paste0("./results/New3/Manuscript/Module_Score_Correlations/Original_Cors_pairwise_plot_20_Avg.pdf"), width = 20, height = 15)
+pairs(data=plot_df,
+      ~Avg_Pos_Module_Score + Avg_Neg_Module_Score + B_Cell_Recovery_Time + PeakCAR_ug + PeakCAR_ml +
+        Wk1CAR_ug + Wk2CAR_ug + Wk3CAR_ug + Wk1CAR_ml + Wk2CAR_ml + Wk3CAR_ml + Tumor_Burden,
+      upper.panel = panel.lm, lower.panel = panel.cor, diag.panel = panel.hist,
+      font.labels = 2, pch = 19)
+dev.off()
+
+### correlation with PI (Wk2/Peak weak) and average module scores
+peak_time <- rep(NA, length(unique(JCC_Seurat_Obj$px)))
+names(peak_time) <- unique(JCC_Seurat_Obj$px)
+peak_time["SJCAR19-01"] <- "Wk2"
+peak_time["SJCAR19-02"] <- "Wk2"
+peak_time["SJCAR19-03"] <- "Wk1"
+peak_time["SJCAR19-04"] <- "Wk2"
+peak_time["SJCAR19-05"] <- "Wk1"
+peak_time["SJCAR19-06"] <- "Wk2"
+peak_time["SJCAR19-07"] <- "Wk3"
+peak_time["SJCAR19-08"] <- "Wk2"
+peak_time["SJCAR19-09"] <- "Wk2"
+peak_time["SJCAR19-10"] <- "Wk1"
+peak_time["SJCAR19-11"] <- "Wk2"
+peak_time["SJCAR19-13"] <- "Wk2"
+peak_time["SJCAR19-14"] <- "Wk1"
+peak_time["SJCAR19-15"] <- "Wk1"
+
+wk2_precursor_pcnt <- sapply(unique(JCC_Seurat_Obj$px), function(x) {
+  return(length(intersect(intersect(which(JCC_Seurat_Obj$px == x),
+                                    which(JCC_Seurat_Obj$time2 == "Wk2")),
+                          union(which(JCC_Seurat_Obj$AllSeuratClusters == "3"),
+                                which(JCC_Seurat_Obj$AllSeuratClusters == "8")))) / length(intersect(which(JCC_Seurat_Obj$px == x),
+                                                                                                     which(JCC_Seurat_Obj$time2 == "Wk2"))))
+})
+
+peaktime_precursor_pcnt <- sapply(unique(JCC_Seurat_Obj$px), function(x) {
+  if(is.na(peak_time[x])) {
+    return(NA)
+  } else {
+    return(length(intersect(intersect(which(JCC_Seurat_Obj$px == x),
+                                      which(JCC_Seurat_Obj$time2 == peak_time[x])),
+                            union(which(JCC_Seurat_Obj$AllSeuratClusters == "3"),
+                                  which(JCC_Seurat_Obj$AllSeuratClusters == "8")))) / length(intersect(which(JCC_Seurat_Obj$px == x),
+                                                                                                       which(JCC_Seurat_Obj$time2 == peak_time[x]))))
+  }
+})
+
+plot_df <- data.frame(Patient=names(peakcar_ug),
+                      Avg_Pos_Module_Score=Avg_Pos_Module_Score[names(peakcar_ug)],
+                      Avg_Neg_Module_Score=Avg_Neg_Module_Score[names(peakcar_ug)],
+                      wk2_precursor_pcnt=wk2_precursor_pcnt[names(peakcar_ug)],
+                      peaktime_precursor_pcnt=peaktime_precursor_pcnt[names(peakcar_ug)],
+                      B_Cell_Recovery_Time=as.numeric(b_cell_recovery_time[names(peakcar_ug)]),
+                      PeakCAR_ug=as.numeric(peakcar_ug),
+                      Wk1CAR_ug=as.numeric(wk1car_ug[names(peakcar_ug)]),
+                      Wk2CAR_ug=as.numeric(wk2car_ug[names(peakcar_ug)]),
+                      Wk3CAR_ug=as.numeric(wk3car_ug[names(peakcar_ug)]),
+                      PeakCAR_ml=as.numeric(peakcar_ml),
+                      Wk1CAR_ml=as.numeric(wk1car_ml[names(peakcar_ug)]),
+                      Wk2CAR_ml=as.numeric(wk2car_ml[names(peakcar_ug)]),
+                      Wk3CAR_ml=as.numeric(wk3car_ml[names(peakcar_ug)]),
+                      Tumor_Burden=as.numeric(Tumor_Burden[names(peakcar_ug)]),
+                      stringsAsFactors = FALSE, check.names = FALSE)
+
+pdf(file = paste0("./results/New3/Manuscript/Module_Score_Correlations/Wk2_Peaktime_effector_correlations.pdf"), width = 20, height = 15)
+pairs(data=plot_df,
+      ~Avg_Pos_Module_Score + Avg_Neg_Module_Score + wk2_precursor_pcnt + peaktime_precursor_pcnt +
+        B_Cell_Recovery_Time + PeakCAR_ug + PeakCAR_ml +
+        Wk1CAR_ug + Wk2CAR_ug + Wk3CAR_ug + Wk1CAR_ml + Wk2CAR_ml + Wk3CAR_ml + Tumor_Burden,
+      upper.panel = panel.lm, lower.panel = panel.cor, diag.panel = panel.hist,
+      font.labels = 2, pch = 19)
+dev.off()
+
+
+
+### If we split our pre-cursor effectors into those that first appear in cluster 3 versus those that first appear in cluster 8, what do the numbers look like?
+### if we split the effector precursors into those that first end up in cluster 3 vs those that first end up in cluster 8. if we have sufficient lineages, we might want to look at DEGs between those two subsets of precursors
+
+### set clone types
+only_cluster3_pi_subsister_clones <- setdiff(cluster3_pi_subsister_clones, cluster8_pi_subsister_clones)
+only_cluster8_pi_subsister_clones <- setdiff(cluster8_pi_subsister_clones, cluster3_pi_subsister_clones)
+shared_cluster38_subsister_clones <- intersect(cluster3_pi_subsister_clones, cluster8_pi_subsister_clones)
+names(shared_cluster38_subsister_clones) <- shared_cluster38_subsister_clones
+
+for(clone in names(shared_cluster38_subsister_clones)) {
+  shared_cluster38_subsister_clones[clone] <- NA
+  
+  cluster_list <- JCC_Seurat_Obj$AllSeuratClusters[which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == clone)]
+  time_list <- JCC_Seurat_Obj$time2[which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta == clone)]
+  time_list <- factor(time_list, levels = unique(JCC_Seurat_Obj$time2))
+  
+  cluster_time_df <- data.frame(Cluster=cluster_list,
+                                Time=time_list,
+                                stringsAsFactors = FALSE, check.names = FALSE)
+  cluster_time_df <- cluster_time_df[order(cluster_time_df$Time),]
+  
+  
+  after_gmp_earliest_time <- NULL
+  for(i in 1:nrow(cluster_time_df)) {
+    if((cluster_time_df$Time[i] != "GMP") && ((as.character(cluster_time_df$Cluster[i]) == "3") || (as.character(cluster_time_df$Cluster[i]) == "8"))) {
+      after_gmp_earliest_time <- as.character(time_list[i])
+      break
+    }
+  }
+  
+  after_gmp_earliest_time_idx <- which(as.character(time_list) == after_gmp_earliest_time)
+  
+  if(length(after_gmp_earliest_time_idx) == 1) {
+    shared_cluster38_subsister_clones[clone] <- as.character(cluster_list[names(time_list)[after_gmp_earliest_time_idx]])
+  }
+}
+
+JCC_Seurat_Obj$GMP_Precursor_Effector_Cluster38_First <- NA
+JCC_Seurat_Obj$GMP_Precursor_Effector_Cluster38_First[intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                                which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% only_cluster3_pi_subsister_clones))] <- "GMP_Precursor_Effector_Cluster3_First"
+JCC_Seurat_Obj$GMP_Precursor_Effector_Cluster38_First[intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                                which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% only_cluster8_pi_subsister_clones))] <- "GMP_Precursor_Effector_Cluster8_First"
+JCC_Seurat_Obj$GMP_Precursor_Effector_Cluster38_First[intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                                which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% names(shared_cluster38_subsister_clones)[which(shared_cluster38_subsister_clones == "3")]))] <- "GMP_Precursor_Effector_Cluster3_First"
+JCC_Seurat_Obj$GMP_Precursor_Effector_Cluster38_First[intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                                which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% names(shared_cluster38_subsister_clones)[which(shared_cluster38_subsister_clones == "8")]))] <- "GMP_Precursor_Effector_Cluster8_First"
+JCC_Seurat_Obj$GMP_Precursor_Effector_Cluster38_First[intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                                which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% names(shared_cluster38_subsister_clones)[which(is.na(shared_cluster38_subsister_clones))]))] <- "GMP_Precursor_Effector_Both_First"
+
+### print out some numbers
+print(length(which(JCC_Seurat_Obj$GMP_Precursor_Effector_Cluster38_First == "GMP_Precursor_Effector_Cluster3_First")))
+print(length(which(JCC_Seurat_Obj$GMP_Precursor_Effector_Cluster38_First == "GMP_Precursor_Effector_Cluster8_First")))
+print(length(which(JCC_Seurat_Obj$GMP_Precursor_Effector_Cluster38_First == "GMP_Precursor_Effector_Both_First")))
+
+print(length(only_cluster3_pi_subsister_clones) + length(which(shared_cluster38_subsister_clones == "3")))
+print(length(only_cluster8_pi_subsister_clones) + length(which(shared_cluster38_subsister_clones == "8")))
+print(length(which(is.na(shared_cluster38_subsister_clones))))
+
+sapply(unique(JCC_Seurat_Obj$px), function(x) {length(intersect(which(JCC_Seurat_Obj$px == x),
+                                                                which(JCC_Seurat_Obj$GMP_Precursor_Effector_Cluster38_First == "GMP_Precursor_Effector_Cluster3_First")))})
+sapply(unique(JCC_Seurat_Obj$px), function(x) {length(intersect(which(JCC_Seurat_Obj$px == x),
+                                                                which(JCC_Seurat_Obj$GMP_Precursor_Effector_Cluster38_First == "GMP_Precursor_Effector_Cluster8_First")))})
+sapply(unique(JCC_Seurat_Obj$px), function(x) {length(intersect(which(JCC_Seurat_Obj$px == x),
+                                                                which(JCC_Seurat_Obj$GMP_Precursor_Effector_Cluster38_First == "GMP_Precursor_Effector_Both_First")))})
+
+
+### DE genes between GMP precursor cluster3 first vs cluster8 first
+JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                           cells = rownames(JCC_Seurat_Obj@meta.data),
+                           value = JCC_Seurat_Obj@meta.data$GMP_Precursor_Effector_Cluster38_First)
+de_result <- FindMarkers(JCC_Seurat_Obj,
+                         ident.1 = "GMP_Precursor_Effector_Cluster3_First",
+                         ident.2 = "GMP_Precursor_Effector_Cluster8_First",
+                         min.pct = 0,
+                         logfc.threshold = 0,
+                         test.use = "wilcox")
+
+### write out the DE result
+write.xlsx2(data.frame(Gene=rownames(de_result),
+                       de_result,
+                       stringsAsFactors = FALSE, check.names = FALSE),
+            file = paste0("./results/New3/Manuscript/GMP_Precursor_Effector_Cluster3_First_vs_Cluster8_First.xlsx"),
+            sheetName = "GMP_Precursor_Effector_Cluster3_First_vs_Cluster8_First", row.names = FALSE)
+
+
+
+
+
+
 
 
 
