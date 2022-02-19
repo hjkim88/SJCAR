@@ -29,6 +29,14 @@ if(!require(ggrepel, quietly = TRUE)) {
   install.packages("ggrepel")
   require(ggrepel, quietly = TRUE)
 }
+if(!require(e1071, quietly = TRUE)) {
+  install.packages("e1071")
+  require(e1071, quietly = TRUE)
+}
+if(!require(hydroGOF, quietly = TRUE)) {
+  install.packages("hydroGOF")
+  require(hydroGOF, quietly = TRUE)
+}
 
 ### set variables
 module_score_cut_off <- c(-0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.5, 2)
@@ -170,6 +178,77 @@ for(px in unique(JCC_Seurat_Obj$px)) {
                                                                                                                                     which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))
 }
 
+
+### correlation with PI (Wk2/Peak weak) and average module scores
+peak_time <- rep(NA, length(unique(JCC_Seurat_Obj$px)))
+names(peak_time) <- unique(JCC_Seurat_Obj$px)
+peak_time["SJCAR19-01"] <- "Wk2"
+peak_time["SJCAR19-02"] <- "Wk2"
+peak_time["SJCAR19-03"] <- "Wk1"
+peak_time["SJCAR19-04"] <- "Wk2"
+peak_time["SJCAR19-05"] <- "Wk1"
+peak_time["SJCAR19-06"] <- "Wk2"
+peak_time["SJCAR19-07"] <- "Wk3"
+peak_time["SJCAR19-08"] <- "Wk2"
+peak_time["SJCAR19-09"] <- "Wk2"
+peak_time["SJCAR19-10"] <- "Wk1"
+peak_time["SJCAR19-11"] <- "Wk2"
+peak_time["SJCAR19-13"] <- "Wk2"
+peak_time["SJCAR19-14"] <- "Wk1"
+peak_time["SJCAR19-15"] <- "Wk1"
+
+wk2_effector_cd8_pcnt <- sapply(unique(JCC_Seurat_Obj$px), function(x) {
+  return(length(intersect(intersect(intersect(which(JCC_Seurat_Obj$px == x),
+                                              which(JCC_Seurat_Obj$time2 == "Wk2")),
+                                    which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")),
+                          union(which(JCC_Seurat_Obj$AllSeuratClusters == "3"),
+                                which(JCC_Seurat_Obj$AllSeuratClusters == "8")))) / length(intersect(which(JCC_Seurat_Obj$px == x),
+                                                                                                     intersect(which(JCC_Seurat_Obj$time2 == "Wk2"),
+                                                                                                               which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))))
+})
+
+peaktime_effector_cd8_pcnt <- sapply(unique(JCC_Seurat_Obj$px), function(x) {
+  if(is.na(peak_time[x])) {
+    return(NA)
+  } else {
+    return(length(intersect(intersect(intersect(which(JCC_Seurat_Obj$px == x),
+                                                which(JCC_Seurat_Obj$time2 == peak_time[x])),
+                                      which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")),
+                            union(which(JCC_Seurat_Obj$AllSeuratClusters == "3"),
+                                  which(JCC_Seurat_Obj$AllSeuratClusters == "8")))) / length(intersect(which(JCC_Seurat_Obj$px == x),
+                                                                                                       intersect(which(JCC_Seurat_Obj$time2 == peak_time[x]),
+                                                                                                                 which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))))
+  }
+})
+
+### calculate module score
+JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
+                                 features = list(rownames(de_result)[which(de_result$avg_log2FC > 0)][1:20]),
+                                 nbin = nbins,
+                                 ctrl = nctrl_genes,
+                                 seed = seed,
+                                 name="Precursor_Pcnt")
+JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
+                                 features = list(rownames(de_result)[which(de_result$avg_log2FC < 0)][1:20]),
+                                 nbin = nbins,
+                                 ctrl = nctrl_genes,
+                                 seed = seed,
+                                 name="Precursor_Pcnt2")
+
+### positive
+Avg_Pos_CD8_Module_Score <- sapply(unique(JCC_Seurat_Obj$px), function(x) {
+  return(mean(JCC_Seurat_Obj$Precursor_Pcnt1[intersect(which(JCC_Seurat_Obj$px == x),
+                                                       intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                                 which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))]))
+})
+### negative
+Avg_Neg_CD8_Module_Score <- sapply(unique(JCC_Seurat_Obj$px), function(x) {
+  return(mean(JCC_Seurat_Obj$Precursor_Pcnt21[intersect(which(JCC_Seurat_Obj$px == x),
+                                                        intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                                  which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))]))
+})
+
+
 ### PI subsisters in the cluster3&8
 cluster3_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
                                                                                  which(JCC_Seurat_Obj$AllSeuratClusters == "3")),
@@ -252,7 +331,8 @@ for(de_gene_num in input_de_gene_num) {
                                    name="PM_negative")
   
   ### pairwise factor set
-  factor1_list <- c("TIGIT_Cell_Num", "TIGIT_CD8_Cell_Num", "Precursor_Pcnt", "Precursor_CD8_Pcnt",
+  factor1_list <- c("wk2_effector_cd8_pcnt", "peaktime_effector_cd8_pcnt", "Avg_Pos_CD8_Module_Score", "Avg_Neg_CD8_Module_Score",
+                    "TIGIT_Cell_Num", "TIGIT_CD8_Cell_Num", "Precursor_Pcnt", "Precursor_CD8_Pcnt",
                     "Precursor_Pcnt2", "Precursor_CD8_Pcnt2", "Precursor_Pcnt3", "Precursor_CD8_Pcnt3")
   factor2_list <- c("B_Cell_Recovery_Time", "PeakCAR_ug", "Wk1CAR_ug", "Wk2CAR_ug", "Wk3CAR_ug",
                     "PeakCAR_ml", "Wk1CAR_ml", "Wk2CAR_ml", "Wk3CAR_ml", "Tumor_Burden")
@@ -312,6 +392,10 @@ for(de_gene_num in input_de_gene_num) {
     }
     
     plot_df <- data.frame(Patient=names(peakcar_ug),
+                          wk2_effector_cd8_pcnt=as.numeric(wk2_effector_cd8_pcnt[names(peakcar_ug)]),
+                          peaktime_effector_cd8_pcnt=as.numeric(peaktime_effector_cd8_pcnt[names(peakcar_ug)]),
+                          Avg_Pos_CD8_Module_Score=as.numeric(Avg_Pos_CD8_Module_Score[names(peakcar_ug)]),
+                          Avg_Neg_CD8_Module_Score=as.numeric(Avg_Neg_CD8_Module_Score[names(peakcar_ug)]),
                           TIGIT_Cell_Num=as.numeric(TIGIT_Pos_Cell_Num[names(peakcar_ug)]),
                           TIGIT_CD8_Cell_Num=as.numeric(TIGIT_Pos_CD8_Cell_Num[names(peakcar_ug)]),
                           Precursor_Pcnt=as.numeric(Precursor_Pcnt[names(peakcar_ug)]),
@@ -352,9 +436,10 @@ for(de_gene_num in input_de_gene_num) {
     test_df$Adj.Pval[which(test_df$Threshold == thresh)] <- p.adjust(test_df$PVal[which(test_df$Threshold == thresh)], method = "BH")
     
     ### Multiple correlation plots
-    pdf(file = paste0("./results/New3/Manuscript/Module_Score_Correlations/Original_Cors_pairwise_plot_", de_gene_num, "_", thresh, ".pdf"), width = 20, height = 15)
+    pdf(file = paste0("./results/New3/Manuscript/Module_Score_Correlations2/Original_Cors_pairwise_plot_", de_gene_num, "_", thresh, ".pdf"), width = 30, height = 20)
     pairs(data=plot_df,
-          ~TIGIT_Cell_Num + TIGIT_CD8_Cell_Num + Precursor_Pcnt + Precursor_CD8_Pcnt + Precursor_Pcnt2 +
+          ~wk2_effector_cd8_pcnt + peaktime_effector_cd8_pcnt + Avg_Pos_CD8_Module_Score + Avg_Neg_CD8_Module_Score +
+            TIGIT_Cell_Num + TIGIT_CD8_Cell_Num + Precursor_Pcnt + Precursor_CD8_Pcnt + Precursor_Pcnt2 +
             Precursor_CD8_Pcnt2 + Precursor_Pcnt3 + Precursor_CD8_Pcnt3 + B_Cell_Recovery_Time + PeakCAR_ug + PeakCAR_ml +
             Wk1CAR_ug + Wk2CAR_ug + Wk3CAR_ug + Wk1CAR_ml + Wk2CAR_ml + Wk3CAR_ml + Tumor_Burden,
           upper.panel = panel.lm, lower.panel = panel.cor, diag.panel = panel.hist,
@@ -374,6 +459,7 @@ names(test_set) <- de_gene_num
 test_df2 <- Reduce(function(d1, d2) rbind(d1, d2), test_set)
 test_df2 <- test_df2[order(test_df2$Adj.Pval),]
 
+write.xlsx2(test_df2, file = "./results/New3/Manuscript/Module_Score_Correlations2/Updated_Cors.xlsx", row.names = FALSE)
 
 ### just look at the 3 genes - TIGIT, SELL, CD27
 
@@ -605,6 +691,7 @@ Avg_Pos_Module_Score <- sapply(unique(JCC_Seurat_Obj$px), function(x) {
   return(mean(JCC_Seurat_Obj$Precursor_Pcnt1[intersect(which(JCC_Seurat_Obj$px == x),
                                                        which(JCC_Seurat_Obj$GMP == "GMP"))]))
 })
+### negative
 Avg_Neg_Module_Score <- sapply(unique(JCC_Seurat_Obj$px), function(x) {
   return(mean(JCC_Seurat_Obj$Precursor_Pcnt21[intersect(which(JCC_Seurat_Obj$px == x),
                                                         which(JCC_Seurat_Obj$GMP == "GMP"))]))
@@ -835,6 +922,212 @@ write.xlsx2(data.frame(Gene=rownames(de_result),
                        stringsAsFactors = FALSE, check.names = FALSE),
             file = paste0("./results/New3/Manuscript/GMP_Precursor_Effector_Cluster3_First_vs_Cluster8_First.xlsx"),
             sheetName = "GMP_Precursor_Effector_Cluster3_First_vs_Cluster8_First", row.names = FALSE)
+
+### a regression model to predict PeakCAR, Wk1CAR, Wk2CAR, Tumor Burden, B cell recovery, etc.
+### or even a classifier - high value vs low value
+
+### linear regression - predict PeakCAR_ug with average pos/neg module scores
+fit <- lm(PeakCAR_ug ~ Avg_Pos_Module_Score + Avg_Pos_Module_Score, data=plot_df)
+smr <- summary(fit)
+f <- smr$fstatistic
+pv <- pf(f[1],f[2],f[3],lower.tail=F)
+print(pv)
+### pv not good; 0.3254946
+
+### linear regression - predict PeakCAR_ml with average pos/neg module scores
+fit <- lm(PeakCAR_ml ~ Avg_Pos_Module_Score + Avg_Pos_Module_Score, data=plot_df)
+smr <- summary(fit)
+f <- smr$fstatistic
+pv <- pf(f[1],f[2],f[3],lower.tail=F)
+print(pv)
+### pv not good; 0.2378272
+
+### SVM regression - predict PeakCAR_ug with average pos/neg module scores
+svm_model = svm(PeakCAR_ug ~ Avg_Pos_Module_Score + Avg_Pos_Module_Score, data=plot_df)
+predictYsvm <- predict(svm_model, data=plot_df)
+RMSEsvm <- rmse(predictYsvm, plot_df$PeakCAR_ug[names(predictYsvm)])
+print(RMSEsvm)
+### rmse not good;
+
+### linear regression - predict PeakCAR_ug with average pos/neg module scores + Tumor_Burden + B_Cell_Recovery_Time
+fit <- lm(PeakCAR_ug ~ Avg_Pos_Module_Score + Avg_Pos_Module_Score + Tumor_Burden + B_Cell_Recovery_Time, data=plot_df)
+smr <- summary(fit)
+f <- smr$fstatistic
+pv <- pf(f[1],f[2],f[3],lower.tail=F)
+print(pv)
+### perfect match?
+
+### linear regression - predict PeakCAR_ug with average pos/neg module scores + Tumor_Burden
+fit <- lm(PeakCAR_ug ~ Avg_Pos_Module_Score + Avg_Pos_Module_Score + Tumor_Burden, data=plot_df)
+smr <- summary(fit)
+f <- smr$fstatistic
+pv <- pf(f[1],f[2],f[3],lower.tail=F)
+print(pv)
+### pv not good; 0.5969589
+
+### linear regression - predict PeakCAR_ug with Tumor_Burden
+fit <- lm(PeakCAR_ug ~ Tumor_Burden, data=plot_df)
+smr <- summary(fit)
+f <- smr$fstatistic
+pv <- pf(f[1],f[2],f[3],lower.tail=F)
+print(pv)
+### pv not good; 0.5750387
+
+
+
+
+
+
+### make the plot data frame
+new_plot_df <- data.frame(plot_df,
+                          Residuals=fit$residuals,
+                          Fitted_Values=fit$fitted.values,
+                          stringsAsFactors = FALSE, check.names = FALSE)
+
+### draw the correlation plot
+p <- list()
+p[[1]] <- ggplot(data = new_plot_df, aes_string(x="Wk1CAR_ug", y="Fitted_Values")) +
+  geom_point(col = "black", size = 8) +
+  geom_abline(intercept = 0, slope = 1, col = "red", size = 2) +
+  labs(title = paste0("Pearson Correlation = ", round(cor(new_plot_df$Wk1CAR_ug, new_plot_df$Fitted_Values, method = "pearson", use = "complete.obs"), 2)),
+       subtitle = paste0("P-value = ", pv <- round(cor.test(new_plot_df$Wk1CAR_ug, new_plot_df$Fitted_Values, method = "pearson", use = "complete.obs")$p.value, 2))) +
+  xlab("Wk1CAR") +
+  ylab("Predicted Values") +
+  geom_smooth(method = lm, color="blue", se=TRUE) +
+  theme_classic(base_size = 24) +
+  theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 24, color = "blue"))
+p[[2]] <- ggplot(data = new_plot_df, aes_string(x="Fitted_Values", y="Residuals")) +
+  geom_point(col = "black", size = 8) +
+  geom_line(size = 3) +
+  labs(title = paste0("R2 = ", round(smr$r.squared, 2),
+                      ", Adjusted R2 = ", round(smr$adj.r.squared, 2),
+                      ", P-value = ", round(pv, 2))) +
+  xlab("Predicted Values") +
+  ylab("Residuals") +
+  theme_classic(base_size = 40) +
+  theme(plot.title = element_text(hjust = 0, vjust = 0.5, size = 24))
+g <- arrangeGrob(grobs = p,
+                 nrow = 1,
+                 ncol = 2)
+ggsave(file = paste0(outputDir2, "Wk1CAR_Linear_Regression_TIGIT_CD8_Cell_Num_TB.pdf"), g, width = 25, height = 10, dpi = 400)
+
+
+### with varying the DE gene #
+### only with wk2_effector_cd8_pcnt, peaktime_effector_cd8_pcnt, Avg_Pos_CD8_Module_Score, Avg_Neg_CD8_Module_Score, Precursor_CD8_Pcnt, Precursor_CD8_Pcnt2
+test_set <- list()
+test_cnt <- 1
+for(de_gene_num in input_de_gene_num) {
+  
+  ### print progress
+  writeLines(paste(de_gene_num))
+  
+  ### add module scores
+  JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
+                                   features = list(rownames(de_result)[which(de_result$avg_log2FC > 0)][1:de_gene_num]),
+                                   nbin = nbins,
+                                   ctrl = nctrl_genes,
+                                   seed = seed,
+                                   name="PM_positive")
+  JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
+                                   features = list(rownames(de_result)[which(de_result$avg_log2FC < 0)][1:de_gene_num]),
+                                   nbin = nbins,
+                                   ctrl = nctrl_genes,
+                                   seed = seed,
+                                   name="PM_negative")
+  
+  ### pairwise factor set
+  factor1_list <- c("wk2_effector_cd8_pcnt", "peaktime_effector_cd8_pcnt", "Avg_Pos_CD8_Module_Score", "Avg_Neg_CD8_Module_Score",
+                    "Precursor_CD8_Pcnt", "Precursor_CD8_Pcnt2")
+  factor2_list <- c("wk2_effector_cd8_pcnt", "peaktime_effector_cd8_pcnt", "Avg_Pos_CD8_Module_Score", "Avg_Neg_CD8_Module_Score",
+                    "Precursor_CD8_Pcnt", "Precursor_CD8_Pcnt2")
+  test_df <- data.frame(Variable1=rep("", length(factor1_list)*length(factor2_list)*length(module_score_cut_off)),
+                        Variable2=rep("", length(factor1_list)*length(factor2_list)*length(module_score_cut_off)),
+                        Threshold=rep("", length(factor1_list)*length(factor2_list)*length(module_score_cut_off)),
+                        Cor=NA,
+                        PVal=NA,
+                        Adj.Pval=NA,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  cnt <- 1
+  for(thresh in module_score_cut_off) {
+    
+    ### get the percentage
+    Precursor_CD8_Pcnt <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+    names(Precursor_CD8_Pcnt) <- unique(JCC_Seurat_Obj$px)
+    Precursor_CD8_Pcnt2 <- rep(0, length(unique(JCC_Seurat_Obj$px)))
+    names(Precursor_CD8_Pcnt2) <- unique(JCC_Seurat_Obj$px)
+    
+    for(px in unique(JCC_Seurat_Obj$px)) {
+      
+      Precursor_CD8_Pcnt[px] <- length(intersect(intersect(which(JCC_Seurat_Obj$px == px),
+                                                           which(JCC_Seurat_Obj$time2 == "GMP")),
+                                                 intersect(which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"),
+                                                           which(JCC_Seurat_Obj$PM_positive1 > thresh)))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                   intersect(which(JCC_Seurat_Obj$time2 == "GMP"),
+                                                                                                                                             which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"))))
+      
+      
+      Precursor_CD8_Pcnt2[px] <- length(intersect(intersect(which(JCC_Seurat_Obj$px == px),
+                                                            which(JCC_Seurat_Obj$time2 == "GMP")),
+                                                  intersect(which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"),
+                                                            which(JCC_Seurat_Obj$PM_negative1 < thresh)))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                    intersect(which(JCC_Seurat_Obj$time2 == "GMP"),
+                                                                                                                                              which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"))))
+      
+      
+    }
+    
+    plot_df <- data.frame(Patient=names(peakcar_ug),
+                          wk2_effector_cd8_pcnt=as.numeric(wk2_effector_cd8_pcnt[names(peakcar_ug)]),
+                          peaktime_effector_cd8_pcnt=as.numeric(peaktime_effector_cd8_pcnt[names(peakcar_ug)]),
+                          Avg_Pos_CD8_Module_Score=as.numeric(Avg_Pos_CD8_Module_Score[names(peakcar_ug)]),
+                          Avg_Neg_CD8_Module_Score=as.numeric(Avg_Neg_CD8_Module_Score[names(peakcar_ug)]),
+                          Precursor_CD8_Pcnt=as.numeric(Precursor_CD8_Pcnt[names(peakcar_ug)]),
+                          Precursor_CD8_Pcnt2=as.numeric(Precursor_CD8_Pcnt2[names(peakcar_ug)]),
+                          stringsAsFactors = FALSE, check.names = FALSE)
+    
+    for(a in factor1_list) {
+      for(b in factor2_list) {
+        x <- as.numeric(plot_df[,a])
+        y <- as.numeric(plot_df[,b])
+        Cor <- round(cor(x, y, method = "spearman", use = "complete.obs"), 2)
+        Cor_PV <- round(cor.test(x, y, method = "spearman", use = "complete.obs")$p.value, 2)
+        
+        test_df$Variable1[cnt] <- a
+        test_df$Variable2[cnt] <- b
+        test_df$Threshold[cnt] <- thresh
+        test_df$Cor[cnt] <- Cor
+        test_df$PVal[cnt] <- Cor_PV
+        
+        cnt <- cnt + 1
+      }
+    }
+    
+    test_df$Adj.Pval[which(test_df$Threshold == thresh)] <- p.adjust(test_df$PVal[which(test_df$Threshold == thresh)], method = "BH")
+    
+    ### Multiple correlation plots
+    pdf(file = paste0("./results/New3/Manuscript/Module_Score_Correlations3/Original_Cors_pairwise_plot_", de_gene_num, "_", thresh, ".pdf"), width = 30, height = 20)
+    pairs(data=plot_df,
+          ~wk2_effector_cd8_pcnt + peaktime_effector_cd8_pcnt + Avg_Pos_CD8_Module_Score + Avg_Neg_CD8_Module_Score +
+            Precursor_CD8_Pcnt + Precursor_CD8_Pcnt2,
+          upper.panel = panel.lm, lower.panel = panel.cor, diag.panel = panel.hist,
+          font.labels = 2, pch = 19)
+    dev.off()
+  }
+  
+  test_df <- test_df[order(test_df$Adj.Pval),]
+  test_df$DE_Gene_Num <- de_gene_num
+  
+  test_set[[test_cnt]] <- test_df
+  test_cnt <- test_cnt + 1
+}
+names(test_set) <- de_gene_num
+
+### unlist test_df and order it
+test_df2 <- Reduce(function(d1, d2) rbind(d1, d2), test_set)
+test_df2 <- test_df2[order(test_df2$Adj.Pval),]
+
+write.xlsx2(test_df2, file = "./results/New3/Manuscript/Module_Score_Correlations3/Updated_Cors.xlsx", row.names = FALSE)
 
 
 
