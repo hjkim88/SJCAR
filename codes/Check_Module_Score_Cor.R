@@ -1365,8 +1365,29 @@ for(px in unique(JCC_Seurat_Obj$px)) {
 saveRDS(raw_numbers, file = "./raw_numbers2.rds")
 
 ### correlation plots
-
-
+plot_df <- data.frame(raw_numbers[names(peakcar_ug),],
+                      wk2_precursor_pcnt=wk2_precursor_pcnt[names(peakcar_ug)],
+                      peaktime_precursor_pcnt=peaktime_precursor_pcnt[names(peakcar_ug)],
+                      B_Cell_Recovery_Time=as.numeric(b_cell_recovery_time[names(peakcar_ug)]),
+                      PeakCAR_ug=as.numeric(peakcar_ug),
+                      Wk1CAR_ug=as.numeric(wk1car_ug[names(peakcar_ug)]),
+                      Wk2CAR_ug=as.numeric(wk2car_ug[names(peakcar_ug)]),
+                      Wk3CAR_ug=as.numeric(wk3car_ug[names(peakcar_ug)]),
+                      PeakCAR_ml=as.numeric(peakcar_ml),
+                      Wk1CAR_ml=as.numeric(wk1car_ml[names(peakcar_ug)]),
+                      Wk2CAR_ml=as.numeric(wk2car_ml[names(peakcar_ug)]),
+                      Wk3CAR_ml=as.numeric(wk3car_ml[names(peakcar_ug)]),
+                      Tumor_Burden=as.numeric(Tumor_Burden[names(peakcar_ug)]),
+                      stringsAsFactors = FALSE, check.names = FALSE)
+pdf(file = paste0("./new_correlation_with_beta.pdf"), width = 30, height = 20)
+pairs(data=plot_df,
+      ~GMP_CD8_Effector_Precursor_Pcnt + GMP_Effector_Precursor_Lineage_Pcnt + GMP_Effector_Precursor_Lineage_Pcnt_beta +
+        AVG_GMP_CD8_Effector_Precursor_Module_Score + wk2_precursor_pcnt + peaktime_precursor_pcnt +
+        B_Cell_Recovery_Time + PeakCAR_ug + Wk1CAR_ug + Wk2CAR_ug + Wk3CAR_ug + PeakCAR_ml +
+        Wk1CAR_ml + Wk2CAR_ml + Wk3CAR_ml + Tumor_Burden,
+      upper.panel = panel.lm, lower.panel = panel.cor, diag.panel = panel.hist,
+      font.labels = 2, pch = 19)
+dev.off()
 
 
 ### why is there a difference between
