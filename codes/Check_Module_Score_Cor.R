@@ -1275,6 +1275,107 @@ p <- ggplot(plot_df, aes_string(x="Class", y="GMP_Effector_Precursor_Lineage_Pcn
 ggsave(file = paste0("./GMP_Effector_Precursor_Lineage_vs_Response.png"), plot = p, width = 10, height = 8, dpi = 400)
 
 
+###
+### what if we only use beta chains for constructing lineages?
+###
 
+### how many lineages are in the post-infusion effector clusters
+
+### get effector (cluster 3 & 8) beta TCRs
+pi_effector_clones_beta <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_beta[intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                        which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3", "8")))])
+pi_effector_clones_beta <- pi_effector_clones_beta[-which(is.na(pi_effector_clones_beta))]
+
+### the GMP precursors from those effectors based on beta
+gmp_precursor_idx_beta <- intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                    which(JCC_Seurat_Obj$clonotype_id_by_patient_beta %in% pi_effector_clones_beta))
+
+### get persister clones
+persister_clones_beta <- intersect(JCC_Seurat_Obj$clonotype_id_by_patient_beta[which(JCC_Seurat_Obj$GMP == "GMP")],
+                                   JCC_Seurat_Obj$clonotype_id_by_patient_beta[which(JCC_Seurat_Obj$GMP == "PI")])
+persister_clones_beta <- persister_clones_beta[-which(is.na(persister_clones_beta))]
+
+### the GMP persiser based on beta
+gmp_persister_idx_beta <- intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                    which(JCC_Seurat_Obj$clonotype_id_by_patient_beta %in% persister_clones_beta))
+
+### parameters
+module_score_cut_off <- 0.4
+input_de_gene_num <- 20 
+nbins <- 24 
+nctrl_genes <- 100 
+seed <- 1
+
+raw_numbers <- data.frame(Total_GMP_Cell_Num=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                          Total_GMP_CD8_Cell_Num=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                          GMP_CD8_Effector_Precursor_Pcnt=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                          GMP_Effector_Precursor_Lineage_Pcnt=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                          GMP_Effector_Precursor_Lineage_Pcnt_beta=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                          AVG_GMP_CD8_Effector_Precursor_Module_Score=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                          Total_Wk2_Cell_Num=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                          Total_PeakTime_Cell_Num=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                          Cluster3_Cell_Num_Wk2=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                          Cluster8_Cell_Num_Wk2=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                          Cluster3_Cell_Num_PeakTime=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                          Cluster8_Cell_Num_PeakTime=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                          stringsAsFactors = FALSE, check.names = FALSE)
+rownames(raw_numbers) <- unique(JCC_Seurat_Obj$px)
+
+for(px in unique(JCC_Seurat_Obj$px)) {
+  raw_numbers[px,"Total_GMP_Cell_Num"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                           which(JCC_Seurat_Obj$time2 == "GMP")))
+  raw_numbers[px,"Total_GMP_CD8_Cell_Num"] <- length(intersect(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                         which(JCC_Seurat_Obj$time2 == "GMP")),
+                                                               which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))
+  raw_numbers[px,"GMP_CD8_Effector_Precursor_Pcnt"] <- length(intersect(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                  which(JCC_Seurat_Obj$time2 == "GMP")),
+                                                                        intersect(which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"),
+                                                                                  which(JCC_Seurat_Obj$Precursor_Pcnt1 > module_score_cut_off)))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                           intersect(which(JCC_Seurat_Obj$time2 == "GMP"),
+                                                                                                                                                                                     which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"))))
+  raw_numbers[px,"GMP_Effector_Precursor_Lineage_Pcnt"] <- length(unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                   which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES")),
+                                                                                                                                         which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"))])) * 100 / length(unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                                                                                                                                                                                                which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]))
+  raw_numbers[px,"GMP_Effector_Precursor_Lineage_Pcnt_beta"] <- length(unique(JCC_Seurat_Obj$clonotype_id_by_patient_beta[intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                    gmp_precursor_idx_beta)])) * 100 / length(unique(JCC_Seurat_Obj$clonotype_id_by_patient_beta[intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                                                                                           gmp_persister_idx_beta)]))
+  raw_numbers[px,"AVG_GMP_CD8_Effector_Precursor_Module_Score"] <- mean(JCC_Seurat_Obj$Precursor_Pcnt1[intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                 intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                                                                                           which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))])
+  raw_numbers[px,"Total_Wk2_Cell_Num"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                           which(JCC_Seurat_Obj$time2 == "Wk2")))
+  raw_numbers[px,"Total_PeakTime_Cell_Num"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                which(JCC_Seurat_Obj$time2 == peak_time[px])))
+  raw_numbers[px,"Cluster3_Cell_Num_Wk2"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                              intersect(which(JCC_Seurat_Obj$time2 == "Wk2"),
+                                                                        which(JCC_Seurat_Obj$AllSeuratClusters == "3"))))
+  raw_numbers[px,"Cluster8_Cell_Num_Wk2"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                              intersect(which(JCC_Seurat_Obj$time2 == "Wk2"),
+                                                                        which(JCC_Seurat_Obj$AllSeuratClusters == "8"))))
+  raw_numbers[px,"Cluster3_Cell_Num_PeakTime"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                   intersect(which(JCC_Seurat_Obj$time2 == peak_time[px]),
+                                                                             which(JCC_Seurat_Obj$AllSeuratClusters == "3"))))
+  raw_numbers[px,"Cluster8_Cell_Num_PeakTime"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                   intersect(which(JCC_Seurat_Obj$time2 == peak_time[px]),
+                                                                             which(JCC_Seurat_Obj$AllSeuratClusters == "8"))))
+}
+
+### save the result
+saveRDS(raw_numbers, file = "./raw_numbers2.rds")
+
+### correlation plots
+
+
+
+
+### why is there a difference between
+### 1. length(which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"))
+### 2. a <- unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+###                                                                                which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3", "8")))])
+###    length(intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+###                     which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% a)))
+### maybe there's NA in a
+### yes that was it.
 
 
