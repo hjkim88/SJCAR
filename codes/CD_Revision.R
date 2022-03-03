@@ -20,7 +20,16 @@
 #                  Why were TIGIT, SELL and CD27 selected? According to the supplementary data file, they are not the most
 #                  differentially expressed genes between the groups. What's the prediction accuracy of using only these 3 genes
 #                  as features in the SVM classifier analysis?
-#
+#               6. R3C4
+#                  Findallmarkers among our functional groups to make sure those gene markers represent each group
+#               7. R2C12
+#                  Fig1D - change the x-axis to only the cluster numbers
+#               8. R4C1
+#                  New Figure - UMAP with cell cycle score
+#               9. R4C6 - Figure 2D to a table
+#              10. R4C9 - find out TCRs shared across patients
+#              11. R4MC2 -  add frequency of CD4/CD8 to Fig1C
+#               
 #               
 #   Instruction
 #               1. Source("CD_Revision.R")
@@ -76,6 +85,10 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   if(!require(pROC, quietly = TRUE)) {
     install.packages("pROC")
     require(pROC, quietly = TRUE)
+  }
+  if(!require(shadowtext, quietly = TRUE)) {
+    install.packages("shadowtext")
+    require(shadowtext, quietly = TRUE)
   }
   
   # ******************************************************************************************
@@ -216,7 +229,7 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   dir.create(outputDir, showWarnings = FALSE, recursive = TRUE)
   
   ### load Jeremy's object
-  JCC_Seurat_Obj <- readRDS(file = "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_data/data/NEW_SJCAR_SEURAT_OBJ/CARpos_JCC.rds")
+  JCC_Seurat_Obj <- readRDS(file = Seurat_RObj_path)
   
   ### check whether the orders are the same
   print(identical(rownames(JCC_Seurat_Obj@meta.data), colnames(JCC_Seurat_Obj@assays$RNA@counts)))
@@ -1090,8 +1103,8 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   }
   
   ### parameter setting for a classifier
-  iteration <- 10
-  set.seed(4321)
+  iteration <- 100
+  set.seed(100) # 100-i:26 error, 4321-i:41 error, 1000-i:93 error, 2000-i:95 error, 3000-i:100
   sampleNum <- 100
   genes <- c("TIGIT", "SELL", "CD27")
   methodTypes <- "svmRadial"
@@ -1107,13 +1120,18 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   auc <- NULL
   for(i in 1:iteration) {
     
+    ### progress
+    if(i %% 10 == 0) {
+      writeLines(paste(i, "/", iteration))
+    }
+    
     ### normalize the read counts
     ### before the normalization, only keep the samples that will be used in the classifier
-    input_data <- normalizeRNASEQwithVST(readCount = data.frame(JCC_Seurat_Obj@assays$RNA@counts[genes,
-                                                                                                 c(sample(which(JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"), sampleNum),
-                                                                                                   sample(which(JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "Other_CD8_GMPs"), sampleNum))],
+    random_samples <- c(sample(which(JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"), sampleNum),
+                        sample(which(JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "Other_CD8_GMPs"), sampleNum))
+    input_data <- normalizeRNASEQwithVST(readCount = data.frame(JCC_Seurat_Obj@assays$RNA@counts[genes,random_samples],
                                                                 stringsAsFactors = FALSE, check.names = FALSE)+1,
-                                         filter_thresh = 0)
+                                         filter_thresh = 1)
     
     # ### reduce the gene size based on variance
     # ### only select high variance genes
@@ -1127,7 +1145,7 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
     
     ### build classifier and test
     ### LOOCV
-    model <- train(Class~., data=input_data, trControl=train_control, method=methodTypes[j])
+    model <- train(Class~., data=input_data, trControl=train_control, method=methodTypes)
     roc <- roc(model$pred$obs, model$pred$GMP_Last)
     acc <- c(acc, round(mean(model$results$Accuracy), 3))
     auc <- c(auc, round(as.numeric(roc$auc), 3))
@@ -1139,8 +1157,14 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
     
   }
   
+  ### save RDS file
+  saveRDS(p, file = paste0(outputDir, "5_Classifier_GMP_Precursor_vs_Other_CD8_GMP_3_genes_100_100.RDS"))
+  saveRDS(roc, file = paste0(outputDir, "5_Classifier_GMP_Precursor_vs_Other_CD8_GMP_3_genes_100_100_roc.RDS"))
+  saveRDS(acc, file = paste0(outputDir, "5_Classifier_GMP_Precursor_vs_Other_CD8_GMP_3_genes_100_100_acc.RDS"))
+  saveRDS(auc, file = paste0(outputDir, "5_Classifier_GMP_Precursor_vs_Other_CD8_GMP_3_genes_100_100_auc.RDS"))
+  
   ### draw ROC curves
-  png(paste0(outputDir, "5_Classifier_GMP_Precursor_vs_Other_CD8_GMP_3_genes.png"),
+  png(paste0(outputDir, "5_Classifier_GMP_Precursor_vs_Other_CD8_GMP_3_genes_100.png"),
       width = 2000, height = 2000, res = 350)
   par(mfrow=c(4, 3))
   for(i in 1:iteration) {
@@ -1152,16 +1176,273 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   dev.off()
   
   ### print average ACC and AUC
+  ### "3-Gene-Classifier Avearge ACC: 0.72303 Average AUC: 0.73634"
   print(paste0("3-Gene-Classifier Avearge ACC: ", mean(acc), " Average AUC: ", mean(auc)))
   
   
+  ###
+  ### 6. R3C4
+  #   Findallmarkers among our functional groups to make sure those gene markers represent each group
+  ###
+  
+  ### NEW FUNCTIONAL ANNOTATION BY TAY - 09/27/2021
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters <- "Others"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "9", "10", "11", "12", "15", "19", "21"))] <- "Proliferating"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("2", "4", "6", "17"))] <- "Transitioning"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3", "8", "14"))] <- "Functional Effector"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13", "20"))] <- "Dysfunctional"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("16"))] <- "Early Effector"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("18"))] <- "Metabolically Active"
+  
+  ### set functional groups as idents
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj@meta.data$New_Functional_Annotation_Based_On_Clusters)
+  
+  ### DE analysis
+  de_result <- FindAllMarkers(JCC_Seurat_Obj,
+                              min.pct = 0.3,
+                              logfc.threshold = 0.3,
+                              test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/R3c4_Functional_Groups_AllMarkers.xlsx"),
+              sheetName = "R3c4_Functional_Groups_AllMarkers", row.names = FALSE)
   
   
+  ###
+  ### 7. R2C12
+  #      Fig1D - change the x-axis to only the cluster numbers
+  ###
+  
+  ### dot plot2 - like Dave's
+  interesting_genes2 <- c("RPL32", "RPL30", "LAG3", "TOX", "CASP8", "IL7R", "SELL", "BNIP3", "MKI67",
+                          "CDC20", "CDK1", "NKG7", "GNLY", "GZMH", "GZMM", "GZMK")
+  
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters2 <- JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters == "Proliferating")] <- "Clusters{0,1,5,7,9,10,11,12,15,19,21}"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters == "Transitioning")] <- "Clusters{2,4,6,17}"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters == "Metabolically Active")] <- "Clusters{18}"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters == "Early Effector")] <- "Clusters{16}"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters == "Dysfunctional")] <- "Clusters{13, 20}"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters2[which(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters == "Functional Effector")] <- "Clusters{3,8,10}"
+  
+  p <- DotPlot(JCC_Seurat_Obj,
+               features = interesting_genes2,
+               group.by = "New_Functional_Annotation_Based_On_Clusters2") +
+    scale_size(range = c(5, 45)) +
+    xlab("") +
+    ylab("") +
+    scale_color_gradientn(colours = c("#487A8F", "#C09969", "#AA4C26")) +
+    guides(color = guide_colorbar(title = "Relative Expression")) +
+    coord_flip() +
+    theme_classic(base_size = 28) +
+    theme(plot.title = element_text(hjust = 0.5, color = "black", face = "bold"),
+          axis.text.x = element_text(angle = -90, size = 35, vjust = 0.5, hjust = 0, color = "black", face = "bold"),
+          axis.text.y = element_text(angle = 0, size = 35, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
+          legend.title = element_text(size = 25, color = "black", face = "bold"),
+          legend.text = element_text(size = 20, color = "black", face = "bold"),
+          legend.key.size = unit(0.7, 'cm'),
+          legend.position = "top")
+  ggsave(file = paste0(outputDir, "R2C12_Fig1D_Dotplot_Functional_Group_GEXP.pdf"),
+         plot = p, width = 15, height = 35, dpi = 350)
   
   
+  ###
+  ###  8. R4c1
+  #       New Figure - UMAP with cell cycle score
+  ###
+  
+  ### normalization
+  JCC_Seurat_Obj <- NormalizeData(JCC_Seurat_Obj,
+                                  normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### Cell cycle score (will be used later for regression out)
+  JCC_Seurat_Obj <- CellCycleScoring(object = JCC_Seurat_Obj,
+                                     g2m.features = cc.genes$g2m.genes,
+                                     s.features = cc.genes$s.genes)
+  
+  ### color scale
+  sjcar19_colors <- c("#640B11", "#AA4C26", "#D39F3A", "#C09969", "#287B66", "#487A8F", "#3B3B53")
+  show_col(sjcar19_colors)
+  
+  ### draw a UMAP with cell cycle scores
+  temp <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+                  group.by = "AllSeuratClusters", label = TRUE,
+                  raster = TRUE, pt.size = 3)
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+               group.by = "Phase",
+               cols = c("G2M" = "#487A8F", "S" = "#D39F3A", "G1" = "#640B11"),
+               order = c("G2M", "S", "G1"),
+               raster = TRUE, pt.size = 1) +
+    ggtitle("") +
+    labs(color="") +
+    theme_classic(base_size = 36) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30),
+          axis.text.x = element_text(size = 30),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 30))
+  p <- p + geom_shadowtext(data = temp$layers[[2]]$data, aes(x = UMAP_1, y = UMAP_2, label=AllSeuratClusters),
+                           size=10, color="cornsilk2", bg.color="black", bg.r=0.2)
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.7
+  ggsave(paste0(outputDir, "R4C1_UMAP_Cell_Cyel_Phase.pdf"), plot = p, width = 15, height = 10, dpi = 350)
   
   
+  ###
+  ### 9. R4C6 - Figure 2D to a table
+  ###
   
+  ### prepare table for the plot
+  plot_df <- data.frame(Cluster=as.character(sapply(levels(JCC_Seurat_Obj$AllSeuratClusters), function(x) rep(x, length(unique(JCC_Seurat_Obj$time2))))),
+                        Time=as.character(rep(unique(JCC_Seurat_Obj$time2), length(levels(JCC_Seurat_Obj$AllSeuratClusters)))),
+                        Numbers=0,
+                        Pcnt=0,
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### calculate numbers
+  cnt <- 1
+  for(clstr in levels(JCC_Seurat_Obj$AllSeuratClusters)) {
+    for(tp in unique(JCC_Seurat_Obj$time2)) {
+      plot_df$Numbers[cnt] <- length(intersect(which(JCC_Seurat_Obj$AllSeuratClusters == clstr),
+                                               which(JCC_Seurat_Obj$time2 == tp)))
+      cnt <- cnt + 1
+    }
+  }
+  
+  ### order the plot_df in a GMP/PI - oriented way
+  plot_df <- plot_df[order(plot_df$Time),]
+  
+  ### calculate percentages
+  time_sum <- rep(0, length(unique(plot_df$Time)))
+  names(time_sum) <- unique(plot_df$Time)
+  for(i in 1:length(unique(plot_df$Time))) {
+    time_sum[i] <- sum(plot_df[which(plot_df$Time == unique(plot_df$Time)[i]),"Numbers"])
+    plot_df$Pcnt[which(plot_df$Time == unique(plot_df$Time)[i])] <- round(plot_df$Numbers[which(plot_df$Time == unique(plot_df$Time)[i])] * 100 / time_sum[i], 1)
+  }
+  
+  ### annotate "%"
+  plot_df$Pcnt <- paste0(plot_df$Pcnt, "%")
+  
+  ### remove the Wk6
+  plot_df <- plot_df[which(!plot_df$Time %in% c("Wk6")),]
+  
+  ### factorize the time point & state
+  plot_df$Time <- factor(plot_df$Time, levels = unique(JCC_Seurat_Obj$time2))
+  plot_df$Cluster <- factor(plot_df$Cluster, levels = unique(plot_df$Cluster))
+  
+  ### refine the plot_df
+  plot_df2 <- data.frame(Cluster=levels(plot_df$Cluster),
+                         matrix(0, length(unique(plot_df$Cluster)), length(unique(plot_df$Time))),
+                         stringsAsFactors = FALSE, check.names = FALSE)
+  colnames(plot_df2) <- c("Cluster", as.character(unique(plot_df$Time)))
+  rownames(plot_df2) <- as.character(unique(plot_df$Cluster))
+  for(clstr in as.character(unique(plot_df$Cluster))) {
+    for(time in as.character(unique(plot_df$Time))) {
+      plot_df2[clstr,time] <- plot_df[intersect(which(plot_df$Cluster == clstr),
+                                                which(plot_df$Time == time)),"Pcnt"]
+    }
+  }
+  
+  ### reordering
+  plot_df2 <- plot_df2[,c("Cluster", "GMP", "Wk1", "Wk2", "Wk3", "Wk4", "Wk8", "3mo", "6mo")]
+  
+  ### write out the table
+  write.xlsx2(plot_df2,
+              file = paste0(outputDir, "R4C6_Cluster_Time_Bar_Plot_Table.xlsx"),
+              sheetName = "Cluster_Time_Bar_Plot_Table", row.names = FALSE)
+  
+  
+  ###
+  ### 10. R4C9 - find out TCRs shared across patients (at least one alpha & beta)
+  ###
+  
+  shared_tcrs <- data.frame(matrix(0, length(unique(JCC_Seurat_Obj$px)), length(unique(JCC_Seurat_Obj$px))),
+                            stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(shared_tcrs) <- unique(JCC_Seurat_Obj$px)
+  colnames(shared_tcrs) <- unique(JCC_Seurat_Obj$px)
+  
+  for(row_px in unique(JCC_Seurat_Obj$px)) {
+    for(col_px in unique(JCC_Seurat_Obj$px)) {
+      tcr_intersect <- intersect(JCC_Seurat_Obj$cdr3_one_alpha_beta[which(JCC_Seurat_Obj$px == row_px)],
+                                 JCC_Seurat_Obj$cdr3_one_alpha_beta[which(JCC_Seurat_Obj$px == col_px)])
+      tcr_intersect <- tcr_intersect[which(!is.na(tcr_intersect))]
+      
+      single_chain_idx <- sapply(tcr_intersect, function(x) {
+        if(is.na(x)) {
+          return(0)
+        }
+        temp <- strsplit(x, ";", fixed = TRUE)[[1]]
+        if(length(temp) > 1) {
+          return(2)
+        } else {
+          return(1)
+        }
+      })
+      
+      tcr_intersect <- tcr_intersect[which(single_chain_idx == 2)]
+      
+      if(row_px == col_px) {
+        shared_tcrs[row_px,col_px] <- length(tcr_intersect)
+      } else {
+        shared_tcrs[row_px,col_px] <- paste(c(length(tcr_intersect), tcr_intersect), collapse = ",")
+      }
+    }
+  }
+  
+  ### write out the result
+  write.xlsx2(data.frame(Patient=rownames(shared_tcrs),
+                         shared_tcrs,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/R4C9_Shared_TCRs_among_pxs.xlsx"),
+              sheetName = "R4C9_R4C9_Shared_TCRs_among_pxs", row.names = FALSE)
+  
+  ### get indices of cells that have single chain
+  single_chain_idx <- sapply(JCC_Seurat_Obj$cdr3_one_alpha_beta, function(x) {
+    if(is.na(x)) {
+      return(0)
+    }
+    temp <- strsplit(x, ";", fixed = TRUE)[[1]]
+    if(length(temp) > 1) {
+      return(2)
+    } else {
+      return(1)
+    }
+  })
+  
+  
+  ###
+  ### 11. R4MC2 -  add frequency of CD4/CD8 to Fig1C
+  ###              how many CD4 and CD8 cells in each cluster?
+  ###
+  
+  print(identical(rownames(JCC_Seurat_Obj@meta.data), colnames(JCC_Seurat_Obj@assays$RNA@counts)))
+  
+  CD4_pcnt <- sapply(levels(JCC_Seurat_Obj$AllSeuratClusters), function(x) {
+    return(length(intersect(which(JCC_Seurat_Obj$AllSeuratClusters == x),
+                            which(JCC_Seurat_Obj@assays$RNA@counts["CD4",] > 0))) * 100 / length(which(JCC_Seurat_Obj$AllSeuratClusters == x)))
+  }, USE.NAMES = TRUE)
+  
+  CD8_pcnt <- sapply(levels(JCC_Seurat_Obj$AllSeuratClusters), function(x) {
+    return(length(intersect(which(JCC_Seurat_Obj$AllSeuratClusters == x),
+                            which(JCC_Seurat_Obj@assays$RNA@counts["CD8A",] > 0))) * 100 / length(which(JCC_Seurat_Obj$AllSeuratClusters == x)))
+  }, USE.NAMES = TRUE)
+  
+  CD4_pcnt <- round(CD4_pcnt, 2)
+  CD8_pcnt <- round(CD8_pcnt, 2)
+  
+  CD4_CD8_pcnt <- data.frame(Cluster=names(CD4_pcnt),
+                             CD4_Percentage=CD4_pcnt,
+                             CD8_Percentage=CD8_pcnt,
+                             stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### write out the result
+  write.xlsx2(CD4_CD8_pcnt,
+              file = paste0(outputDir, "/R4MC2_CD4_CD8_Pcnt.xlsx"),
+              sheetName = "R4MC2_CD4_CD8_Pcnt", row.names = FALSE)
   
   
 }
