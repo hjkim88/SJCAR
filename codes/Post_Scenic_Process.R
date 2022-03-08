@@ -39,6 +39,10 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
     install.packages("xlsx")
     require(xlsx, quietly = TRUE)
   }
+  if(!require(shadowtext, quietly = TRUE)) {
+    install.packages("shadowtext")
+    require(shadowtext, quietly = TRUE)
+  }
   
   ### load Jeremy's object
   JCC_Seurat_Obj <- readRDS(file = Seurat_RObj_path)
@@ -185,11 +189,14 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
                                  cells = rownames(JCC_Seurat_Obj@meta.data)[which(rownames(JCC_Seurat_Obj@meta.data) %in% rownames(aucell_results[["non_precursor_subset_aucell.csv"]]))])
   combined_seurat <- subset(JCC_Seurat_Obj,
                             cells = rownames(JCC_Seurat_Obj@meta.data)[which(rownames(JCC_Seurat_Obj@meta.data) %in% rownames(aucell_results[["combined_aucell.csv"]]))])
+  cluster3_8_seurat <- subset(JCC_Seurat_Obj,
+                              cells = rownames(JCC_Seurat_Obj@meta.data)[which(rownames(JCC_Seurat_Obj@meta.data) %in% rownames(aucell_results[["cluster3_8_aucell.csv"]]))])
   
   ### save the aucell results to each of the object
   precursor_seurat[["Scenic"]] <- CreateAssayObject(counts = t(aucell_results[["precursor_aucell.csv"]]))
   non_precursor_seurat[["Scenic"]] <- CreateAssayObject(counts = t(aucell_results[["non_precursor_subset_aucell.csv"]]))
   combined_seurat[["Scenic"]] <- CreateAssayObject(counts = t(aucell_results[["combined_aucell.csv"]]))
+  cluster3_8_seurat[["Scenic"]] <- CreateAssayObject(counts = t(aucell_results[["cluster3_8_aucell.csv"]]))
   
   ### run UMAP based on the Scenic result
   combined_seurat <- FindVariableFeatures(combined_seurat,
@@ -280,6 +287,192 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
                          de_result,
                          stringsAsFactors = FALSE, check.names = FALSE),
               file = paste0(outputDir, "/Scenic_Differentially_Activated_TFs_Among_Clusters.xlsx"),
+              sheetName = "Differentially_Activated_TFs", row.names = FALSE)
+  
+  
+  ### just look at the differentially activated TFs between precursors vs control
+  combined_seurat <- SetIdent(object = combined_seurat,
+                              cells = rownames(combined_seurat@meta.data),
+                              value = combined_seurat$GMP_Subsisters_End_Up_In_Cluster38_2_CD8)
+  de_result <- FindMarkers(combined_seurat,
+                           assay = "Scenic",
+                           ident.1 = "GMP_Subsisters_End_Up_In_Cluster_3_And_8",
+                           ident.2 = "Other_CD8_GMPs",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.1,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/Scenic_Differentially_Activated_TFs_between_Precursor_vs_Control.xlsx"),
+              sheetName = "Differentially_Activated_TFs", row.names = FALSE)
+  
+  
+  ###
+  ### cluster 3+8's turn
+  ###
+  
+  ### run UMAP based on the Scenic result
+  cluster3_8_seurat <- FindVariableFeatures(cluster3_8_seurat,
+                                            selection.method = "vst",
+                                            nfeatures = nrow(cluster3_8_seurat@assays$Scenic@counts),
+                                            assay = "Scenic")
+  cluster3_8_seurat <- ScaleData(cluster3_8_seurat,
+                                 assay = "Scenic",
+                                 do.scale = FALSE,
+                                 do.center = FALSE)
+  cluster3_8_seurat <- RunPCA(cluster3_8_seurat,
+                              features = VariableFeatures(object = cluster3_8_seurat, assay = "Scenic"),
+                              npcs = 15, assay = "Scenic",
+                              reduction.name = "scenic_pca")
+  ElbowPlot(cluster3_8_seurat, reduction = "scenic_pca", ndims = 15)
+  cluster3_8_seurat <- RunUMAP(cluster3_8_seurat, dims = 1:15,
+                               assay = "Scenic",
+                               reduction = "scenic_pca",
+                               reduction.name = "scenic_umap",
+                               reduction.key = "ScenicUMAP_")
+  DefaultAssay(cluster3_8_seurat) <- "Scenic"
+  cluster3_8_seurat <- FindNeighbors(cluster3_8_seurat, assay = "Scenic",
+                                     reduction = "scenic_umap", dims = 1:2)
+  cluster3_8_seurat <- FindClusters(cluster3_8_seurat, resolution = 0.2)
+  
+  
+  ### draw Scenic UMAPs
+  p <- DimPlot(object = cluster3_8_seurat, reduction = "scenic_umap",
+               group.by = "AllSeuratClusters",
+               pt.size = 3) +
+    ggtitle("") +
+    labs(color="Original Clusters") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 48),
+          legend.text = element_text(size = 48)) +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 1
+  ggsave(paste0(outputDir, "UMAP_Scenic_Cluster3_8_AllSeuratClusters.png"), plot = p, width = 20, height = 10, dpi = 350)
+  
+  p <- DimPlot(object = cluster3_8_seurat, reduction = "scenic_umap",
+               group.by = "GMP",
+               pt.size = 3) +
+    ggtitle("") +
+    labs(color="GMP/PI") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 48),
+          legend.text = element_text(size = 48)) +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 1
+  ggsave(paste0(outputDir, "UMAP_Scenic_Cluster3_8_GMP.png"), plot = p, width = 20, height = 10, dpi = 350)
+  
+  p <- DimPlot(object = cluster3_8_seurat, reduction = "scenic_umap",
+               group.by = "New_Functional_Annotation_Based_On_Clusters",
+               pt.size = 3) +
+    ggtitle("") +
+    labs(color="Functional Groups") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 48),
+          legend.text = element_text(size = 48)) +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 1
+  ggsave(paste0(outputDir, "UMAP_Scenic_Cluster3_8_New_Functional_Annotation_Based_On_Clusters.png"), plot = p, width = 20, height = 10, dpi = 350)
+  
+  ###
+  ### get the PI cells only
+  ###
+  cluster3_8_PI_seurat <- subset(cluster3_8_seurat,
+                                 cells = rownames(cluster3_8_seurat@meta.data)[which(cluster3_8_seurat$GMP == "PI")])
+  
+  ### run UMAP based on the Scenic result
+  cluster3_8_PI_seurat <- FindVariableFeatures(cluster3_8_PI_seurat,
+                                               selection.method = "vst",
+                                               nfeatures = nrow(cluster3_8_PI_seurat@assays$Scenic@counts),
+                                               assay = "Scenic")
+  cluster3_8_PI_seurat <- ScaleData(cluster3_8_PI_seurat,
+                                    assay = "Scenic",
+                                    do.scale = FALSE,
+                                    do.center = FALSE)
+  cluster3_8_PI_seurat <- RunPCA(cluster3_8_PI_seurat,
+                                 features = VariableFeatures(object = cluster3_8_PI_seurat, assay = "Scenic"),
+                                 npcs = 15, assay = "Scenic",
+                                 reduction.name = "scenic_pca")
+  ElbowPlot(cluster3_8_PI_seurat, reduction = "scenic_pca", ndims = 15)
+  cluster3_8_PI_seurat <- RunUMAP(cluster3_8_PI_seurat, dims = 1:15,
+                                  assay = "Scenic",
+                                  reduction = "scenic_pca",
+                                  reduction.name = "scenic_umap",
+                                  reduction.key = "ScenicUMAP_")
+  DefaultAssay(cluster3_8_PI_seurat) <- "Scenic"
+  cluster3_8_PI_seurat <- FindNeighbors(cluster3_8_PI_seurat, assay = "Scenic",
+                                        reduction = "scenic_umap", dims = 1:2)
+  cluster3_8_PI_seurat <- FindClusters(cluster3_8_PI_seurat, resolution = 0.2)
+  
+  ### draw Scenic UMAPs
+  p <- DimPlot(object = cluster3_8_PI_seurat, reduction = "scenic_umap",
+               group.by = "AllSeuratClusters", label = TRUE,
+               pt.size = 3) +
+    ggtitle("") +
+    labs(color="Original Clusters") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 24)) +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p <- p + geom_shadowtext(data = p$layers[[2]]$data, aes(x = ScenicUMAP_1, y = ScenicUMAP_2, label=AllSeuratClusters),
+                           size=6, color="cornsilk2", bg.color="black", bg.r=0.2)
+  p[[1]]$layers[[1]]$aes_params$alpha <- 1
+  ggsave(paste0(outputDir, "UMAP_Scenic_Cluster3_8_PI_AllSeuratClusters.png"), plot = p, width = 20, height = 10, dpi = 350)
+  
+  p <- DimPlot(object = cluster3_8_PI_seurat, reduction = "scenic_umap",
+               group.by = "AllSeuratClusters", label = TRUE,
+               pt.size = 3,
+               cols = c("3" = "red", "8" = "blue")) +
+    ggtitle("") +
+    labs(color="Original Clusters") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
+          axis.text.x = element_text(size = 48),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = 48),
+          legend.title = element_text(size = 36),
+          legend.text = element_text(size = 24)) +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p <- p + geom_shadowtext(data = p$layers[[2]]$data, aes(x = ScenicUMAP_1, y = ScenicUMAP_2, label=AllSeuratClusters),
+                           size=6, color="cornsilk2", bg.color="black", bg.r=0.2)
+  p[[1]]$layers[[1]]$aes_params$alpha <- 1
+  ggsave(paste0(outputDir, "UMAP_Scenic_Cluster3_8_PI_AllSeuratClusters2.png"), plot = p, width = 20, height = 10, dpi = 350)
+  
+  ### Differentially activated TFs between cluster 3 vs cluster 8 in PI
+  cluster3_8_PI_seurat <- SetIdent(object = cluster3_8_PI_seurat,
+                                   cells = rownames(cluster3_8_PI_seurat@meta.data),
+                                   value = cluster3_8_PI_seurat$AllSeuratClusters)
+  de_result <- FindMarkers(cluster3_8_PI_seurat,
+                           assay = "Scenic",
+                           ident.1 = "3",
+                           ident.2 = "8",
+                           min.pct = 0.1,
+                           logfc.threshold = 0,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/Scenic_Differentially_Activated_TFs_between_Cluster3_vs_Cluster8.xlsx"),
               sheetName = "Differentially_Activated_TFs", row.names = FALSE)
   
   
