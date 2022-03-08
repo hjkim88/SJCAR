@@ -50,6 +50,14 @@ run_scenic <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Immunoi
     devtools::install_github("aertslab/SCENIC") 
     require(SCENIC, quietly = TRUE)
   }
+  if(!require(doRNG, quietly = TRUE)) {
+    install.packages("doRNG")
+    require(doRNG, quietly = TRUE)
+  }
+  if(!require(SeuratDisk, quietly = TRUE)) {
+    remotes::install_github("mojaveazure/seurat-disk")
+    require(SeuratDisk, quietly = TRUE)
+  }
   
   
   ### load Jeremy's object
@@ -147,21 +155,86 @@ run_scenic <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Immunoi
   exprMat <- as.matrix(precursor_seurat@assays$RNA@data)
   cellInfo <- precursor_seurat@meta.data
   
-  ### scenic option
-  ### org <- mgi or hgnc, or dmel
-  ### mgi stands for mouse, hgnc stands for human, dmel stands for fly
-  ### dbDir <- "cisTarget_databases" # RcisTarget databases location
-  scenicOptions <- initializeScenic(org="hgnc", dbDir="./data/cisTarget_databases",
-                                    dbs = defaultDbNames[["hgnc"]], nCores=4)
+  ### randomly select GMP non-precursor group
+  target_px <- unique(JCC_Seurat_Obj@meta.data[colnames(exprMat),"px"])
+  cell_num_per_px <- round(ncol(exprMat) / length(target_px))
+  set.seed(1234)
+  random_idx <- NULL
+  for(px in target_px) {
+    random_idx <- c(random_idx, sample(which(non_precursor_seurat$px == px), cell_num_per_px))
+  }
+  exprMat2 <- as.matrix(non_precursor_seurat@assays$RNA@data[,random_idx])
+  cellInfo2 <- non_precursor_seurat@meta.data[random_idx,]
+  non_precursor_seurat_subset <- subset(non_precursor_seurat,
+                                        cells = rownames(non_precursor_seurat@meta.data)[random_idx])
   
-  ### Co-expression network
-  genesKept <- geneFiltering(exprMat, scenicOptions)
-  exprMat_filtered <- exprMat[genesKept, ]
-  runCorrelation(exprMat_filtered, scenicOptions)
-  exprMat_filtered_log <- log2(exprMat_filtered+1) 
-  runGenie3(exprMat_filtered_log, scenicOptions)
+  ### combine precursor & non-precursor subset seurat
+  combined_seurat <- merge(x = precursor_seurat, y = non_precursor_seurat_subset,
+                           add.cell.ids = c("precursor", "non-precursor"))
+  
+  ### save seurat object as loom
+  SaveLoom(precursor_seurat, filename = "./data/precursor_seurat.loom")
+  SaveLoom(non_precursor_seurat_subset, filename = "./data/non_precursor_seurat_subset.loom")
+  SaveLoom(combined_seurat, filename = "./data/combined_seurat.loom")  
+  
+  
+  ### now we want to see cluster3+8 specifically
+  ### but wanna add some other cluster cells as control
+  cluster3_8_cells <- NULL
+  for(clstr in unique(JCC_Seurat_Obj$AllSeuratClusters)) {
+    if(clstr %in% c("3", "8")) {
+      cluster3_8_cells <- c(cluster3_8_cells, sample(rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$AllSeuratClusters == clstr)], 1000))
+    } else {
+      cluster3_8_cells <- c(cluster3_8_cells, sample(rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$AllSeuratClusters == clstr)], 100))
+    }
+  }
+  cluster3_8_seurat <- subset(JCC_Seurat_Obj,
+                              cells = cluster3_8_cells)
+  
+  ### save seurat object as loom
+  SaveLoom(cluster3_8_seurat, filename = "./data/cluster3_8_seurat.loom")
+  
+  
+  ### run this at the R terminal
+  ### bash: python3: command not found
+  ### python --version
+  ### Python 3.7.6
+  ### pip install loompy
+  ### pip install arboreto
+  ### pip install pyscenic
+  ###
+  ### running on my desktop
+  # python /mnt/z/ResearchHome/SharedResources/Immunoinformatics/hkim8/Scenic/arboreto_with_multiprocessing.py \
+  # /mnt/z/ResearchHome/SharedResources/Immunoinformatics/hkim8/Scenic/precursor_seurat.loom \
+  # /mnt/z/ResearchHome/SharedResources/Immunoinformatics/hkim8/Scenic/hs_hgnc_tfs.txt \
+  # --method grnboost2 \
+  # --output /mnt/z/ResearchHome/SharedResources/Immunoinformatics/hkim8/Scenic/precursor_adj.tsv \
+  # --num_workers 20 \
+  # --seed 777
   
   
   
+  # ### scenic option
+  # ### org <- mgi or hgnc, or dmel
+  # ### mgi stands for mouse, hgnc stands for human, dmel stands for fly
+  # ### dbDir <- "cisTarget_databases" # RcisTarget databases location
+  # scenicOptions <- initializeScenic(org="hgnc", dbDir="./data/cisTarget_databases",
+  #                                   dbs = defaultDbNames[["hgnc"]], nCores=1)
+  # 
+  # ### run Genie3 to make correlations between TF and target genes
+  # genesKept <- geneFiltering(exprMat, scenicOptions)
+  # exprMat_filtered <- exprMat[genesKept, ]
+  # runCorrelation(exprMat_filtered, scenicOptions)
+  # exprMat_filtered <- log2(exprMat_filtered+1)
+  # scenicOptions@settings$seed <- 123
+  # runGenie3(exprMat_filtered, scenicOptions)
+  # 
+  # ### Build the gene regulatory network: 1. Get co-expression modules 2. Get regulons (with RcisTarget): TF motif analysis)
+  # ### Identify cell states: 3. Score GRN (regulons) in the cells (with AUCell) 4. Cluster cells according to the GRN activity
+  # scenicOptions <- runSCENIC_1_coexNetwork2modules(scenicOptions)
+  # scenicOptions <- runSCENIC_2_createRegulons(scenicOptions, coexMethod = c("top5perTarget"))
+  # scenicOptions <- runSCENIC_3_scoreCells(scenicOptions, exprMat_filtered)
+  # 
+  # saveRDS(scenicOptions, file="int/scenicOptions.Rds") # To save status
   
 }
