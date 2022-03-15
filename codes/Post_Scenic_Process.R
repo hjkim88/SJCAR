@@ -231,7 +231,7 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
     theme_classic(base_size = 64) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
           axis.text.x = element_text(size = 48),
-          axis.title.x = element_blank(),
+          axis.title.x = element_text(size = 48),
           axis.title.y = element_text(size = 48),
           legend.title = element_text(size = 48),
           legend.text = element_text(size = 48)) +
@@ -247,7 +247,7 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
     theme_classic(base_size = 64) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
           axis.text.x = element_text(size = 48),
-          axis.title.x = element_blank(),
+          axis.title.x = element_text(size = 48),
           axis.title.y = element_text(size = 48),
           legend.title = element_text(size = 30),
           legend.text = element_text(size = 24),
@@ -264,7 +264,7 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
     theme_classic(base_size = 64) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
           axis.text.x = element_text(size = 48),
-          axis.title.x = element_blank(),
+          axis.title.x = element_text(size = 48),
           axis.title.y = element_text(size = 48),
           legend.title = element_text(size = 48),
           legend.text = element_text(size = 40)) +
@@ -348,7 +348,7 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
     theme_classic(base_size = 64) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
           axis.text.x = element_text(size = 48),
-          axis.title.x = element_blank(),
+          axis.title.x = element_text(size = 48),
           axis.title.y = element_text(size = 48),
           legend.title = element_text(size = 48),
           legend.text = element_text(size = 48)) +
@@ -364,7 +364,7 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
     theme_classic(base_size = 64) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
           axis.text.x = element_text(size = 48),
-          axis.title.x = element_blank(),
+          axis.title.x = element_text(size = 48),
           axis.title.y = element_text(size = 48),
           legend.title = element_text(size = 48),
           legend.text = element_text(size = 48)) +
@@ -380,7 +380,7 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
     theme_classic(base_size = 64) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
           axis.text.x = element_text(size = 48),
-          axis.title.x = element_blank(),
+          axis.title.x = element_text(size = 48),
           axis.title.y = element_text(size = 48),
           legend.title = element_text(size = 48),
           legend.text = element_text(size = 48)) +
@@ -427,7 +427,7 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
     theme_classic(base_size = 64) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
           axis.text.x = element_text(size = 48),
-          axis.title.x = element_blank(),
+          axis.title.x = element_text(size = 48),
           axis.title.y = element_text(size = 48),
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 24)) +
@@ -446,7 +446,7 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
     theme_classic(base_size = 64) +
     theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48),
           axis.text.x = element_text(size = 48),
-          axis.title.x = element_blank(),
+          axis.title.x = element_text(size = 48),
           axis.title.y = element_text(size = 48),
           legend.title = element_text(size = 36),
           legend.text = element_text(size = 24)) +
