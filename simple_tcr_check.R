@@ -166,5 +166,24 @@ print(paste("Px15 Shared TCR # = ", length(intersect(px15_gmp_tcrs$cdr3_one_alph
                                                      px15_pi_tcrs$cdr3_one_alpha_beta[which(!is.na(px15_gmp_tcrs$cdr3_one_alpha_beta))]))))
 
 
+### check other px - shared clonotypes between GMP and PI
+sapply(unique(JCC_Seurat_meta$px), function(x) {
+  gmp_clones <- JCC_Seurat_meta$cdr3_one_alpha_beta[intersect(which(JCC_Seurat_meta$px == x),
+                                                              which(JCC_Seurat_meta$GMP == "GMP"))]
+  pi_clones <- JCC_Seurat_meta$cdr3_one_alpha_beta[intersect(which(JCC_Seurat_meta$px == x),
+                                                             which(JCC_Seurat_meta$GMP == "PI"))]
+  
+  gmp_clones <- gmp_clones[which(!is.na(gmp_clones))]
+  pi_clones <- pi_clones[which(!is.na(pi_clones))]
+  
+  print(paste(x, "GMP TCR # =", length(gmp_clones), "PI TCR # =", length(pi_clones), "Shared TCR # =", length(intersect(gmp_clones, pi_clones))))
+  
+})
+
+
+
+
+
+
 
 
