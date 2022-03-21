@@ -29,7 +29,12 @@
 #               9. R4C6 - Figure 2D to a table
 #              10. R4C9 - find out TCRs shared across patients
 #              11. R4MC2 -  add frequency of CD4/CD8 to Fig1C
-#               
+#              12. R4C3 - Let’s do a giant heatmap of the top 5 (defined by absolute log fold change) DEGs per cluster
+#              13. R3C5 - UMAP with PB & BM (same time point)
+#                         cluster proportions (or functional group proportions) for each BM sample and compare to PB samples from the same time points
+#              14. UMAP - GMP effectors - effectors to the cluster3 first vs cluster8 first - coloring differently
+#              15. GSEA on precursor TF regulons - with signature from cluster3 vs cluster8 (or GMP end up in cluster 3 vs in cluster 8)
+#              16. Recluster GMP without proliferating clusters - then effector precursors might be clustered together
 #               
 #   Instruction
 #               1. Source("CD_Revision.R")
@@ -89,6 +94,10 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   if(!require(shadowtext, quietly = TRUE)) {
     install.packages("shadowtext")
     require(shadowtext, quietly = TRUE)
+  }
+  if(!require(reticulate, quietly = TRUE)) {
+    install.packages("reticulate")
+    require(reticulate, quietly = TRUE)
   }
   
   # ******************************************************************************************
@@ -1444,5 +1453,511 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
               file = paste0(outputDir, "/R4MC2_CD4_CD8_Pcnt.xlsx"),
               sheetName = "R4MC2_CD4_CD8_Pcnt", row.names = FALSE)
   
+  ###
+  ### 12. R4C3 - Let’s do a giant heatmap of the top 5 (defined by absolute log fold change) DEGs per cluster
+  ###
+  
+  
+  
+  
+  ###
+  ### 13. R3C5 - UMAP with PB & BM (same time point)
+  #              cluster proportions (or functional group proportions) for each BM sample and compare to PB samples from the same time points
+  ###
+  
+  
+  
+  
+  ###
+  ### 14. UMAP - GMP effectors - effectors to the cluster3 first vs cluster8 first - coloring differently
+  ###
+  
+  ### PI subsisters in the cluster3 & 8
+  cluster3_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                   which(JCC_Seurat_Obj$AllSeuratClusters == "3")),
+                                                                         which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]
+  cluster8_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                   which(JCC_Seurat_Obj$AllSeuratClusters == "8")),
+                                                                         which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]
+  cluster3_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster3_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
+  cluster8_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster8_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
+  
+  ### remove NA clones
+  cluster3_pi_subsister_clones <- cluster3_pi_subsister_clones[which(!is.na(cluster3_pi_subsister_clones))]
+  cluster8_pi_subsister_clones <- cluster8_pi_subsister_clones[which(!is.na(cluster8_pi_subsister_clones))]
+  
+  ### get the GMP subsister indicies that end up in PI cluster 3 & 8
+  GMP_Subsisters_PI_Cluster3_idx <- intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                              which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% cluster3_pi_subsister_clones))
+  GMP_Subsisters_PI_Cluster8_idx <- intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                              which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% cluster8_pi_subsister_clones))
+  
+  ### set new column for GMP cells that end up in PI cluster 3 and in PI cluster 8
+  ### but no duplicates this time
+  JCC_Seurat_Obj$GMP_End_In_PI_Cluster3_8 <- "Others"
+  JCC_Seurat_Obj$GMP_End_In_PI_Cluster3_8[setdiff(GMP_Subsisters_PI_Cluster3_idx,
+                                                  GMP_Subsisters_PI_Cluster8_idx)] <- "GMP_End_In_Cluster3"
+  JCC_Seurat_Obj$GMP_End_In_PI_Cluster3_8[setdiff(GMP_Subsisters_PI_Cluster8_idx,
+                                                  GMP_Subsisters_PI_Cluster3_idx)] <- "GMP_End_In_Cluster8"
+  
+  ### UMAP
+  p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
+               group.by = "GMP_End_In_PI_Cluster3_8",
+               pt.size = 2, raster = TRUE,
+               cols = c("GMP_End_In_Cluster3" = "red", "GMP_End_In_Cluster8" = "blue"),
+               order = c("GMP_End_In_Cluster8", "GMP_End_In_Cluster3", "Others")) +
+    ggtitle("") +
+    labs(color="GMP Effector Precursors") +
+    theme_classic(base_size = 36) +
+    guides(color = guide_legend(override.aes = list(size = 15))) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
+          axis.title = element_text(color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.9
+  ggsave(paste0(outputDir, "UMAP_Effector_End_In_Cluster3_8.png"), plot = p, width = 18, height = 10, dpi = 350)
+  
+  
+  #'****************************************************************************************
+  #' Gene Set Enrichment Analysis function
+  #' 
+  #' It receives gene list (character vector) and signature profiles (named numeric vector)
+  #' as inputs, performs GSEA and returns a table of GSEA result table and draws
+  #' a GSEA plot. It is basically a statistical significance test to check how the
+  #' given given genes are biased on the signature profiles.
+  #' 
+  #' Whether there are multiple gene sets or multiple signatures,
+  #' multiple testing (FDR computation) is performed.
+  #' But if the input gene set and the input signature are both lists with multiple
+  #' items (The length of the two are both more than 1) then we return an error message.
+  #' 
+  #' The plot file names will be determined by names(gene_list) or names(signature)
+  #' If length(gene_list) > 1, then names(gene_list) will be used and
+  #' if length(signature) > 1, then names(signature) will be used as file names.
+  #' If there is no list names, then file names will be "GSEA_Plot_i.png".
+  #' Here, i indicates that the plot is from the i-th row of the GSEA result table.
+  #' 
+  #' * Some plot drawing codes were from Rtoolbox/R/ReplotGSEA.R written by Thomas Kuilman. 
+  #'****************************************************************************************
+  #' @title	run_gsea
+  #' 
+  #' @param gene_list   A list of character vectors containing gene names to be tested
+  #' @param signature   A list of named numeric vectors of signature values for GSEA. The gene_list
+  #'                    should be included in the names(signature)
+  #' @param printPlot   If TRUE, it also generates GSEA plot of the results
+  #'                    (Default = FALSE)
+  #' @param fdr_cutoff  When printing GSEA plots, print them with the FDR < fdr_cutoff only
+  #'                    (Default = 0.05)
+  #' @param heatmap_color_type  when 'relative', the heatmap of the GSEA colors the bottom half of the
+  #'                            absolute range of the signature as blue and the upper half as red
+  #'                            when 'absolute', the heatmap of GSEA colors the negative signature as blue
+  #'                            and the positives as red
+  #' @param printPath   When printing GSEA plots, print them in the designated path
+  #'                    (Default = "./")
+  #' @param width       The width of the plot file
+  #'                    (Default = 2000)
+  #' @param height      The height of the plot file
+  #'                    (Default = 1200)
+  #' @param res         The resolution of the plot file
+  #'                    (Default = 130)
+  #' 
+  #' @return 	          It tests bias of the "gene_list" on the "signature" range and
+  #'                    returns a table including p-values and FDRs (adjusted p-values)
+  #'                    If fdr_cutoff == TRUE, it also generates a GSEA plot with the result
+  #' 
+  run_gsea <- function(gene_list,
+                       signature,
+                       printPlot = FALSE,
+                       fdr_cutoff = 0.05,
+                       heatmap_color_type = c("relative", "absolute"),
+                       width = 2000,
+                       height = 1200,
+                       res = 350,
+                       printPath = "./") {
+    
+    ### load required libraries
+    if(!require("fgsea", quietly = TRUE)) {
+      if(!requireNamespace("BiocManager", quietly = TRUE))
+        install.packages("BiocManager")
+      BiocManager::install("fgsea")
+      require("fgsea", quietly = TRUE)
+    }
+    if(!require("limma", quietly = TRUE)) {
+      if(!requireNamespace("BiocManager", quietly = TRUE))
+        install.packages("BiocManager")
+      BiocManager::install("limma")
+      require("limma", quietly = TRUE)
+    } 
+    if(!require("checkmate", quietly = TRUE)) {
+      install.packages("checkmate")
+      require("checkmate", quietly = TRUE)
+    }
+    
+    ### argument checking
+    assertList(gene_list)
+    assertList(signature)
+    assertLogical(printPlot)
+    assertNumeric(fdr_cutoff)
+    assertIntegerish(width)
+    assertIntegerish(height)
+    assertIntegerish(res)
+    assertString(printPath)
+    if(length(gene_list) > 1 && length(signature) > 1) {
+      stop("ERROR: \"gene_list\" and \"signature\" cannot be both \"list\"")
+    }
+    
+    ### set random seed
+    set.seed(1234)
+    
+    ### run GSEA
+    ### if there are more than one signatures
+    if(length(signature) > 1) {
+      ### combine GSEA results of every signature inputs
+      for(i in 1:length(signature)) {
+        temp <- data.frame(fgseaMultilevel(pathways = gene_list, stats = signature[[i]]))
+        if(i == 1) {
+          gsea_result <- temp
+        } else {
+          gsea_result <- rbind(gsea_result, temp)
+        }
+      }
+      
+      ### compute FDRs
+      corrected_gsea_result <- gsea_result[order(gsea_result$pval),]
+      corrected_gsea_result$padj <- p.adjust(corrected_gsea_result$pval, method = "BH")
+      gsea_result <- corrected_gsea_result[rownames(gsea_result),]
+    } else {
+      ### if there are more than one gene sets
+      gsea_result <- data.frame(fgseaMultilevel(pathways = gene_list, stats = signature[[1]], minSize = -Inf, maxSize = Inf))
+    }
+    
+    ### print GSEA plot
+    sIdx <- which(gsea_result$padj < fdr_cutoff)
+    if(printPlot && length(sIdx) > 0) {
+      for(i in sIdx) {
+        ### get required values ready
+        if(length(signature) > 1) {
+          geneset <- gene_list[[i]]
+          stats <- signature[[i]]
+          stats <- stats[order(-stats)]
+          fileName <- names(signature)[i]
+        } else {
+          geneset <- gene_list[[gsea_result$pathway[i]]]
+          stats <- signature[[1]]
+          stats <- stats[order(-stats)]
+          fileName <- gsea_result$pathway[i]
+        }
+        if(is.null(fileName)) {
+          fileName <- paste0("GSEA_Plot_", i)
+        }
+        stats <- stats[!is.na(stats)]
+        gsea.hit.indices <- which(names(stats) %in% geneset)
+        es.temp <- calcGseaStat(stats, gsea.hit.indices, returnAllExtremes = TRUE)
+        if(es.temp$res >= 0) {
+          gsea.es.profile <- es.temp$tops
+        } else {
+          gsea.es.profile <- es.temp$bottoms
+        }
+        enrichment.score.range <- c(min(gsea.es.profile), max(gsea.es.profile))
+        metric.range <- c(min(stats), max(stats))
+        gsea.p.value <- round(gsea_result$pval[i] ,5)
+        gsea.fdr <- round(gsea_result$padj[i] ,5)
+        gsea.enrichment.score <- round(gsea_result$ES[i], 5)
+        gsea.normalized.enrichment.score <- round(gsea_result$NES[i], 5)
+        
+        ### print GSEA result plot
+        png(paste0(printPath, fileName, ".png"), width = width, height = height, res = res)
+        
+        ### set layout
+        layout.show(layout(matrix(c(1, 2, 3, 4)), heights = c(1.7, 0.5, 0.2, 2)))
+        
+        ### draw the GSEA plot
+        par(mar = c(0, 5, 2, 2))
+        plot(c(1, gsea.hit.indices, length(stats)),
+             c(0, gsea.es.profile, 0), type = "l", col = "red", lwd = 1.5, xaxt = "n",
+             xaxs = "i", xlab = "", ylab = "Enrichment score (ES)",
+             ylim = enrichment.score.range,
+             main = list(fileName, font = 1, cex = 1),
+             panel.first = {
+               abline(h = seq(round(enrichment.score.range[1], digits = 1),
+                              enrichment.score.range[2], 0.1),
+                      col = "gray95", lty = 2)
+               abline(h = 0, col = "gray50", lty = 2)
+             }
+        )
+        
+        ### add informative text to the GSEA plot
+        plot.coordinates <- par("usr")
+        if(es.temp$res < 0) {
+          text(length(stats) * 0.01, plot.coordinates[3] * 0.98,
+               paste("P-value:", gsea.p.value, "\nFDR:", gsea.fdr, "\nES:",
+                     gsea.enrichment.score, "\nNormalized ES:",
+                     gsea.normalized.enrichment.score), adj = c(0, 0))
+        } else {
+          text(length(stats) * 0.99, plot.coordinates[4] - ((plot.coordinates[4] - plot.coordinates[3]) * 0.03),
+               paste("P-value:", gsea.p.value, "\nFDR:", gsea.fdr, "\nES:",
+                     gsea.enrichment.score, "\nNormalized ES:",
+                     gsea.normalized.enrichment.score), adj = c(1, 1))
+        }
+        
+        ### draw hit indices
+        par(mar = c(0, 5, 0, 2))
+        plot(0, type = "n", xaxt = "n", xaxs = "i", xlab = "", yaxt = "n",
+             ylab = "", xlim = c(1, length(stats)))
+        abline(v = gsea.hit.indices, lwd = 0.75)
+        
+        ### create color palette for the heatmap
+        par(mar = c(0, 5, 0, 2))
+        if(heatmap_color_type[1] == "relative") {
+          rank.colors <- stats - metric.range[1]
+          rank.colors <- rank.colors / (metric.range[2] - metric.range[1])
+          rank.colors <- ceiling(rank.colors * 511 + 1)
+          rank.colors <- colorRampPalette(c("blue", "white", "red"))(512)[rank.colors]
+        } else {
+          rank.colors1 <- stats[which(stats >= 0)]
+          rank.colors1 <- rank.colors1 - min(rank.colors1)
+          rank.colors1 <- rank.colors1 / (max(rank.colors1) - min(rank.colors1))
+          rank.colors1 <- ceiling(rank.colors1 * 255 + 1)
+          rank.colors1 <- colorRampPalette(c("white", "red"))(256)[rank.colors1]
+          rank.colors2 <- stats[which(stats < 0)]
+          rank.colors2 <- rank.colors2 - min(rank.colors2)
+          rank.colors2 <- rank.colors2 / (max(rank.colors2) - min(rank.colors2))
+          rank.colors2 <- ceiling(rank.colors2 * 255 + 1)
+          rank.colors2 <- colorRampPalette(c("blue", "white"))(256)[rank.colors2]
+          rank.colors <- c(rank.colors1, rank.colors2)
+        }
+        
+        ### draw the heatmap
+        rank.colors <- rle(rank.colors)
+        barplot(matrix(rank.colors$lengths), col = rank.colors$values,
+                border = NA, horiz = TRUE, xaxt = "n", xlim = c(1, length(stats)))
+        box()
+        text(length(stats) / 2, 0.7,
+             labels = "Signature")
+        text(length(stats) * 0.01, 0.7, "Largest", adj = c(0, NA))
+        text(length(stats) * 0.99, 0.7, "Smallest", adj = c(1, NA))
+        
+        ### draw signature values
+        par(mar = c(5, 5, 0, 2))
+        rank.metric <- rle(round(stats, digits = 2))
+        plot(stats, type = "n", xaxs = "i",
+             xlab = "Rank in ordered gene list", xlim = c(0, length(stats)),
+             ylim = metric.range, yaxs = "i",
+             ylab = "Signature values",
+             panel.first = abline(h = seq(metric.range[1] / 2,
+                                          metric.range[2] - metric.range[1] / 4,
+                                          metric.range[2] / 2), col = "gray95", lty = 2))
+        
+        barplot(rank.metric$values, col = "lightgrey", lwd = 0.1,
+                xlim = c(0, length(stats)), ylim = c(-1, 1),
+                width = rank.metric$lengths, border = NA,
+                space = 0, add = TRUE, xaxt = "n")
+        box()
+        
+        ### print out the file
+        dev.off()
+      }
+    }
+    
+    return(gsea_result)
+    
+  }
+  
+  
+  ###
+  ### 15. GSEA on precursor TF regulons - with signature from cluster3 vs cluster8 (or GMP end up in cluster 3 vs in cluster 8)
+  ###
+  
+  ### get pyscenic regulon file
+  f <- "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/Scenic/precursor_regulons.p"
+  
+  ### load regulon files and load them into R
+  pd <- import("pandas")
+  
+  ### load the *.p pickle data
+  pickle_data <- pd$read_pickle(f)
+  names(pickle_data) <- sapply(pickle_data, function(x) x$transcription_factor)
+  
+  ### make an empty regulon list
+  regulon_list <- vector("list", length(pickle_data))
+  names(regulon_list) <- names(pickle_data)
+  
+  ### save target genes to the list
+  for(tf in names(pickle_data)) {
+    regulon_list[[tf]] <- unlist(pickle_data[[tf]]$genes)
+  }
+  
+  ### garbage collection
+  gc()
+  
+  
+  ### PI cluster3 vs cluster8
+  ### set new column for PI cluster 3 and PI cluster 8
+  JCC_Seurat_Obj$PI_Cluster3_8 <- "Others"
+  JCC_Seurat_Obj$PI_Cluster3_8[intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                         which(JCC_Seurat_Obj$AllSeuratClusters == "3"))] <- "PI_Cluster3"
+  JCC_Seurat_Obj$PI_Cluster3_8[intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                         which(JCC_Seurat_Obj$AllSeuratClusters == "8"))] <- "PI_Cluster8"
+  
+  ### set idents
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj$PI_Cluster3_8)
+  
+  ### cluster3 vs cluster8
+  de_result_pi_cluster3_8 <- FindMarkers(JCC_Seurat_Obj,
+                                         ident.1 = "PI_Cluster3",
+                                         ident.2 = "PI_Cluster8",
+                                         min.pct = 0.2,
+                                         logfc.threshold = 0.1,
+                                         test.use = "wilcox")
+  
+  ### GMP precursor end in cluster3 vs cluster8
+  ### set idents
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj$GMP_End_In_PI_Cluster3_8)
+  
+  ### GMP precursor end in cluster3 vs cluster8
+  de_result_precursor_cluster3_8 <- FindMarkers(JCC_Seurat_Obj,
+                                                ident.1 = "GMP_End_In_Cluster3",
+                                                ident.2 = "GMP_End_In_Cluster8",
+                                                min.pct = 0.2,
+                                                logfc.threshold = 0.1,
+                                                test.use = "wilcox")
+  
+  ### PI cluster3 vs cluster8
+  ### run GSEA
+  signat <- de_result_pi_cluster3_8$avg_log2FC
+  names(signat) <- rownames(de_result_pi_cluster3_8)
+  GSEA_result <- run_gsea(gene_list = regulon_list, signature = list(signat),
+                          fdr_cutoff = 0.05,
+                          printPlot = TRUE, printPath = paste0(outputDir, "/GSEA/pi_cluster3_8/"))
+  GSEA_result <- GSEA_result[order(GSEA_result$padj),]
+  
+  ### write out the result file
+  write.xlsx2(GSEA_result, file = paste0(outputDir, "/GSEA/pi_cluster3_8/GSEA_Precursor_Regulons_pi_cluster3_8.xlsx"),
+              sheetName = "GSEA_Precursor_Regulons_pi_cluster3_8", row.names = FALSE)
+  
+  ### GMP precursor end in cluster3 vs cluster8
+  ### run GSEA
+  signat <- de_result_precursor_cluster3_8$avg_log2FC
+  names(signat) <- rownames(de_result_precursor_cluster3_8)
+  GSEA_result <- run_gsea(gene_list = regulon_list, signature = list(signat),
+                          fdr_cutoff = 0.05,
+                          printPlot = TRUE, printPath = paste0(outputDir, "/GSEA/precursor_cluster3_8/"))
+  GSEA_result <- GSEA_result[order(GSEA_result$padj),]
+  
+  ### write out the result file
+  write.xlsx2(GSEA_result, file = paste0(outputDir, "/GSEA/precursor_cluster3_8/GSEA_Precursor_Regulons_precursor_cluster3_8.xlsx"),
+              sheetName = "GSEA_Precursor_Regulons_precursor_cluster3_8", row.names = FALSE)
+  
+  
+  ###
+  ### 16. Recluster GMP without proliferating clusters - then effector precursors might be clustered together
+  ###
+  
+  ### NEW FUNCTIONAL ANNOTATION BY TAY - 09/27/2021
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters <- "Others"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "9", "10", "11", "12", "15", "19", "21"))] <- "Proliferating"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("2", "4", "6", "17"))] <- "Transitioning"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3", "8", "14"))] <- "Functional Effector"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13", "20"))] <- "Dysfunctional"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("16"))] <- "Early Effector"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("18"))] <- "Metabolically Active"
+  
+  ### get the subset
+  GMP_no_prolf_obj <- subset(JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data)[intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                                                  which(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters != "Proliferating"))])
+  
+  ### reclustering
+  ### normalization
+  GMP_no_prolf_obj <- NormalizeData(GMP_no_prolf_obj,
+                                    normalization.method = "LogNormalize", scale.factor = 10000)
+  
+  ### find variable genes
+  GMP_no_prolf_obj <- FindVariableFeatures(GMP_no_prolf_obj,
+                                           selection.method = "vst", nfeatures = 2000)
+  
+  ### scaling
+  GMP_no_prolf_obj <- ScaleData(GMP_no_prolf_obj,
+                                vars.to.regress = c("percent.mt", "S.Score", "G2M.Score"))
+  
+  ### run pca & umap
+  GMP_no_prolf_obj <- RunPCA(GMP_no_prolf_obj,
+                             features = VariableFeatures(object = GMP_no_prolf_obj),
+                             npcs = 30)
+  ElbowPlot(GMP_no_prolf_obj, ndims = 30, reduction = "pca")
+  GMP_no_prolf_obj <- RunUMAP(GMP_no_prolf_obj, dims = 1:30)
+  
+  ### perform clustering
+  GMP_no_prolf_obj <- FindNeighbors(GMP_no_prolf_obj, dims = 1:30)
+  GMP_no_prolf_obj <- FindClusters(GMP_no_prolf_obj, resolution = 0.7)
+  
+  ### UMAP - new clustering
+  p <- DimPlot(object = GMP_no_prolf_obj, reduction = "umap",
+               group.by = "RNA_snn_res.0.2",
+               pt.size = 0.5, raster = TRUE,
+               label = TRUE, label.size = 10) +
+    ggtitle("") +
+    labs(color="Clusters") +
+    theme_classic(base_size = 36) +
+    guides(color = guide_legend(override.aes = list(size = 15))) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
+          axis.title = element_text(color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"))
+  ggsave(paste0(outputDir, "UMAP_GMP_No_Proliferating_Clusters.png"), plot = p, width = 18, height = 10, dpi = 350)
+  
+  ### UMAP - effectors
+  p <- DimPlot(object = GMP_no_prolf_obj, reduction = "umap",
+               group.by = "GMP_End_In_PI_Cluster3_8",
+               pt.size = 2, raster = TRUE,
+               cols = c("GMP_End_In_Cluster3" = "red", "GMP_End_In_Cluster8" = "blue", "Others" = "lightgray"),
+               order = c("GMP_End_In_Cluster8", "GMP_End_In_Cluster3", "Others")) +
+    ggtitle("") +
+    labs(color="Effector Precursors") +
+    theme_classic(base_size = 36) +
+    guides(color = guide_legend(override.aes = list(size = 15))) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
+          axis.title = element_text(color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"))
+  ggsave(paste0(outputDir, "UMAP_GMP_No_Proliferating_Effectors.png"), plot = p, width = 18, height = 10, dpi = 350)
+  
+  ### UMAP - original cluster
+  p <- DimPlot(object = GMP_no_prolf_obj, reduction = "umap",
+               group.by = "AllSeuratClusters",
+               pt.size = 0.5, raster = TRUE,
+               label = TRUE, label.size = 10) +
+    ggtitle("") +
+    labs(color="Original Clusters") +
+    theme_classic(base_size = 36) +
+    guides(color = guide_legend(override.aes = list(size = 15))) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
+          axis.title = element_text(color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"))
+  ggsave(paste0(outputDir, "UMAP_GMP_No_Proliferating_Original_Clusters.png"), plot = p, width = 18, height = 10, dpi = 350)
+  
+  ### UMAP - functional annotation
+  p <- DimPlot(object = GMP_no_prolf_obj, reduction = "umap",
+               group.by = "New_Functional_Annotation_Based_On_Clusters",
+               pt.size = 1, raster = TRUE) +
+    ggtitle("") +
+    labs(color="Functions") +
+    theme_classic(base_size = 36) +
+    guides(color = guide_legend(override.aes = list(size = 15))) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
+          axis.title = element_text(color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"))
+  ggsave(paste0(outputDir, "UMAP_GMP_No_Proliferating_Functions.png"), plot = p, width = 18, height = 10, dpi = 350)
   
 }
