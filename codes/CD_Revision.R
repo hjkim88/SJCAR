@@ -35,6 +35,11 @@
 #              14. UMAP - GMP effectors - effectors to the cluster3 first vs cluster8 first - coloring differently
 #              15. GSEA on precursor TF regulons - with signature from cluster3 vs cluster8 (or GMP end up in cluster 3 vs in cluster 8)
 #              16. Recluster GMP without proliferating clusters - then effector precursors might be clustered together
+#              17. DE analysis for PI CD8s:
+#                  - Compare PI effectors vs all other PIs
+#                  - Compare PI effectors vs each CD8 dysfunctional/dying cluster
+#                  - Compare each dysfunctional/dying cluster to each other
+#              18. Ridge plot of Tay's genes comparing cluster 3, 8, 13, & 20
 #               
 #   Instruction
 #               1. Source("CD_Revision.R")
@@ -1457,6 +1462,10 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   ### 12. R4C3 - Let’s do a giant heatmap of the top 5 (defined by absolute log fold change) DEGs per cluster
   ###
   
+  ### load the DE result
+  allmarkers_de_result <- read.table(file = paste0(outputDir, "/JCC212_CARpos_JCC_CD8_allMarkers_.tsv"),
+                                     header = TRUE,
+                                     stringsAsFactors = FALSE, check.names = FALSE)
   
   
   
@@ -1959,5 +1968,138 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
           legend.title = element_text(size = 30, color = "black", face = "bold"),
           legend.text = element_text(size = 25, color = "black", face = "bold"))
   ggsave(paste0(outputDir, "UMAP_GMP_No_Proliferating_Functions.png"), plot = p, width = 18, height = 10, dpi = 350)
+  
+  
+  ###
+  ### 17. DE analysis for PI CD8s:
+  #         - Compare PI effectors vs all other PIs
+  #         - Compare PI effectors vs each CD8 dysfunctional/dying cluster
+  #         - Compare each dysfunctional/dying cluster to each other
+  ###
+  
+  ### CD4/CD8 annotation
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters <- "NA"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "2", "9", "10", "11", "14", "15", "18"))] <- "CD4"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20"))] <- "CD8"
+  
+  ### - Compare PI_CD8_Effectors vs Other_PI_CD8s
+  ### set comparison
+  JCC_Seurat_Obj$PI_Effectors <- NA
+  JCC_Seurat_Obj$PI_Effectors[intersect(which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3", "8")),
+                                        intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                  which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))] <- "PI_CD8_Effectors"
+  JCC_Seurat_Obj$PI_Effectors[setdiff(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")),
+                                      which(JCC_Seurat_Obj$PI_Effectors == "PI_CD8_Effectors"))] <- "Other_PI_CD8s"
+  
+  ### set idents
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj$PI_Effectors)
+  
+  ### PI_CD8_Effectors vs Other_PI_CD8s
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "PI_CD8_Effectors",
+                           ident.2 = "Other_PI_CD8s",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/DE_PI_CD8_Effectors_vs_Others.xlsx"),
+              sheetName = "DE_PI_CD8_Effectors_vs_Others", row.names = FALSE)
+  
+  ### - Compare PI effectors vs each CD8 dysfunctional/dying cluster
+  ### set comparison
+  JCC_Seurat_Obj$PI_Effectors2 <- JCC_Seurat_Obj$PI_Effectors
+  JCC_Seurat_Obj$PI_Effectors2[intersect(which(JCC_Seurat_Obj$PI_Effectors2 == "Other_PI_CD8s"),
+                                         which(JCC_Seurat_Obj$AllSeuratClusters == "13"))] <- "PI_CD8_Exhausted_Effectors"
+  JCC_Seurat_Obj$PI_Effectors2[intersect(which(JCC_Seurat_Obj$PI_Effectors2 == "Other_PI_CD8s"),
+                                         which(JCC_Seurat_Obj$AllSeuratClusters == "20"))] <- "PI_CD8_Dying"
+  
+  ### set idents
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj$PI_Effectors2)
+  
+  ### PI_CD8_Effectors vs PI_CD8_Exhausted_Effectors
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "PI_CD8_Effectors",
+                           ident.2 = "PI_CD8_Exhausted_Effectors",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/DE_PI_CD8_Effectors_vs_Exhausted_Effectors.xlsx"),
+              sheetName = "DE_PI_CD8_Effectors_vs_Exhausted_Effectors", row.names = FALSE)
+  
+  ### PI_CD8_Effectors vs PI_CD8_Dying
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "PI_CD8_Effectors",
+                           ident.2 = "PI_CD8_Dying",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/DE_PI_CD8_Effectors_vs_Dying.xlsx"),
+              sheetName = "DE_PI_CD8_Effectors_vs_Dying", row.names = FALSE)
+  
+  ### - Compare each dysfunctional/dying cluster to each other
+  ### PI_CD8_Exhausted_Effectors vs PI_CD8_Dying
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "PI_CD8_Exhausted_Effectors",
+                           ident.2 = "PI_CD8_Dying",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/DE_PI_CD8_Exhausted_Effectors_vs_Dying.xlsx"),
+              sheetName = "DE_PI_CD8_Exhausted_Effectors_vs_Dying", row.names = FALSE)
+  
+  
+  ###
+  ### 18. Ridge plot of Tay's genes comparing cluster 3, 8, 13, & 20
+  ###     CD7, CD2, CD52, CD300A, KLRD1 (CD94), FCGR3A, CX3CR1, KLRC1 (NKG2A)
+  ###     KIR2DL3/CD158b2, KLRG1, CD82, CXCR6, CXCR3, CD27, TIGIT
+  ###     TNFRSF9 (CD137/4-1BB), CD84, CD82, CD28, ITGA4 (CD49d)
+  ###
+  
+  ### get the target seurat object
+  cluster3_8_13_20_seurat <- subset(JCC_Seurat_Obj,
+                                    cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3", "8", "13", "20"))])
+  
+  ### set target genes
+  target_genes <- c("CD2", "CD7", "CD27", "CD52", "CD82", "CD84", "CD300A", "KLRD1", "FCGR3A", "CX3CR1", "KLRC1",
+                    "KIR2DL3", "KLRG1", "CXCR3", "CXCR6", "TIGIT", "TNFRSF9", "ITGA4")
+  
+  ### Ridge plot
+  cluster3_8_13_20_seurat <- SetIdent(object = cluster3_8_13_20_seurat,
+                                      cells = rownames(cluster3_8_13_20_seurat@meta.data),
+                                      value = cluster3_8_13_20_seurat$AllSeuratClusters)
+
+  p <- RidgePlot(cluster3_8_13_20_seurat, features = target_genes)
+  for(i in 1:length(target_genes)) {
+    p[[i]] <- p[[i]] + labs(y = "Clusters")
+  }
+  ggsave(paste0(outputDir, "RidgePlot_Tay_Genes_Cluster_3_8_13_20.png"), plot = p, width = 25, height = 15, dpi = 350)
+  
+  
+  
+  
   
 }
