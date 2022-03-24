@@ -104,6 +104,10 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
     install.packages("reticulate")
     require(reticulate, quietly = TRUE)
   }
+  if(!require(gplots, quietly = TRUE)) {
+    install.packages("gplots")
+    require(gplots, quietly = TRUE)
+  }
   
   # ******************************************************************************************
   # Pathway Analysis with clusterProfiler package
@@ -1463,10 +1467,78 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   ###
   
   ### load the DE result
-  allmarkers_de_result <- read.table(file = paste0(outputDir, "/JCC212_CARpos_JCC_CD8_allMarkers_.tsv"),
-                                     header = TRUE,
-                                     stringsAsFactors = FALSE, check.names = FALSE)
+  allmarkers_cd4_de_result <- read.table(file = paste0(outputDir, "/JCC212_CARpos_JCC_CD4_allMarkers.tsv"),
+                                         header = TRUE,
+                                         stringsAsFactors = FALSE, check.names = FALSE)
+  allmarkers_cd8_de_result <- read.table(file = paste0(outputDir, "/JCC212_CARpos_JCC_CD8_allMarkers.tsv"),
+                                         header = TRUE,
+                                         stringsAsFactors = FALSE, check.names = FALSE)
   
+  ### aggregate the result - top5 from each cluster
+  top_5_genes <- vector("list", length(unique(JCC_Seurat_Obj$AllSeuratClusters)))
+  names(top_5_genes) <- levels(JCC_Seurat_Obj$AllSeuratClusters)
+  for(clstr in names(top_5_genes)) {
+    if(clstr %in% c("4", "21")) {
+      top_5_genes[[clstr]] <- intersect(allmarkers_cd8_de_result$gene[which(allmarkers_cd8_de_result$cluster == clstr)][1:15],
+                                        allmarkers_cd4_de_result$gene[which(allmarkers_cd4_de_result$cluster == clstr)][1:15])[1:5]
+    } else if(clstr %in% unique(allmarkers_cd4_de_result$cluster)) {
+      top_5_genes[[clstr]] <- allmarkers_cd4_de_result$gene[which(allmarkers_cd4_de_result$cluster == clstr)][1:5]
+    } else if(clstr %in% unique(allmarkers_cd8_de_result$cluster)) {
+      top_5_genes[[clstr]] <- allmarkers_cd8_de_result$gene[which(allmarkers_cd8_de_result$cluster == clstr)][1:5]
+    } else {
+      writeLines(paste0("Error"))
+    }
+  }
+  
+  ### prepare a heatmap data
+  heatdata <- data.frame(matrix(0, nrow = length(unlist(top_5_genes)), ncol = length(levels(JCC_Seurat_Obj$AllSeuratClusters))),
+                         stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(heatdata) <- paste0(as.vector(sapply(levels(JCC_Seurat_Obj$AllSeuratClusters), function(x) rep(x, 5))),
+                               "_",
+                               unlist(top_5_genes))
+  colnames(heatdata) <- levels(JCC_Seurat_Obj$AllSeuratClusters)
+  for(row in rownames(heatdata)) {
+    target_gene <- strsplit(row, split = "_", fixed = TRUE)[[1]][2]
+    for(col in colnames(heatdata)) {
+      heatdata[row,col] <- mean(JCC_Seurat_Obj@assays$RNA@data[target_gene,
+                                                               rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$AllSeuratClusters == col)]])
+    }
+  }
+  
+  ### a function for color brewer
+  cell_pal <- function(cell_vars, pal_fun) {
+    if (is.numeric(cell_vars)) {
+      pal <- pal_fun(100)
+      return(pal[cut(cell_vars, breaks = 100)])
+    } else {
+      categories <- sort(unique(cell_vars))
+      pal <- setNames(pal_fun(length(categories)), categories)
+      return(pal[cell_vars])
+    }
+  }
+  
+  ### get colors for the clustering result
+  cell_colors_clust <- cell_pal(levels(JCC_Seurat_Obj$AllSeuratClusters), hue_pal())
+  heatclus <- as.vector(sapply(levels(JCC_Seurat_Obj$AllSeuratClusters), function(x) rep(x, 5)))
+  
+  ### make a heatmap with those genes
+  png(paste0(outputDir, "R4C3_Heatmap_Top5_From_Each_Cluster.png"),
+      width = 3000, height = 3000, res = 350)
+  par(oma=c(0,2,0,3))
+  heatmap.2(as.matrix(heatdata), col = colorpanel(36, low = "skyblue", high = "red"),
+            scale = "row", dendrogram = "none", trace = "none",
+            cexRow = 0.4, cexCol = 2, key.title = "", main = "Top 5 Genes From Each Cluster",
+            Rowv = FALSE, labRow = unlist(top_5_genes),
+            Colv = FALSE, labCol = levels(JCC_Seurat_Obj$AllSeuratClusters),
+            key.xlab = "Norm.Count", key.ylab = "Frequency",
+            RowSideColors = cell_colors_clust[heatclus])
+  legend("left", inset = -0.1, y.intersp = 0.7,
+         box.lty = 0, cex = 1.1,
+         title = "Marker Cluster", xpd = TRUE,
+         legend=names(cell_colors_clust),
+         col=cell_colors_clust,
+         pch=15)
+  dev.off()
   
   
   ###
@@ -2070,6 +2142,40 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
                          stringsAsFactors = FALSE, check.names = FALSE),
               file = paste0(outputDir, "/DE_PI_CD8_Exhausted_Effectors_vs_Dying.xlsx"),
               sheetName = "DE_PI_CD8_Exhausted_Effectors_vs_Dying", row.names = FALSE)
+  
+  
+  ### effector cluster3 vs exhausting group cluster 13
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj$AllSeuratClusters)
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "3",
+                           ident.2 = "13",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/DE_Cluster3_vs_Cluster13.xlsx"),
+              sheetName = "DE_Cluster3_vs_Cluster13", row.names = FALSE)
+  
+  ### effector cluster8 vs exhausting group cluster 13
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj$AllSeuratClusters)
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "8",
+                           ident.2 = "13",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/DE_Cluster8_vs_Cluster13.xlsx"),
+              sheetName = "DE_Cluster8_vs_Cluster13", row.names = FALSE)
+  
   
   
   ###
