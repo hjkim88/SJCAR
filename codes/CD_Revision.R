@@ -1546,7 +1546,86 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
   #              cluster proportions (or functional group proportions) for each BM sample and compare to PB samples from the same time points
   ###
   
+  ### which time points are in BM tissues?
+  print(unique(JCC_Seurat_Obj$time2[which(JCC_Seurat_Obj$tissue == "BM")]))
   
+  ### subset - wk4 and 3mo
+  subset_seurat_obj <- subset(JCC_Seurat_Obj,
+                              cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$time2 %in% c("Wk4", "3mo"))])
+  
+  ### UMAP coloring with PB and BM
+  p <- DimPlot(object = subset_seurat_obj, reduction = "umap",
+               group.by = "tissue",
+               pt.size = 1, raster = TRUE) +
+    ggtitle("") +
+    labs(color="Tissue") +
+    theme_classic(base_size = 36) +
+    guides(color = guide_legend(override.aes = list(size = 15))) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
+          axis.title = element_text(color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 0.9
+  ggsave(paste0(outputDir, "R3C5_UMAP_Wk3_3mo_Tissue.png"), plot = p, width = 15, height = 10, dpi = 350)
+  
+  
+  ### cluster proportions
+  plot_df <- data.frame(Clusters=levels(subset_seurat_obj$AllSeuratClusters),
+                        PB=rep(0, length(levels(subset_seurat_obj$AllSeuratClusters))),
+                        BM=rep(0, length(levels(subset_seurat_obj$AllSeuratClusters))),
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(plot_df) <- levels(subset_seurat_obj$AllSeuratClusters)
+  
+  ### fill in the table
+  for(clstr in levels(subset_seurat_obj$AllSeuratClusters)) {
+    plot_df[clstr, "PB"] <- length(intersect(which(subset_seurat_obj$tissue == "PB"),
+                                             which(subset_seurat_obj$AllSeuratClusters == clstr)))
+    plot_df[clstr, "BM"] <- length(intersect(which(subset_seurat_obj$tissue == "BM"),
+                                             which(subset_seurat_obj$AllSeuratClusters == clstr)))
+  }
+  
+  pb_sum <- sum(plot_df$PB)
+  bm_sum <- sum(plot_df$BM)
+  
+  plot_df$PB_Pcnt <- round(plot_df$PB * 100 / pb_sum, 2)
+  plot_df$BM_Pcnt <- round(plot_df$BM * 100 / bm_sum, 2)
+  
+  ### data table for the plot
+  plot_df2 <- data.frame(rbind(as.matrix(plot_df[,c("Clusters", "PB", "PB_Pcnt")]),
+                               as.matrix(plot_df[,c("Clusters", "BM", "BM_Pcnt")])),
+                         stringsAsFactors = FALSE, check.names = FALSE)
+  plot_df2$Tissue <- c(rep("PB", length(levels(subset_seurat_obj$AllSeuratClusters))),
+                       rep("BM", length(levels(subset_seurat_obj$AllSeuratClusters))))
+  colnames(plot_df2) <- c("Clusters", "Count", "Pcnt", "Tissue")
+  
+  ### numerize and factorize some columns
+  plot_df2$Count <- as.numeric(plot_df2$Count)
+  plot_df2$Pcnt <- as.numeric(plot_df2$Pcnt)
+  plot_df2$Clusters <- factor(plot_df2$Clusters, levels = levels(subset_seurat_obj$AllSeuratClusters))
+  
+  ### filter some cluster labels
+  plot_df2$Clusters2 <- as.character(plot_df2$Clusters)
+  plot_df2$Clusters2[which(as.numeric(plot_df2$Pcnt) < 5)] <- ""
+  
+  ### proportional bar plots
+  p <- ggplot(data=plot_df2, aes_string(x="Tissue", y="Pcnt", fill="Clusters", label="Clusters2")) +
+    geom_bar(position = "stack", stat = "identity") +
+    ggtitle("Cluster Proportions") +
+    geom_text(size = 10, position = position_stack(vjust = 0.5)) +
+    xlab("") +
+    ylab("Percentage") +
+    coord_flip() +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, color = "black", face = "bold"),
+          axis.text.x = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text.y = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
+          axis.title = element_text(size = 35, color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir, "R3C5_PB_BM_Cluster_Proportions.png"), plot = p,
+         width = 20, height = 10, dpi = 350)
   
   
   ###
