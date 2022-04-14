@@ -220,7 +220,7 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
   DefaultAssay(combined_seurat) <- "Scenic"
   combined_seurat <- FindNeighbors(combined_seurat, assay = "Scenic",
                                    reduction = "scenic_umap", dims = 1:2)
-  combined_seurat <- FindClusters(combined_seurat, resolution = 0.2)
+  combined_seurat <- FindClusters(combined_seurat, resolution = 0.3)
   
   ### draw Scenic UMAPs
   p <- DimPlot(object = combined_seurat, reduction = "scenic_umap",
@@ -239,8 +239,13 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
   p[[1]]$layers[[1]]$aes_params$alpha <- 1
   ggsave(paste0(outputDir, "UMAP_Scenic_Combined_Functional_Groups.png"), plot = p, width = 20, height = 10, dpi = 350)
   
+  combined_seurat$class <- combined_seurat$GMP_Subsisters_End_Up_In_Cluster38_2_CD8
+  combined_seurat$class[which(combined_seurat$class == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")] <- "Precursors"
+  combined_seurat$class[which(combined_seurat$class == "Other_CD8_GMPs")] <- "Non-Precursors"
+  combined_seurat$class <- factor(combined_seurat$class, levels = c("Precursors", "Non-Precursors"))
+  
   p <- DimPlot(object = combined_seurat, reduction = "scenic_umap",
-               group.by = "GMP_Subsisters_End_Up_In_Cluster38_2_CD8",
+               group.by = "class",
                pt.size = 5) +
     ggtitle("") +
     labs(color="Effector Precursor") +
@@ -308,6 +313,34 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
                          stringsAsFactors = FALSE, check.names = FALSE),
               file = paste0(outputDir, "/Scenic_Differentially_Activated_TFs_between_Precursor_vs_Control.xlsx"),
               sheetName = "Differentially_Activated_TFs", row.names = FALSE)
+  
+  ### draw a violin plot between precursor vs others for the differentially activated regulons
+  combined_seurat$class <- combined_seurat$GMP_Subsisters_End_Up_In_Cluster38_2_CD8
+  combined_seurat$class[which(combined_seurat$class == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")] <- "Precursors"
+  combined_seurat$class[which(combined_seurat$class == "Other_CD8_GMPs")] <- "Non-Precursors"
+  combined_seurat <- SetIdent(object = combined_seurat,
+                              cells = rownames(combined_seurat@meta.data),
+                              value = combined_seurat$class)
+  de_result <- de_result[order(de_result$avg_log2FC),]
+  p <- VlnPlot(combined_seurat, features = rownames(de_result),
+               pt.size = 0, cols = c())
+  for(i in 1:nrow(de_result)) {
+    p[[i]] <- p[[i]] + geom_boxplot(width=0.1) +
+      stat_summary(fun=mean, geom="point", size=3, color="black") +
+      xlab("") +
+      ylab("Activity Level") +
+      theme_classic(base_size = 25) +
+      theme(legend.key.size = unit(3, 'cm'),
+            legend.position = "none",
+            legend.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+            legend.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+            plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 35, color = "black", face = "bold"),
+            plot.subtitle = element_text(hjust = 0.5, vjust = 0.5, size = 25, color = "black", face = "bold"),
+            axis.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+            axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"))
+  }
+  ggsave(file = paste0(outputDir, "Violin_Scenic_Differentially_Activated_TFs_between_Precursor_vs_Control.png"),
+         plot = p, width = 30, height = 20, dpi = 350)
   
   
   ###
