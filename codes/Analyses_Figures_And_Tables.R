@@ -1,5 +1,5 @@
 ###
-#   File name : Manuscript_Figures_And_Tables.R
+#   File name : Analyses_Figures_And_Tables.R
 #   Author    : Hyunjin Kim
 #   Date      : Apr 15, 2021
 #   Email     : hyunjin.kim@stjude.org
