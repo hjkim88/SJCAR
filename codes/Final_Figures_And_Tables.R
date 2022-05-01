@@ -279,7 +279,7 @@ generate_final <- function(Seurat_RObj_path="Z:/ResearchHome/Groups/thomagrp/hom
     geom_vline(xintercept = "Wk2", linetype = "dashed", size=.8)
   
   ggsave(file = paste0(outputDir, "Fig2A.pdf"),
-         plot = p, width = 22, height = 15, dpi = 350)
+         plot = p, width = 25, height = 15, dpi = 350)
   
   
   ### Fig2B
@@ -2306,15 +2306,15 @@ generate_final <- function(Seurat_RObj_path="Z:/ResearchHome/Groups/thomagrp/hom
   
   ### FigS1B
   ### CD4/CD8 annotation
-  JCC_Seurat_Obj$CD4_CD8_by_Clusters <- "NA"
+  JCC_Seurat_Obj$CD4_CD8_by_Clusters <- "Mixed"
   JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "2", "9", "10", "11", "14", "15", "18"))] <- "CD4"
   JCC_Seurat_Obj$CD4_CD8_by_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20"))] <- "CD8"
   
   ### UMAP
   p <- DimPlot(object = JCC_Seurat_Obj, reduction = "umap",
                group.by = "CD4_CD8_by_Clusters",
-               cols = c("CD8" = "#de77ae", "CD4" = "#542788", "NA" = "gray"),
-               order = c("CD8", "CD4", "NA"),
+               cols = c("CD8" = "#1b7837", "CD4" = "#762a83", "Mixed" = "gray"),
+               order = c("CD8", "CD4", "Mixed"),
                pt.size = 2, raster = TRUE) +
     ggtitle("") +
     labs(color="CD4/CD8") +
@@ -3000,8 +3000,8 @@ generate_final <- function(Seurat_RObj_path="Z:/ResearchHome/Groups/thomagrp/hom
   heatclus <- as.vector(sapply(levels(JCC_Seurat_Obj$AllSeuratClusters), function(x) rep(x, 5)))
   
   ### make a heatmap with those genes
-  png(paste0(outputDir, "R4C3_Heatmap_Top5_From_Each_Cluster.png"),
-      width = 3000, height = 3000, res = 350)
+  pdf(paste0(outputDir, "R4C3_Heatmap_Top5_From_Each_Cluster.pdf"),
+      width = 8, height = 8)
   par(oma=c(0,2,0,3))
   heatmap.2(as.matrix(heatdata), col = colorpanel(36, low = "#2c7bb6", high = "#d7191c"),
             scale = "row", dendrogram = "none", trace = "none",
@@ -3018,13 +3018,325 @@ generate_final <- function(Seurat_RObj_path="Z:/ResearchHome/Groups/thomagrp/hom
          pch=15)
   dev.off()
   
-  ### change the pink purple to
-  #762a83
-  #1b7837
+  
+  ### R1C1
+  ### NEW FUNCTIONAL ANNOTATION BY TAY - 09/27/2021
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters <- "Others"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("0", "1", "5", "7", "9", "10", "11", "12", "15", "19", "21"))] <- "Proliferating"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("2", "4", "6", "17"))] <- "Transitioning"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("3", "8", "14"))] <- "Functional Effector"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("13", "20"))] <- "Dysfunctional"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("16"))] <- "Early Effector"
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters[which(JCC_Seurat_Obj$AllSeuratClusters %in% c("18"))] <- "Metabolically Active"
+  
+  ### color scale
+  sjcar19_colors <- c("#fee090", "#abd9e9", "#f46d43", "#74add1", "#d73027", "#4575b4")
+  names(sjcar19_colors) <- unique(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters)
+  
+  ### violin plot of CAR EXP among the functional groups
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters)
+  p <- VlnPlot(JCC_Seurat_Obj, features = "JCC-SJCAR19short",
+               pt.size = 0, cols = sjcar19_colors)
+  p[[1]] <- p[[1]] + geom_boxplot(width=0.1) +
+    # stat_compare_means(size = 8) +
+    xlab("") +
+    ggtitle("CAR Expression") +
+    # stat_summary(fun=mean, geom="point", size=3, color="black") +
+    theme_classic(base_size = 40) +
+    theme(legend.key.size = unit(3, 'cm'),
+          legend.position = "none",
+          legend.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          legend.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 35, color = "black", face = "bold"),
+          plot.subtitle = element_text(hjust = 0.5, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"))
+  
+  ### save the violin plot
+  ggsave(file = paste0(outputDir, "R1C1_Violin_CAR_Functional_Groups.png"), plot = p, width = 20, height = 10, dpi = 350)
+  
+  ### DE analysis between functional and dysfunctional
+  ### See CAR has significant FDR in there
+  
+  ### set idents
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters)
+  
+  ### Functional Effector vs Dysfunctional
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "Functional Effector",
+                           ident.2 = "Dysfunctional",
+                           min.pct = 0.2,
+                           logfc.threshold = 0,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/R1C1_DE_Functional_Effector_vs_Dysfunctional.xlsx"),
+              sheetName = "R1C1_DE_Functional_Effector_vs_Dysfunctional", row.names = FALSE)
+  
+  ### Now GMP precursor vs other CD8 GMP
+  ### are there any CAR EXP differences?
+  
+  ### PI subsisters in the cluster3&8
+  cluster3_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                   which(JCC_Seurat_Obj$AllSeuratClusters == "3")),
+                                                                         which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]
+  cluster8_pi_subsisters <- rownames(JCC_Seurat_Obj@meta.data)[intersect(intersect(which(JCC_Seurat_Obj$GMP == "PI"),
+                                                                                   which(JCC_Seurat_Obj$AllSeuratClusters == "8")),
+                                                                         which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]
+  cluster38_pi_subsisters <- c(cluster3_pi_subsisters, cluster8_pi_subsisters)
+  
+  ### PI subsister clones in the cluster3&8
+  cluster3_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster3_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
+  cluster8_pi_subsister_clones <- unique(JCC_Seurat_Obj@meta.data[cluster8_pi_subsisters,"clonotype_id_by_patient_one_alpha_beta"])
+  cluster38_pi_subsister_clones <- unique(c(cluster3_pi_subsister_clones, cluster8_pi_subsister_clones))
+  
+  ### remove NA clones
+  cluster3_pi_subsister_clones <- cluster3_pi_subsister_clones[which(!is.na(cluster3_pi_subsister_clones))]
+  cluster8_pi_subsister_clones <- cluster8_pi_subsister_clones[which(!is.na(cluster8_pi_subsister_clones))]
+  cluster38_pi_subsister_clones <- cluster38_pi_subsister_clones[which(!is.na(cluster38_pi_subsister_clones))]
+  
+  ### get the GMP subsister indicies that end up in PI cluster 3 & 8
+  GMP_Subsisters_PI_Cluster38_idx <- intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                               which(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta %in% cluster38_pi_subsister_clones))
+  
+  ### GMP subsisters end up in cluster3 and 8 vs other GMP subsisters
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 <- "Others"
+  JCC_Seurat_Obj@meta.data[cluster38_pi_subsisters, "GMP_Subsisters_End_Up_In_Cluster38"] <- "PI_Subsisters_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38[GMP_Subsisters_PI_Cluster38_idx] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38[intersect(which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "Others"),
+                                                              which(JCC_Seurat_Obj$GMP_CARpos_Persister == "YES"))] <- "Other_GMP_Subsisters"
+  
+  ### GMP subsisters end up in cluster3 and 8 vs other CD8 GMP subsisters
+  JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_CD8 <- "Others"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_CD8[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_CD8[intersect(which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20")),
+                                                                  which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "Other_GMP_Subsisters"))] <- "Other_CD8_GMP_Subsisters"
+  
+  ### GMP subsisters end up in cluster3 and 8 vs all other GMPs
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2 <- "Others"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2[setdiff(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                              which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"))] <- "Other_GMPs"
+  
+  ### GMP subsisters end up in cluster3 and 8 vs all other CD8 GMPs
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 <- "Others"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")] <- "GMP_Subsisters_End_Up_In_Cluster_3_And_8"
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8[intersect(which(JCC_Seurat_Obj$AllSeuratClusters %in% c("1", "3", "5", "6", "7", "8", "12", "13", "16", "17", "19", "20")),
+                                                                    which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2 == "Other_GMPs"))] <- "Other_CD8_GMPs"
+  
+  ### violin plot of CAR EXP between precursor vs others
+  JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 <- as.character(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8)
+  temp_obj <- subset(JCC_Seurat_Obj,
+                     cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 %in% c("GMP_Subsisters_End_Up_In_Cluster_3_And_8", "Other_CD8_GMPs"))])
+  temp_obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8[which(temp_obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")] <- "GMP Effector Precursors"
+  temp_obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8[which(temp_obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "Other_CD8_GMPs")] <- "GMP Controls"
+  temp_obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 <- factor(temp_obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8,
+                                                              levels = c("GMP Effector Precursors", "GMP Controls"))
+  
+  temp_obj <- SetIdent(object = temp_obj,
+                       cells = rownames(temp_obj@meta.data),
+                       value = temp_obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8)
+  p <- VlnPlot(temp_obj, features = "JCC-SJCAR19short",
+               pt.size = 0, cols = c("#4575b4", "#d73027"))
+  p[[1]] <- p[[1]] + geom_boxplot(width=0.1) +
+    # stat_compare_means(size = 8) +
+    xlab("") +
+    ggtitle("CAR Expression") +
+    # stat_summary(fun=mean, geom="point", size=3, color="black") +
+    theme_classic(base_size = 40) +
+    theme(legend.key.size = unit(3, 'cm'),
+          legend.position = "none",
+          legend.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          legend.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 35, color = "black", face = "bold"),
+          plot.subtitle = element_text(hjust = 0.5, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"))
+  
+  ### save the violin plot
+  ggsave(file = paste0(outputDir, "R1C1_Violin_CAR_GMP_Precursor_vs_Control.png"), plot = p, width = 20, height = 10, dpi = 350)
+  
+  ### DE analysis between precursor vs other CD8 GMPs
+  ### See CAR has significant FDR in there
+  
+  ### set idents
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8)
+  
+  ### Precursor vs Other CD8 GMPs
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "GMP_Subsisters_End_Up_In_Cluster_3_And_8",
+                           ident.2 = "Other_CD8_GMPs",
+                           min.pct = 0.2,
+                           logfc.threshold = 0,
+                           test.use = "wilcox")
+  
+  ### write out the DE result
+  write.xlsx2(data.frame(Gene=rownames(de_result),
+                         de_result,
+                         stringsAsFactors = FALSE, check.names = FALSE),
+              file = paste0(outputDir, "/R1C1_DE_GMP_Precursor_vs_Control.xlsx"),
+              sheetName = "R1C1_DE_GMP_Precursor_vs_Control", row.names = FALSE)
   
   
+  ### R3C5
+  ### label the groups with PB/BM
+  JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters2 <- paste0(JCC_Seurat_Obj$New_Functional_Annotation_Based_On_Clusters,
+                                                                        "_", JCC_Seurat_Obj$tissue)
+  
+  ### choose Wk4/3mo cells only
+  temp_obj <- subset(JCC_Seurat_Obj,
+                     cells = rownames(JCC_Seurat_Obj@meta.data)[which(JCC_Seurat_Obj$time2 %in% c("Wk4", "3mo"))])
+  
+  ### make an order in the column
+  temp_obj$New_Functional_Annotation_Based_On_Clusters2 <- factor(temp_obj$New_Functional_Annotation_Based_On_Clusters2)
+  
+  ### gene sets
+  interesting_genes2 <- c("RPL32", "RPL30", "LAG3", "TOX", "CASP8", "IL7R", "SELL", "MKI67",
+                          "CDC20", "CDK1", "NKG7", "GNLY", "GZMH", "GZMM", "GZMK")
+  
+  ### dotplot with PB and BM separately
+  p <- DotPlot(temp_obj,
+               features = interesting_genes2,
+               group.by = "New_Functional_Annotation_Based_On_Clusters2") +
+    scale_size(range = c(5, 20)) +
+    xlab("") +
+    ylab("") +
+    scale_color_gradientn(colours = c("#313695", "#ffffbf", "#a50026")) +
+    guides(color = guide_colorbar(title = "Relative Expression")) +
+    theme_classic(base_size = 28) +
+    theme(plot.title = element_text(hjust = 0.5, color = "black", face = "bold"),
+          axis.text.x = element_text(angle = -45, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text.y = element_text(angle = 0, size = 35, vjust = 0.5, hjust = 1, color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 25, color = "black", face = "bold"),
+          legend.key.size = unit(0.7, 'cm'))
+  ggsave(file = paste0(outputDir, "R3C5_Dotplot_PB_BM.png"),
+         plot = p, width = 25, height = 10, dpi = 350)
   
   
+  ### GMP_Effector_Precursor_Lineage_vs_Response
+  ### correlation with PI (Wk2/Peak weak) and average module scores
+  peak_time <- rep(NA, length(unique(JCC_Seurat_Obj$px)))
+  names(peak_time) <- unique(JCC_Seurat_Obj$px)
+  peak_time["SJCAR19-01"] <- "Wk2"
+  peak_time["SJCAR19-02"] <- "Wk2"
+  peak_time["SJCAR19-03"] <- "Wk1"
+  peak_time["SJCAR19-04"] <- "Wk2"
+  peak_time["SJCAR19-05"] <- "Wk1"
+  peak_time["SJCAR19-06"] <- "Wk2"
+  peak_time["SJCAR19-07"] <- "Wk3"
+  peak_time["SJCAR19-08"] <- "Wk2"
+  peak_time["SJCAR19-09"] <- "Wk2"
+  peak_time["SJCAR19-10"] <- "Wk1"
+  peak_time["SJCAR19-11"] <- "Wk2"
+  peak_time["SJCAR19-13"] <- "Wk2"
+  peak_time["SJCAR19-14"] <- "Wk1"
+  peak_time["SJCAR19-15"] <- "Wk1"
+  
+  ### get some raw numbers per patient
+  module_score_cut_off <- 0.4
+  input_de_gene_num <- 20 
+  nbins <- 24 
+  nctrl_genes <- 100 
+  seed <- 1
+  
+  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
+                             cells = rownames(JCC_Seurat_Obj@meta.data),
+                             value = JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_2_CD8)
+  de_result <- FindMarkers(JCC_Seurat_Obj,
+                           ident.1 = "GMP_Subsisters_End_Up_In_Cluster_3_And_8",
+                           ident.2 = "Other_CD8_GMPs",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.2,
+                           test.use = "wilcox")
+  JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
+                                   features = list(rownames(de_result)[which(de_result$avg_log2FC > 0)][1:20]),
+                                   nbin = nbins,
+                                   ctrl = nctrl_genes,
+                                   seed = seed,
+                                   name="Precursor_Pcnt")
+  raw_numbers <- data.frame(Total_GMP_Cell_Num=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                            Total_GMP_CD8_Cell_Num=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                            GMP_CD8_Effector_Precursor_Pcnt=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                            GMP_Effector_Precursor_Lineage_Pcnt=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                            AVG_GMP_CD8_Effector_Precursor_Module_Score=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                            Total_Wk2_Cell_Num=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                            Total_PeakTime_Cell_Num=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                            Cluster3_Cell_Num_Wk2=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                            Cluster8_Cell_Num_Wk2=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                            Cluster3_Cell_Num_PeakTime=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                            Cluster8_Cell_Num_PeakTime=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+                            stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(raw_numbers) <- unique(JCC_Seurat_Obj$px)
+  
+  for(px in unique(JCC_Seurat_Obj$px)) {
+    raw_numbers[px,"Total_GMP_Cell_Num"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                             which(JCC_Seurat_Obj$time2 == "GMP")))
+    raw_numbers[px,"Total_GMP_CD8_Cell_Num"] <- length(intersect(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                           which(JCC_Seurat_Obj$time2 == "GMP")),
+                                                                 which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))
+    raw_numbers[px,"GMP_CD8_Effector_Precursor_Pcnt"] <- length(intersect(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                    which(JCC_Seurat_Obj$time2 == "GMP")),
+                                                                          intersect(which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"),
+                                                                                    which(JCC_Seurat_Obj$Precursor_Pcnt1 > module_score_cut_off)))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                             intersect(which(JCC_Seurat_Obj$time2 == "GMP"),
+                                                                                                                                                                                       which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"))))
+    raw_numbers[px,"GMP_Effector_Precursor_Lineage_Pcnt"] <- length(unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                     which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES")),
+                                                                                                                                           which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"))])) * 100 / length(unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                                                                                                                                                                                                                                                  which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]))
+    raw_numbers[px,"AVG_GMP_CD8_Effector_Precursor_Module_Score"] <- mean(JCC_Seurat_Obj$Precursor_Pcnt1[intersect(which(JCC_Seurat_Obj$px == px),
+                                                                                                                   intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
+                                                                                                                             which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))])
+    raw_numbers[px,"Total_Wk2_Cell_Num"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                             which(JCC_Seurat_Obj$time2 == "Wk2")))
+    raw_numbers[px,"Total_PeakTime_Cell_Num"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                  which(JCC_Seurat_Obj$time2 == peak_time[px])))
+    raw_numbers[px,"Cluster3_Cell_Num_Wk2"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                intersect(which(JCC_Seurat_Obj$time2 == "Wk2"),
+                                                                          which(JCC_Seurat_Obj$AllSeuratClusters == "3"))))
+    raw_numbers[px,"Cluster8_Cell_Num_Wk2"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                intersect(which(JCC_Seurat_Obj$time2 == "Wk2"),
+                                                                          which(JCC_Seurat_Obj$AllSeuratClusters == "8"))))
+    raw_numbers[px,"Cluster3_Cell_Num_PeakTime"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                     intersect(which(JCC_Seurat_Obj$time2 == peak_time[px]),
+                                                                               which(JCC_Seurat_Obj$AllSeuratClusters == "3"))))
+    raw_numbers[px,"Cluster8_Cell_Num_PeakTime"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
+                                                                     intersect(which(JCC_Seurat_Obj$time2 == peak_time[px]),
+                                                                               which(JCC_Seurat_Obj$AllSeuratClusters == "8"))))
+  }
+  
+  plot_df <- data.frame(Patient=rownames(raw_numbers),
+                        GMP_Effector_Precursor_Lineage_Pcnt=raw_numbers$GMP_Effector_Precursor_Lineage_Pcnt,
+                        Class="Responder",
+                        stringsAsFactors = FALSE, check.names = FALSE)
+  plot_df[which(plot_df$Patient %in% c("SJCAR19-01", "SJCAR19-07", "SJCAR19-09")),"Class"] <- "Non-Responder"
+  plot_df <- plot_df[-which(plot_df$Patient %in% c("SJCAR19-00", "SJCAR19-01", "SJCAR19-03", "SJCAR19-12", "SJCAR19-14", "SJCAR19-15")),]
+  plot_df$GMP_Effector_Precursor_Lineage_Pcnt[which(is.nan(plot_df$GMP_Effector_Precursor_Lineage_Pcnt))] <- 0
+  
+  p <- ggplot(plot_df, aes_string(x="Class", y="GMP_Effector_Precursor_Lineage_Pcnt", label="Patient")) +
+    geom_boxplot() +
+    geom_beeswarm(aes_string(col="Class"), na.rm = TRUE, show.legend = FALSE) +
+    geom_label_repel(aes(label = Patient), size = 5, show.legend = FALSE) +
+    stat_compare_means() +
+    xlab("") + ylab("GMP Effector Precursor Lineage Pcnt") +
+    labs(col="") +
+    ggtitle("") +
+    theme_classic(base_size = 30) +
+    theme(plot.title = element_text(hjust = 0.5, color = "black", face = "bold"),
+          axis.title = element_text(color = "black", face = "bold"),
+          axis.text = element_text(color = "black", face = "bold"))
+  ggsave(file = paste0(outputDir, "GMP_Effector_Precursor_Lineage_vs_Response.png"), plot = p, width = 10, height = 8, dpi = 400)
   
   
   
