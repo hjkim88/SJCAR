@@ -3339,6 +3339,46 @@ generate_final <- function(Seurat_RObj_path="Z:/ResearchHome/Groups/thomagrp/hom
   ggsave(file = paste0(outputDir, "GMP_Effector_Precursor_Lineage_vs_Response.png"), plot = p, width = 10, height = 8, dpi = 400)
   
   
+  ### R2C8
+  ### the number/percentage of PB/BM cells per patient 
+  
+  ### make a data frame
+  pb_bm_df <- data.frame(Patient=unique(JCC_Seurat_Obj$px),
+                         PB_Cell_Num=sapply(unique(JCC_Seurat_Obj$px), function(x) {
+                           return(length(intersect(which(JCC_Seurat_Obj$px == x),
+                                                   which(JCC_Seurat_Obj$tissue == "PB"))))
+                         }),
+                         PB_Cell_Pcnt=sapply(unique(JCC_Seurat_Obj$px), function(x) {
+                           return(round(length(intersect(which(JCC_Seurat_Obj$px == x),
+                                                         which(JCC_Seurat_Obj$tissue == "PB"))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == x),
+                                                                                                                         which(JCC_Seurat_Obj$GMP == "PI"))), 2))
+                         }),
+                         BM_Cell_Num=sapply(unique(JCC_Seurat_Obj$px), function(x) {
+                           return(length(intersect(which(JCC_Seurat_Obj$px == x),
+                                                   which(JCC_Seurat_Obj$tissue == "BM"))))
+                         }),
+                         BM_Cell_Pcnt=sapply(unique(JCC_Seurat_Obj$px), function(x) {
+                           return(round(length(intersect(which(JCC_Seurat_Obj$px == x),
+                                                         which(JCC_Seurat_Obj$tissue == "BM"))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == x),
+                                                                                                                         which(JCC_Seurat_Obj$GMP == "PI"))), 2))
+                         }),
+                         stringsAsFactors = FALSE, check.names = FALSE)
+  
+  ### NAN -> 0
+  pb_bm_df$PB_Cell_Pcnt[which(is.nan(pb_bm_df$PB_Cell_Pcnt))] <- 0
+  pb_bm_df$BM_Cell_Pcnt[which(is.nan(pb_bm_df$BM_Cell_Pcnt))] <- 0
+  
+  ### put %
+  pb_bm_df$PB_Cell_Pcnt <- paste0(pb_bm_df$PB_Cell_Pcnt, "%")
+  pb_bm_df$BM_Cell_Pcnt <- paste0(pb_bm_df$BM_Cell_Pcnt, "%")
+  
+  ### write out the result
+  write.xlsx(pb_bm_df, file = paste0(outputDir, "R2C8_PB_BM_Table.xlsx"),
+             sheetName = "R2C8_PB_BM_Table", row.names = FALSE)
+  
+  
+  
+  
   
   
   
