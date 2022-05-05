@@ -220,7 +220,7 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
   DefaultAssay(combined_seurat) <- "Scenic"
   combined_seurat <- FindNeighbors(combined_seurat, assay = "Scenic",
                                    reduction = "scenic_umap", dims = 1:2)
-  combined_seurat <- FindClusters(combined_seurat, resolution = 0.3)
+  combined_seurat <- FindClusters(combined_seurat, resolution = 0.2)
   
   ### draw Scenic UMAPs
   p <- DimPlot(object = combined_seurat, reduction = "scenic_umap",
@@ -323,7 +323,7 @@ scenic_process <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResources/Imm
                               value = combined_seurat$class)
   de_result <- de_result[order(de_result$avg_log2FC),]
   p <- VlnPlot(combined_seurat, features = rownames(de_result),
-               pt.size = 0, cols = c())
+               pt.size = 0)
   for(i in 1:nrow(de_result)) {
     p[[i]] <- p[[i]] + geom_boxplot(width=0.1) +
       stat_summary(fun=mean, geom="point", size=3, color="black") +
