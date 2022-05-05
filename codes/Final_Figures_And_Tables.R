@@ -3377,9 +3377,335 @@ generate_final <- function(Seurat_RObj_path="Z:/ResearchHome/Groups/thomagrp/hom
              sheetName = "R2C8_PB_BM_Table", row.names = FALSE)
   
   
+  ### R4C10 - Classification
+  ### Duplicated signature genes across the 1,000 iterations
+  ### A box plot showing distribution of accuracy and AUC across the 1,000 iterations
+  
+  ### get the final rds files of acc and roc
+  result_files <- list.files(path = "Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_classifier/",
+                             pattern = "*.rds$", recursive = TRUE)
+  print(length(result_files))
+  
+  ### get those results
+  iteration <- 1000
+  batch_total <- 100
+  acc <- vector("list", length = iteration)
+  roc <- vector("list", length = iteration)
+  auc <- vector("list", length = iteration)
+  cnt <- 1
+  for(i in 1:batch_total) {
+    ### read the rds files
+    acc_rds <- readRDS(file = paste0("Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_classifier/", i, "/Classifier_ACC_Batch", i, ".rds"))
+    roc_rds <- readRDS(file = paste0("Z:/ResearchHome/SharedResources/Immunoinformatics/hkim8/SJCAR19_classifier/", i, "/Classifier_ROC_Batch", i, ".rds"))
+    
+    ### save acc and roc
+    for(j in 1:length(acc_rds)) {
+      acc[[cnt]] <- round(sum(acc_rds[[j]]) / length(acc_rds[[j]]), 3)
+      roc[[cnt]] <- roc_rds[[j]]
+      auc[[cnt]] <- round(roc_rds[[j]]$auc, 3)
+      cnt <- cnt + 1
+    }
+  }
+  
+  ### get acc and auc values
+  acc_list <- unlist(acc)
+  auc_list <- unlist(auc)
+  dist_df <- data.frame(Type=c(rep("Accuracy", length(acc_list)), rep("AUC", length(auc_list))),
+                        Value=c(acc_list, auc_list),
+                        stringsAsFactors = FALSE, check.names = FALSE)
   
   
+  ### draw a box plot
+  dist_df$Type <- factor(dist_df$Type, levels = c("Accuracy", "AUC"))
+  p <- ggplot(dist_df, aes_string(x="Type", y="Value")) +
+    geom_boxplot(aes_string(col="Type")) +
+    ggtitle("Accuracy & AUC Distribution Across 1,000 iterations") +
+    # geom_beeswarm(aes_string(col="Type"), na.rm = TRUE, show.legend = FALSE, size = 5, cex = 3) +
+    xlab("") + ylab("") +
+    labs(col="") +
+    scale_color_manual(values = c("#4575b4", "#d73027")) +
+    theme_classic(base_size = 30) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          plot.subtitle = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          legend.text = element_text(hjust = 0, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          axis.title = element_blank(),
+          axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.ticks = element_blank())
+  ggsave(file = paste0(outputDir, "R4C10_Distribution.pdf"),
+         plot = p, width = 12, height = 8, dpi = 350)
   
+  
+  ### Jeremy's request about functional validation results
+  ### IFNG & TOX
+  data1 <- read.xlsx(file = "Z:/ResearchHome/Groups/thomagrp/home/common/Hyunjin/JCC212_SJCAR19/Final/Inputs/markers_CAR_CARneg.xlsx",
+                     sheetIndex = 1,
+                     stringsAsFactors = FALSE, check.names = FALSE)
+  data1 <- data1[which(data1$Condition == "CD19p"),]
+  df1 <- data.frame(Patient=rep(data1$Patient, 2),
+                    Experiment=rep(data1$Experiment, 2),
+                    IFNg=c(data1$signature_no_TIGIT_IFNpos, data1$`anti-signature_no_TIGIT_IFNpos`),
+                    TOX=c(data1$signature_no_TIGIT_TOXpos, data1$`anti-signature_no_TIGIT_TOXpos`),
+                    Sig=c(rep("TIGIT+CD27-CD62Llo", nrow(data1)), rep("TIGIT-CD27+CD62Lhi", nrow(data1))),
+                    stringsAsFactors = FALSE, check.names = FALSE)
+  df1$Sig <- factor(df1$Sig, levels = unique(df1$Sig))
+  
+  ### Px0-15
+  p <- list()
+  px_list <- paste0("Px", 0:15)
+  p[[1]] <- ggplot(df1[which(df1$Patient %in% px_list),], aes_string(x="Sig", y="IFNg")) +
+    geom_boxplot(aes_string(col="Sig")) +
+    ggtitle("IFNg") +
+    geom_point(aes_string(col="Sig"), na.rm = TRUE, show.legend = FALSE, size = 3) +
+    geom_line(aes_string(group="Patient"), colour="gray30", linetype="dashed", alpha=0.8) +
+    xlab("") +
+    ylab("Background Substracted % Parent") +
+    labs(col="") +
+    scale_color_manual(values = c("#4575b4", "#d73027")) +
+    theme_classic(base_size = 30) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          plot.subtitle = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          legend.text = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title = element_text(hjust = 0.5, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title.x = element_blank(),
+          axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.ticks = element_blank())
+  p[[2]] <- ggplot(df1[which(df1$Patient %in% px_list),], aes_string(x="Sig", y="TOX")) +
+    geom_boxplot(aes_string(col="Sig")) +
+    ggtitle("TOX") +
+    geom_point(aes_string(col="Sig"), na.rm = TRUE, show.legend = FALSE, size = 3) +
+    geom_line(aes_string(group="Patient"), colour="gray30", linetype="dashed", alpha=0.8) +
+    xlab("") +
+    ylab("Background Substracted % Parent") +
+    labs(col="") +
+    scale_color_manual(values = c("#4575b4", "#d73027")) +
+    theme_classic(base_size = 30) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          plot.subtitle = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          legend.text = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title = element_text(hjust = 0.5, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title.x = element_blank(),
+          axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.ticks = element_blank())
+  
+  g <- arrangeGrob(grobs = p,
+                   nrow = 1,
+                   ncol = 2)
+  ggsave(file = paste0(outputDir, "Functional_Validation_IFNg_TOX_Px0-15.pdf"), g, width = 25, height = 10, dpi = 400)
+  
+  ### Px16-23
+  p <- list()
+  px_list <- paste0("Px", 16:23)
+  p[[1]] <- ggplot(df1[which(df1$Patient %in% px_list),], aes_string(x="Sig", y="IFNg")) +
+    geom_boxplot(aes_string(col="Sig")) +
+    ggtitle("IFNg") +
+    geom_point(aes_string(col="Sig"), na.rm = TRUE, show.legend = FALSE, size = 3) +
+    geom_line(aes_string(group="Patient"), colour="gray30", linetype="dashed", alpha=0.8) +
+    xlab("") +
+    ylab("Background Substracted % Parent") +
+    labs(col="") +
+    scale_color_manual(values = c("#4575b4", "#d73027")) +
+    theme_classic(base_size = 30) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          plot.subtitle = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          legend.text = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title = element_text(hjust = 0.5, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title.x = element_blank(),
+          axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.ticks = element_blank())
+  p[[2]] <- ggplot(df1[which(df1$Patient %in% px_list),], aes_string(x="Sig", y="TOX")) +
+    geom_boxplot(aes_string(col="Sig")) +
+    ggtitle("TOX") +
+    geom_point(aes_string(col="Sig"), na.rm = TRUE, show.legend = FALSE, size = 3) +
+    geom_line(aes_string(group="Patient"), colour="gray30", linetype="dashed", alpha=0.8) +
+    xlab("") +
+    ylab("Background Substracted % Parent") +
+    labs(col="") +
+    scale_color_manual(values = c("#4575b4", "#d73027")) +
+    theme_classic(base_size = 30) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          plot.subtitle = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          legend.text = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title = element_text(hjust = 0.5, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title.x = element_blank(),
+          axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.ticks = element_blank())
+  
+  g <- arrangeGrob(grobs = p,
+                   nrow = 1,
+                   ncol = 2)
+  ggsave(file = paste0(outputDir, "Functional_Validation_IFNg_TOX_Px16-23.pdf"), g, width = 25, height = 10, dpi = 400)
+  
+  
+  ### CAR Expression
+  data2 <- read.csv(file = "Z:/ResearchHome/Groups/thomagrp/home/common/Hyunjin/JCC212_SJCAR19/Final/Inputs/CAR_expression_signature.csv",
+                    header = TRUE, row.names = 1,
+                    stringsAsFactors = FALSE, check.names = FALSE)
+  data2$Sig <- c(rep("TIGIT+CD27-CD62Llo", 24), rep("TIGIT-CD27+CD62Lhi", 24))
+  
+  ### Px0-15
+  p <- list()
+  px_list <- paste0("p", 0:15)
+  p[[1]] <- ggplot(data2[which(data2$Participant_ID %in% px_list),], aes_string(x="Sig", y="value")) +
+    geom_boxplot(aes_string(col="Sig")) +
+    ggtitle("Px0-15") +
+    geom_point(aes_string(col="Sig"), na.rm = TRUE, show.legend = FALSE, size = 3) +
+    geom_line(aes_string(group="Participant_ID"), colour="gray30", linetype="dashed", alpha=0.8) +
+    xlab("") +
+    ylab("CAR gMFl") +
+    labs(col="") +
+    scale_color_manual(values = c("#4575b4", "#d73027")) +
+    theme_classic(base_size = 30) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          plot.subtitle = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          legend.text = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title = element_text(hjust = 0.5, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title.x = element_blank(),
+          axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.ticks = element_blank())
+  
+  ### Px16-23
+  px_list <- paste0("p", 16:23)
+  p[[2]] <- ggplot(data2[which(data2$Participant_ID %in% px_list),], aes_string(x="Sig", y="value")) +
+    geom_boxplot(aes_string(col="Sig")) +
+    ggtitle("Px16-23") +
+    geom_point(aes_string(col="Sig"), na.rm = TRUE, show.legend = FALSE, size = 3) +
+    geom_line(aes_string(group="Participant_ID"), colour="gray30", linetype="dashed", alpha=0.8) +
+    xlab("") +
+    ylab("CAR gMFl") +
+    labs(col="") +
+    scale_color_manual(values = c("#4575b4", "#d73027")) +
+    theme_classic(base_size = 30) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 30, color = "black", face = "bold"),
+          plot.subtitle = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          legend.text = element_text(hjust = 0, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title = element_text(hjust = 0.5, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title.x = element_blank(),
+          axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.ticks = element_blank())
+  
+  g <- arrangeGrob(grobs = p,
+                   nrow = 1,
+                   ncol = 2)
+  ggsave(file = paste0(outputDir, "Functional_Validation_CAR_Expression.pdf"), g, width = 25, height = 10, dpi = 400)
+  
+  
+  ###
+  ### Scenic Results
+  ###
+  
+  ### load scenic object
+  combined_seurat <- readRDS(file = "Z:/ResearchHome/Groups/thomagrp/home/common/Hyunjin/JCC212_SJCAR19/Final/Inputs/Scenic_Seurat.rds")
+  
+  ### precursor vs control
+  combined_seurat$class <- combined_seurat$GMP_Subsisters_End_Up_In_Cluster38_2_CD8
+  combined_seurat$class[which(combined_seurat$class == "GMP_Subsisters_End_Up_In_Cluster_3_And_8")] <- "Precursors"
+  combined_seurat$class[which(combined_seurat$class == "Other_CD8_GMPs")] <- "Non-Precursors"
+  combined_seurat$class <- factor(combined_seurat$class, levels = c("Precursors", "Non-Precursors"))
+  
+  p <- DimPlot(object = combined_seurat, reduction = "scenic_umap",
+               group.by = "class",
+               pt.size = 5,
+               cols = c("Precursors" = "#d73027", "Non-Precursors" = "#4575b4")) +
+    ggtitle("") +
+    labs(color="") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48, color = "black", face = "bold"),
+          axis.text = element_text(size = 48, color = "black", face = "bold"),
+          axis.title = element_text(size = 48, color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 24, color = "black", face = "bold"),
+          legend.position = "top") +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 1
+  ggsave(paste0(outputDir, "UMAP_Scenic_Effector_Precursor.pdf"), plot = p, width = 18, height = 15, dpi = 350)
+  
+  ### clusters
+  sjcar19_colors <- rev(c("#d73027", "#fc8d59", "#91bfdb", "#4575b4"))
+  names(sjcar19_colors) <- levels(combined_seurat$seurat_clusters)
+  p <- DimPlot(object = combined_seurat, reduction = "scenic_umap",
+               group.by = "seurat_clusters",
+               pt.size = 5) +
+    ggtitle("") +
+    scale_color_manual(values = sjcar19_colors) +
+    labs(color="Clusters") +
+    theme_classic(base_size = 64) +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 48, color = "black", face = "bold"),
+          axis.text = element_text(size = 48, color = "black", face = "bold"),
+          axis.title = element_text(size = 48, color = "black", face = "bold"),
+          legend.title = element_text(size = 30, color = "black", face = "bold"),
+          legend.text = element_text(size = 24, color = "black", face = "bold")) +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p[[1]]$layers[[1]]$aes_params$alpha <- 1
+  ggsave(paste0(outputDir, "UMAP_Scenic_Clusters.pdf"), plot = p, width = 20, height = 15, dpi = 350)
+  
+  
+  ### just look at the differentially activated TFs between precursors vs control
+  combined_seurat <- SetIdent(object = combined_seurat,
+                              cells = rownames(combined_seurat@meta.data),
+                              value = combined_seurat$GMP_Subsisters_End_Up_In_Cluster38_2_CD8)
+  de_result <- FindMarkers(combined_seurat,
+                           assay = "Scenic",
+                           ident.1 = "GMP_Subsisters_End_Up_In_Cluster_3_And_8",
+                           ident.2 = "Other_CD8_GMPs",
+                           min.pct = 0.2,
+                           logfc.threshold = 0.1,
+                           test.use = "wilcox")
+  
+  combined_seurat <- SetIdent(object = combined_seurat,
+                              cells = rownames(combined_seurat@meta.data),
+                              value = combined_seurat$class)
+  de_result <- de_result[order(de_result$avg_log2FC),]
+  p <- VlnPlot(combined_seurat, features = rownames(de_result),
+               pt.size = 0, cols = c("Precursors" = "#d73027", "Non-Precursors" = "#4575b4"))
+  for(i in 1:nrow(de_result)) {
+    p[[i]] <- p[[i]] + geom_boxplot(width=0.1) +
+      # stat_summary(fun=mean, geom="point", size=3, color="black") +
+      stat_compare_means(size = 7) +
+      xlab("") +
+      ylab("Activity Level") +
+      theme_classic(base_size = 25) +
+      theme(legend.key.size = unit(3, 'cm'),
+            legend.position = "none",
+            legend.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+            legend.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+            plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 35, color = "black", face = "bold"),
+            plot.subtitle = element_text(hjust = 0.5, vjust = 0.5, size = 25, color = "black", face = "bold"),
+            axis.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+            axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"))
+  }
+  ggsave(file = paste0(outputDir, "Violin_Scenic_Differentially_Activated_TFs_between_Precursor_vs_Control.pdf"),
+         plot = p, width = 30, height = 20, dpi = 350)
+  
+  
+  ### load scenic object
+  cluster3_8_PI_seurat <- readRDS(file = "Z:/ResearchHome/Groups/thomagrp/home/common/Hyunjin/JCC212_SJCAR19/Final/Inputs/Scenic_cluster3_8_PI_seurat.rds")
+  
+  ### UMAP clusters
+  p <- DimPlot(object = cluster3_8_PI_seurat, reduction = "scenic_umap",
+               group.by = "AllSeuratClusters", label = TRUE,
+               pt.size = 3,
+               cols = c("3" = "#d73027", "8" = "#4575b4")) +
+    ggtitle("") +
+    labs(color="Original Clusters") +
+    theme_classic(base_size = 64) +
+    theme(legend.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          legend.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          plot.title = element_text(hjust = 0.5, vjust = 0.5, size = 35, color = "black", face = "bold"),
+          plot.subtitle = element_text(hjust = 0.5, vjust = 0.5, size = 25, color = "black", face = "bold"),
+          axis.title = element_text(angle = 0, size = 30, vjust = 0.5, hjust = 0.5, color = "black", face = "bold"),
+          axis.text = element_text(angle = 0, size = 25, vjust = 0.5, hjust = 0.5, color = "black", face = "bold")) +
+    guides(colour = guide_legend(override.aes = list(size=10)))
+  p <- p + geom_shadowtext(data = p$layers[[2]]$data, aes(x = ScenicUMAP_1, y = ScenicUMAP_2, label=AllSeuratClusters),
+                           size=6, color="cornsilk2", bg.color="black", bg.r=0.2)
+  p[[1]]$layers[[1]]$aes_params$alpha <- 1
+  ggsave(paste0(outputDir, "UMAP_Scenic_Cluster3_8_PI_AllSeuratClusters.pdf"), plot = p, width = 20, height = 10, dpi = 350)
   
   
 }
