@@ -1055,7 +1055,7 @@ manuscript_revision <- function(Seurat_RObj_path="Z:/ResearchHome/SharedResource
                                      cells = rownames(downsampled_seurat_obj@meta.data),
                                      value = downsampled_seurat_obj$R4C8)
   
-  ### State B vs Others
+  ### State C vs Others
   de_result <- FindMarkers(downsampled_seurat_obj,
                            ident.1 = "C",
                            ident.2 = "Others",
