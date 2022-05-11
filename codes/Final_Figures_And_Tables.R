@@ -3244,76 +3244,15 @@ generate_final <- function(Seurat_RObj_path="Z:/ResearchHome/Groups/thomagrp/hom
   peak_time["SJCAR19-15"] <- "Wk1"
   
   ### get some raw numbers per patient
-  module_score_cut_off <- 0.4
-  input_de_gene_num <- 20 
-  nbins <- 24 
-  nctrl_genes <- 100 
-  seed <- 1
-  
-  JCC_Seurat_Obj <- SetIdent(object = JCC_Seurat_Obj,
-                             cells = rownames(JCC_Seurat_Obj@meta.data),
-                             value = JCC_Seurat_Obj@meta.data$GMP_Subsisters_End_Up_In_Cluster38_2_CD8)
-  de_result <- FindMarkers(JCC_Seurat_Obj,
-                           ident.1 = "GMP_Subsisters_End_Up_In_Cluster_3_And_8",
-                           ident.2 = "Other_CD8_GMPs",
-                           min.pct = 0.2,
-                           logfc.threshold = 0.2,
-                           test.use = "wilcox")
-  JCC_Seurat_Obj <- AddModuleScore(JCC_Seurat_Obj,
-                                   features = list(rownames(de_result)[which(de_result$avg_log2FC > 0)][1:20]),
-                                   nbin = nbins,
-                                   ctrl = nctrl_genes,
-                                   seed = seed,
-                                   name="Precursor_Pcnt")
-  raw_numbers <- data.frame(Total_GMP_Cell_Num=rep(NA, length(unique(JCC_Seurat_Obj$px))),
-                            Total_GMP_CD8_Cell_Num=rep(NA, length(unique(JCC_Seurat_Obj$px))),
-                            GMP_CD8_Effector_Precursor_Pcnt=rep(NA, length(unique(JCC_Seurat_Obj$px))),
-                            GMP_Effector_Precursor_Lineage_Pcnt=rep(NA, length(unique(JCC_Seurat_Obj$px))),
-                            AVG_GMP_CD8_Effector_Precursor_Module_Score=rep(NA, length(unique(JCC_Seurat_Obj$px))),
-                            Total_Wk2_Cell_Num=rep(NA, length(unique(JCC_Seurat_Obj$px))),
-                            Total_PeakTime_Cell_Num=rep(NA, length(unique(JCC_Seurat_Obj$px))),
-                            Cluster3_Cell_Num_Wk2=rep(NA, length(unique(JCC_Seurat_Obj$px))),
-                            Cluster8_Cell_Num_Wk2=rep(NA, length(unique(JCC_Seurat_Obj$px))),
-                            Cluster3_Cell_Num_PeakTime=rep(NA, length(unique(JCC_Seurat_Obj$px))),
-                            Cluster8_Cell_Num_PeakTime=rep(NA, length(unique(JCC_Seurat_Obj$px))),
+  raw_numbers <- data.frame(GMP_Effector_Precursor_Lineage_Pcnt=rep(NA, length(unique(JCC_Seurat_Obj$px))),
                             stringsAsFactors = FALSE, check.names = FALSE)
   rownames(raw_numbers) <- unique(JCC_Seurat_Obj$px)
   
   for(px in unique(JCC_Seurat_Obj$px)) {
-    raw_numbers[px,"Total_GMP_Cell_Num"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
-                                                             which(JCC_Seurat_Obj$time2 == "GMP")))
-    raw_numbers[px,"Total_GMP_CD8_Cell_Num"] <- length(intersect(intersect(which(JCC_Seurat_Obj$px == px),
-                                                                           which(JCC_Seurat_Obj$time2 == "GMP")),
-                                                                 which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))
-    raw_numbers[px,"GMP_CD8_Effector_Precursor_Pcnt"] <- length(intersect(intersect(which(JCC_Seurat_Obj$px == px),
-                                                                                    which(JCC_Seurat_Obj$time2 == "GMP")),
-                                                                          intersect(which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"),
-                                                                                    which(JCC_Seurat_Obj$Precursor_Pcnt1 > module_score_cut_off)))) * 100 / length(intersect(which(JCC_Seurat_Obj$px == px),
-                                                                                                                                                                             intersect(which(JCC_Seurat_Obj$time2 == "GMP"),
-                                                                                                                                                                                       which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8"))))
     raw_numbers[px,"GMP_Effector_Precursor_Lineage_Pcnt"] <- length(unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(intersect(which(JCC_Seurat_Obj$px == px),
                                                                                                                                                      which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES")),
                                                                                                                                            which(JCC_Seurat_Obj$GMP_Subsisters_End_Up_In_Cluster38_2_CD8 == "GMP_Subsisters_End_Up_In_Cluster_3_And_8"))])) * 100 / length(unique(JCC_Seurat_Obj$clonotype_id_by_patient_one_alpha_beta[intersect(which(JCC_Seurat_Obj$px == px),
                                                                                                                                                                                                                                                                                                                                                   which(JCC_Seurat_Obj$ALL_CARpos_Persister == "YES"))]))
-    raw_numbers[px,"AVG_GMP_CD8_Effector_Precursor_Module_Score"] <- mean(JCC_Seurat_Obj$Precursor_Pcnt1[intersect(which(JCC_Seurat_Obj$px == px),
-                                                                                                                   intersect(which(JCC_Seurat_Obj$GMP == "GMP"),
-                                                                                                                             which(JCC_Seurat_Obj$CD4_CD8_by_Clusters == "CD8")))])
-    raw_numbers[px,"Total_Wk2_Cell_Num"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
-                                                             which(JCC_Seurat_Obj$time2 == "Wk2")))
-    raw_numbers[px,"Total_PeakTime_Cell_Num"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
-                                                                  which(JCC_Seurat_Obj$time2 == peak_time[px])))
-    raw_numbers[px,"Cluster3_Cell_Num_Wk2"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
-                                                                intersect(which(JCC_Seurat_Obj$time2 == "Wk2"),
-                                                                          which(JCC_Seurat_Obj$AllSeuratClusters == "3"))))
-    raw_numbers[px,"Cluster8_Cell_Num_Wk2"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
-                                                                intersect(which(JCC_Seurat_Obj$time2 == "Wk2"),
-                                                                          which(JCC_Seurat_Obj$AllSeuratClusters == "8"))))
-    raw_numbers[px,"Cluster3_Cell_Num_PeakTime"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
-                                                                     intersect(which(JCC_Seurat_Obj$time2 == peak_time[px]),
-                                                                               which(JCC_Seurat_Obj$AllSeuratClusters == "3"))))
-    raw_numbers[px,"Cluster8_Cell_Num_PeakTime"] <- length(intersect(which(JCC_Seurat_Obj$px == px),
-                                                                     intersect(which(JCC_Seurat_Obj$time2 == peak_time[px]),
-                                                                               which(JCC_Seurat_Obj$AllSeuratClusters == "8"))))
   }
   
   plot_df <- data.frame(Patient=rownames(raw_numbers),
@@ -3336,7 +3275,7 @@ generate_final <- function(Seurat_RObj_path="Z:/ResearchHome/Groups/thomagrp/hom
     theme(plot.title = element_text(hjust = 0.5, color = "black", face = "bold"),
           axis.title = element_text(color = "black", face = "bold"),
           axis.text = element_text(color = "black", face = "bold"))
-  ggsave(file = paste0(outputDir, "GMP_Effector_Precursor_Lineage_vs_Response.png"), plot = p, width = 10, height = 8, dpi = 400)
+  ggsave(file = paste0(outputDir, "GMP_Effector_Precursor_Lineage_vs_Response.pdf"), plot = p, width = 10, height = 8, dpi = 400)
   
   
   ### R2C8
