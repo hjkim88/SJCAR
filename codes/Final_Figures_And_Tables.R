@@ -3647,4 +3647,5 @@ generate_final <- function(Seurat_RObj_path="Z:/ResearchHome/Groups/thomagrp/hom
   ggsave(paste0(outputDir, "UMAP_Scenic_Cluster3_8_PI_AllSeuratClusters.pdf"), plot = p, width = 20, height = 10, dpi = 350)
   
   
+  
 }
