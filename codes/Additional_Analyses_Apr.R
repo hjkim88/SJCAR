@@ -314,5 +314,4 @@ additional_apr <- function(Seurat_RObj_path="./data/NEW_SJCAR_SEURAT_OBJ/SJCAR19
     
   }
   
-  
 }
